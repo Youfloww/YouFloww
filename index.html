@@ -95,9 +95,17 @@
     </div>
   </div>
 
+  <!-- Sound Effects -->
+  <audio id="startSound">
+    <source src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg" type="audio/ogg">
+  </audio>
+  <audio id="endSound">
+    <source src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" type="audio/ogg">
+  </audio>
+
   <script>
     let timer;
-    let timeLeft = 25 * 60; 
+    let timeLeft = 25 * 60;
     let isRunning = false;
     let isWorkSession = true;
     let sessionCount = 0;
@@ -107,6 +115,9 @@
     let streak = parseInt(localStorage.getItem("streak")) || 0;
     let lastActiveDate = localStorage.getItem("lastActiveDate") || null;
 
+    const startSound = document.getElementById("startSound");
+    const endSound = document.getElementById("endSound");
+
     function updateTimerDisplay() {
       const minutes = Math.floor(timeLeft / 60);
       const seconds = timeLeft % 60;
@@ -115,12 +126,12 @@
     }
 
     function updateStatus() {
-      document.getElementById("status").textContent = 
-        isWorkSession ? "Work Session" : "Break Time";
+      document.getElementById("status").textContent = isWorkSession ? "Work Session" : "Break Time";
     }
 
     function startTimer() {
       if (!isRunning) {
+        startSound.play();
         isRunning = true;
         document.getElementById("startBtn").disabled = true;
         document.getElementById("pauseBtn").disabled = false;
@@ -134,6 +145,8 @@
             isRunning = false;
             document.getElementById("startBtn").disabled = false;
             document.getElementById("pauseBtn").disabled = true;
+
+            endSound.play();
 
             if (isWorkSession) {
               sessionCount++;
@@ -203,27 +216,27 @@
 
     // Modal Functions
     function openStats() {
-  const modal = document.getElementById("statsModal");
-  modal.style.display = "flex";
-  document.getElementById("streak").textContent = `🔥 Streak: ${streak} days`;
-  document.getElementById("sessionsToday").textContent = `📊 Sessions today: ${sessionsToday}`;
+      const modal = document.getElementById("statsModal");
+      modal.style.display = "flex";
+      document.getElementById("streak").textContent = `🔥 Streak: ${streak} days`;
+      document.getElementById("sessionsToday").textContent = `📊 Sessions today: ${sessionsToday}`;
 
-  const bgImage = localStorage.getItem("statsBackground");
-  if (bgImage) {
-    document.getElementById("statsContent").style.backgroundImage = `url(${bgImage})`;
-  }
+      const bgImage = localStorage.getItem("statsBackground");
+      if (bgImage) {
+        document.getElementById("statsContent").style.backgroundImage = `url(${bgImage})`;
+      }
 
-  // Close modal if clicked outside content
-  modal.onclick = function(event) {
-    if (event.target === modal) {
-      closeStats();
+      // Close modal if clicked outside content
+      modal.onclick = function(event) {
+        if (event.target === modal) {
+          closeStats();
+        }
+      };
     }
-  };
-}
 
-function closeStats() {
-  document.getElementById("statsModal").style.display = "none";
-}
+    function closeStats() {
+      document.getElementById("statsModal").style.display = "none";
+    }
 
     // Upload custom background
     function uploadBackground() {
