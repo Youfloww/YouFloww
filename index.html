@@ -96,18 +96,19 @@
   <button onclick="resetTimer()">Reset</button>
   <br>
   <button onclick="openStats()">View Stats</button>
-  
 
-  <!-- Modal -->
+  <!-- Stats Modal -->
   <div id="statsModal" class="modal">
-   <div id="statsContent" class="modal-content">
-  <span class="close-btn" onclick="closeStats()">&times;</span>
-  <h2>Your Progress 📈</h2>
-  <p id="streak">🔥 Streak: 0 days</p>
-  <p id="sessionsToday">📊 Sessions today: 0</p>
-  <p id="weeklyFocus">⏳ Focused this week: 0h 0m</p>
-  <button onclick="uploadStatsBackground()">Upload Background</button>
-</div>
+    <div id="statsContent" class="modal-content">
+      <span class="close-btn" onclick="closeStats()">&times;</span>
+      <h2>Your Progress 📈</h2>
+      <p id="streak">🔥 Streak: 0 days</p>
+      <p id="sessionsToday">📊 Sessions today: 0</p>
+      <p id="weeklyFocus">⏳ Focused this week: 0h 0m</p>
+      <button onclick="uploadStatsBackground()">Upload Background</button>
+    </div>
+  </div>
+
   <!-- Sound Effects -->
   <audio id="startSound">
     <source src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg" type="audio/ogg">
@@ -116,7 +117,7 @@
     <source src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" type="audio/ogg">
   </audio>
 
-  <!-- Corner Widget -->
+  <!-- Corner Widget on Main Page -->
   <div id="cornerWidget">
     <div id="liveTime"></div>
     <div>Day Progress</div>
@@ -134,6 +135,7 @@
   </div>
 
   <script>
+    // Timer variables
     let timer;
     let timeLeft = 25*60;
     let isRunning = false;
@@ -148,12 +150,12 @@
     const startSound = document.getElementById("startSound");
     const endSound = document.getElementById("endSound");
 
+    // Timer functions
     function updateTimerDisplay() {
       const minutes = Math.floor(timeLeft/60);
       const seconds = timeLeft%60;
       document.getElementById("timer").textContent = `${minutes}:${seconds<10?'0':''}${seconds}`;
     }
-
     function updateStatus() {
       document.getElementById("status").textContent = isWorkSession ? "Work Session" : "Break Time";
     }
@@ -181,7 +183,7 @@
               sessionsToday++;
               localStorage.setItem("sessionsToday", sessionsToday);
               checkStreak();
-              addFocusMinutes(25); // add 25 minutes for this session
+              addFocusMinutes(25); // default 25 mins per work session
 
               if(sessionCount%4===0){
                 timeLeft = 15*60;
@@ -222,6 +224,7 @@
       document.getElementById("pauseBtn").disabled=true;
     }
 
+    // Streak functions
     function checkStreak(){
       const today = new Date().toDateString();
       if(lastActiveDate !== today){
@@ -242,7 +245,7 @@
       }
     }
 
-    // Weekly Focus
+    // Weekly focus
     function addFocusMinutes(minutes){
       const today = new Date().toISOString().slice(0,10);
       let weeklyData = JSON.parse(localStorage.getItem("weeklyFocus")||"{}");
@@ -265,18 +268,12 @@
       return {hours, minutes};
     }
 
-    function updateStatsModal(){
-      const {hours, minutes} = getWeeklyFocus();
-      document.getElementById("weeklyFocus").textContent = `⏳ Focused this week: ${hours}h ${minutes}m`;
-      document.getElementById("streak").textContent = `🔥 Streak: ${streak} days`;
-      document.getElementById("sessionsToday").textContent = `📊 Sessions today: ${sessionsToday}`;
-    }
-
-    // Modal Functions
+    // Stats modal functions
     function openStats(){
       const modal = document.getElementById("statsModal");
       modal.style.display="flex";
       updateStatsModal();
+      applySavedStatsBackground();
 
       modal.onclick = function(event){
         if(event.target===modal){
@@ -289,83 +286,72 @@
       document.getElementById("statsModal").style.display="none";
     }
 
-    // Upload custom background
-    function uploadStatsBackground() {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = "image/*";
-  input.onchange = (e) => {
-    const file = e.target.files[0];
-    const reader = new FileReader();
-    reader.onload = () => {
-      const modalContent = document.getElementById("statsContent");
-      modalContent.style.backgroundImage = `url(${reader.result})`;
-      modalContent.style.backgroundSize = "cover";
-      modalContent.style.backgroundPosition = "center";
-      localStorage.setItem("statsBackground", reader.result);
-    };
-    reader.readAsDataURL(file);
-  };
-  input.click();
-}
-
-// Apply saved background on modal open
-function applySavedStatsBackground() {
-  const savedBg = localStorage.getItem("statsBackground");
-  if (savedBg) {
-    const modalContent = document.getElementById("statsContent");
-    modalContent.style.backgroundImage = `url(${savedBg})`;
-    modalContent.style.backgroundSize = "cover";
-    modalContent.style.backgroundPosition = "center";
-  }
-}
-
-// Call this inside openStats()
-function openStats(){
-  const modal = document.getElementById("statsModal");
-  modal.style.display="flex";
-  updateStatsModal();
-  applySavedStatsBackground(); // <-- apply saved background
-
-  modal.onclick = function(event){
-    if(event.target===modal){
-      closeStats();
+    function updateStatsModal(){
+      document.getElementById("streak").textContent = `🔥 Streak: ${streak} days`;
+      document.getElementById("sessionsToday").textContent = `📊 Sessions today: ${sessionsToday}`;
+      const weeklyFocus = getWeeklyFocus();
+      document.getElementById("weeklyFocus").textContent = `⏳ Focused this week: ${weeklyFocus.hours}h ${weeklyFocus.minutes}m`;
     }
-  }
-}
 
-    // Time & Progress Bars
-    function updateTimeAndProgress(){
+    // Stats background upload
+    function uploadStatsBackground() {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.onchange = (e) => {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = () => {
+          const modalContent = document.getElementById("statsContent");
+          modalContent.style.backgroundImage = `url(${reader.result})`;
+          modalContent.style.backgroundSize = "cover";
+          modalContent.style.backgroundPosition = "center";
+          localStorage.setItem("statsBackground", reader.result);
+        };
+        reader.readAsDataURL(file);
+      };
+      input.click();
+    }
+
+    function applySavedStatsBackground(){
+      const savedBg = localStorage.getItem("statsBackground");
+      if(savedBg){
+        const modalContent = document.getElementById("statsContent");
+        modalContent.style.backgroundImage = `url(${savedBg})`;
+        modalContent.style.backgroundSize = "cover";
+        modalContent.style.backgroundPosition = "center";
+      }
+    }
+
+    // Corner widget updates
+    function updateCornerWidget(){
       const now = new Date();
-      const hours = now.getHours();
-      const minutes = now.getMinutes();
-      const seconds = now.getSeconds();
-      const dayOfMonth = now.getDate();
-      const monthDays = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
-      const startOfYear = new Date(now.getFullYear(),0,0);
-      const diff = now - startOfYear;
-      const oneDay = 1000*60*60*24;
-      const dayOfYear = Math.floor(diff / oneDay);
-
       document.getElementById("liveTime").textContent = now.toLocaleString();
 
       // Day progress
-      const dayPercent = ((hours*60 + minutes)/(24*60))*100;
-      document.getElementById("dayProgressBar").style.width = dayPercent + "%";
+      const dayProgress = ((now.getHours()*60 + now.getMinutes()) / (24*60))*100;
+      document.getElementById("dayProgressBar").style.width = dayProgress + "%";
 
       // Month progress
-      const monthPercent = (dayOfMonth / monthDays)*100;
-      document.getElementById("monthProgressBar").style.width = monthPercent + "%";
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+      const monthProgress = ((now.getDate()-1 + now.getHours()/24)/daysInMonth)*100;
+      document.getElementById("monthProgressBar").style.width = monthProgress + "%";
 
       // Year progress
-      const yearPercent = (dayOfYear / 365)*100;
-      document.getElementById("yearProgressBar").style.width = yearPercent + "%";
+      const startOfYear = new Date(now.getFullYear(),0,1);
+      const dayOfYear = Math.floor((now - startOfYear)/(1000*60*60*24)) +1;
+      const daysInYear = (new Date(now.getFullYear()+1,0,1)-startOfYear)/(1000*60*60*24);
+      const yearProgress = (dayOfYear/daysInYear)*100;
+      document.getElementById("yearProgressBar").style.width = yearProgress + "%";
     }
 
-    setInterval(updateTimeAndProgress, 1000);
-    updateTimeAndProgress();
+    setInterval(updateCornerWidget,1000);
+
+    // Initialize
     updateTimerDisplay();
     updateStatus();
+    updateCornerWidget();
   </script>
 </body>
 </html>
