@@ -21,13 +21,15 @@
       margin-bottom: 20px;
       color: #555;
     }
-    button {
+    button, input {
       padding: 10px 20px;
       font-size: 1rem;
       margin: 5px;
-      cursor: pointer;
       border: none;
       border-radius: 8px;
+    }
+    button {
+      cursor: pointer;
       background: #4CAF50;
       color: white;
       transition: background 0.3s ease;
@@ -39,11 +41,19 @@
       background: #ccc;
       cursor: not-allowed;
     }
+    input {
+      width: 80px;
+      text-align: center;
+      border: 1px solid #ccc;
+    }
   </style>
 </head>
 <body>
   <h1>Welcome to YouFloww ⏱️</h1>
   <p>Stay focused. Stay consistent.</p>
+
+  <label for="customWork">Work length (minutes):</label>
+  <input type="number" id="customWork" value="25" min="1" max="120">
 
   <div id="status">Work Session</div>
   <div id="timer">25:00</div>
@@ -54,10 +64,11 @@
 
   <script>
     let timer;
-    let timeLeft = 25 * 60; // 25 minutes
+    let timeLeft = 25 * 60; // default 25 minutes
     let isRunning = false;
     let isWorkSession = true;
     let sessionCount = 0;
+    let workDuration = 25 * 60; // default
 
     function updateTimerDisplay() {
       const minutes = Math.floor(timeLeft / 60);
@@ -77,6 +88,15 @@
         document.getElementById("startBtn").disabled = true;
         document.getElementById("pauseBtn").disabled = false;
 
+        // Update work duration from input field
+        if (isWorkSession) {
+          const customMinutes = parseInt(document.getElementById("customWork").value);
+          workDuration = isNaN(customMinutes) ? 25 * 60 : customMinutes * 60;
+          if (timeLeft === 25 * 60 || timeLeft === workDuration) {
+            timeLeft = workDuration; // apply only if fresh start
+          }
+        }
+
         timer = setInterval(() => {
           if (timeLeft > 0) {
             timeLeft--;
@@ -90,18 +110,18 @@
             if (isWorkSession) {
               sessionCount++;
               if (sessionCount % 4 === 0) {
-                // Long break after 4 work sessions
-                timeLeft = 15 * 60;
+                timeLeft = 15 * 60; // long break
                 alert("Great work! Take a long break.");
               } else {
-                // Short break
-                timeLeft = 5 * 60;
+                timeLeft = 5 * 60; // short break
                 alert("Good job! Take a short break.");
               }
               isWorkSession = false;
             } else {
               // Switch back to work
-              timeLeft = 25 * 60;
+              const customMinutes = parseInt(document.getElementById("customWork").value);
+              workDuration = isNaN(customMinutes) ? 25 * 60 : customMinutes * 60;
+              timeLeft = workDuration;
               isWorkSession = true;
               alert("Break’s over! Time to focus.");
             }
@@ -125,7 +145,9 @@
       isRunning = false;
       isWorkSession = true;
       sessionCount = 0;
-      timeLeft = 25 * 60;
+      const customMinutes = parseInt(document.getElementById("customWork").value);
+      workDuration = isNaN(customMinutes) ? 25 * 60 : customMinutes * 60;
+      timeLeft = workDuration;
       updateTimerDisplay();
       updateStatus();
       document.getElementById("startBtn").disabled = false;
