@@ -203,18 +203,27 @@
 
     // Modal Functions
     function openStats() {
-      document.getElementById("statsModal").style.display = "flex";
-      document.getElementById("streak").textContent = `🔥 Streak: ${streak} days`;
-      document.getElementById("sessionsToday").textContent = `📊 Sessions today: ${sessionsToday}`;
-      
-      const bgImage = localStorage.getItem("statsBackground");
-      if (bgImage) {
-        document.getElementById("statsContent").style.backgroundImage = `url(${bgImage})`;
-      }
+  const modal = document.getElementById("statsModal");
+  modal.style.display = "flex";
+  document.getElementById("streak").textContent = `🔥 Streak: ${streak} days`;
+  document.getElementById("sessionsToday").textContent = `📊 Sessions today: ${sessionsToday}`;
+
+  const bgImage = localStorage.getItem("statsBackground");
+  if (bgImage) {
+    document.getElementById("statsContent").style.backgroundImage = `url(${bgImage})`;
+  }
+
+  // Close modal if clicked outside content
+  modal.onclick = function(event) {
+    if (event.target === modal) {
+      closeStats();
     }
-    function closeStats() {
-      document.getElementById("statsModal").style.display = "none";
-    }
+  };
+}
+
+function closeStats() {
+  document.getElementById("statsModal").style.display = "none";
+}
 
     // Upload custom background
     function uploadBackground() {
