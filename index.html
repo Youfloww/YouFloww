@@ -21,15 +21,13 @@
       margin-bottom: 20px;
       color: #555;
     }
-    button, input {
+    button {
       padding: 10px 20px;
       font-size: 1rem;
       margin: 5px;
+      cursor: pointer;
       border: none;
       border-radius: 8px;
-    }
-    button {
-      cursor: pointer;
       background: #4CAF50;
       color: white;
       transition: background 0.3s ease;
@@ -41,10 +39,35 @@
       background: #ccc;
       cursor: not-allowed;
     }
-    input {
-      width: 80px;
+
+    /* Modal Styles */
+    .modal {
+      display: none; 
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.6);
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-content {
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 15px;
+      padding: 30px;
+      width: 80%;
+      max-width: 400px;
       text-align: center;
-      border: 1px solid #ccc;
+      position: relative;
+      background-size: cover;
+      background-position: center;
+      color: #222;
+    }
+    .close-btn {
+      position: absolute;
+      top: 10px; right: 15px;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: #333;
     }
   </style>
 </head>
@@ -52,37 +75,37 @@
   <h1>Welcome to YouFloww ⏱️</h1>
   <p>Stay focused. Stay consistent.</p>
 
-  <label for="customWork">Work length (minutes):</label>
-  <input type="number" id="customWork" value="25" min="1" max="120">
-
   <div id="status">Work Session</div>
   <div id="timer">25:00</div>
 
   <button id="startBtn" onclick="startTimer()">Start</button>
   <button id="pauseBtn" onclick="pauseTimer()" disabled>Pause</button>
   <button onclick="resetTimer()">Reset</button>
+  <br>
+  <button onclick="openStats()">View Stats</button>
+  <button onclick="uploadBackground()">Upload Stats Background</button>
 
-  <!-- Sound Effects -->
-  <audio id="startSound" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg" preload="auto"></audio>
-  <audio id="endSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
-  <audio id="cheerSound" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" preload="auto"></audio>
+  <!-- Modal -->
+  <div id="statsModal" class="modal">
+    <div id="statsContent" class="modal-content">
+      <span class="close-btn" onclick="closeStats()">&times;</span>
+      <h2>Your Progress 📈</h2>
+      <p id="streak">🔥 Streak: 0 days</p>
+      <p id="sessionsToday">📊 Sessions today: 0</p>
+    </div>
+  </div>
 
   <script>
     let timer;
-    let timeLeft = 25 * 60; // default 25 minutes
+    let timeLeft = 25 * 60; 
     let isRunning = false;
     let isWorkSession = true;
     let sessionCount = 0;
-    let workDuration = 25 * 60; // default
 
-    const startSound = document.getElementById("startSound");
-    const endSound = document.getElementById("endSound");
-    const cheerSound = document.getElementById("cheerSound");
-
-    function playSound(sound) {
-      sound.currentTime = 0; 
-      sound.play();
-    }
+    // Stats
+    let sessionsToday = parseInt(localStorage.getItem("sessionsToday")) || 0;
+    let streak = parseInt(localStorage.getItem("streak")) || 0;
+    let lastActiveDate = localStorage.getItem("lastActiveDate") || null;
 
     function updateTimerDisplay() {
       const minutes = Math.floor(timeLeft / 60);
@@ -102,18 +125,6 @@
         document.getElementById("startBtn").disabled = true;
         document.getElementById("pauseBtn").disabled = false;
 
-        // Play start sound
-        playSound(startSound);
-
-        // Update work duration from input field
-        if (isWorkSession) {
-          const customMinutes = parseInt(document.getElementById("customWork").value);
-          workDuration = isNaN(customMinutes) ? 25 * 60 : customMinutes * 60;
-          if (timeLeft === 25 * 60 || timeLeft === workDuration) {
-            timeLeft = workDuration; // apply only if fresh start
-          }
-        }
-
         timer = setInterval(() => {
           if (timeLeft > 0) {
             timeLeft--;
@@ -124,24 +135,22 @@
             document.getElementById("startBtn").disabled = false;
             document.getElementById("pauseBtn").disabled = true;
 
-            // Play cheerful sound
-            playSound(cheerSound);
-
             if (isWorkSession) {
               sessionCount++;
+              sessionsToday++;
+              localStorage.setItem("sessionsToday", sessionsToday);
+              checkStreak();
+
               if (sessionCount % 4 === 0) {
-                timeLeft = 15 * 60; // long break
+                timeLeft = 15 * 60;
                 alert("Great work! Take a long break.");
               } else {
-                timeLeft = 5 * 60; // short break
+                timeLeft = 5 * 60;
                 alert("Good job! Take a short break.");
               }
               isWorkSession = false;
             } else {
-              // Switch back to work
-              const customMinutes = parseInt(document.getElementById("customWork").value);
-              workDuration = isNaN(customMinutes) ? 25 * 60 : customMinutes * 60;
-              timeLeft = workDuration;
+              timeLeft = 25 * 60;
               isWorkSession = true;
               alert("Break’s over! Time to focus.");
             }
@@ -165,13 +174,63 @@
       isRunning = false;
       isWorkSession = true;
       sessionCount = 0;
-      const customMinutes = parseInt(document.getElementById("customWork").value);
-      workDuration = isNaN(customMinutes) ? 25 * 60 : customMinutes * 60;
-      timeLeft = workDuration;
+      timeLeft = 25 * 60;
       updateTimerDisplay();
       updateStatus();
       document.getElementById("startBtn").disabled = false;
       document.getElementById("pauseBtn").disabled = true;
+    }
+
+    function checkStreak() {
+      const today = new Date().toDateString();
+      if (lastActiveDate !== today) {
+        if (lastActiveDate) {
+          const yesterday = new Date();
+          yesterday.setDate(yesterday.getDate() - 1);
+          if (lastActiveDate === yesterday.toDateString()) {
+            streak++;
+          } else {
+            streak = 1;
+          }
+        } else {
+          streak = 1;
+        }
+        lastActiveDate = today;
+        localStorage.setItem("streak", streak);
+        localStorage.setItem("lastActiveDate", lastActiveDate);
+      }
+    }
+
+    // Modal Functions
+    function openStats() {
+      document.getElementById("statsModal").style.display = "flex";
+      document.getElementById("streak").textContent = `🔥 Streak: ${streak} days`;
+      document.getElementById("sessionsToday").textContent = `📊 Sessions today: ${sessionsToday}`;
+      
+      const bgImage = localStorage.getItem("statsBackground");
+      if (bgImage) {
+        document.getElementById("statsContent").style.backgroundImage = `url(${bgImage})`;
+      }
+    }
+    function closeStats() {
+      document.getElementById("statsModal").style.display = "none";
+    }
+
+    // Upload custom background
+    function uploadBackground() {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.onchange = (e) => {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = () => {
+          localStorage.setItem("statsBackground", reader.result);
+          alert("Background image set for stats popup!");
+        };
+        reader.readAsDataURL(file);
+      };
+      input.click();
     }
 
     updateTimerDisplay();
