@@ -69,6 +69,19 @@
       cursor: pointer;
       color: #333;
     }
+
+    /* Corner Widget */
+    #cornerWidget {
+      position: fixed;
+      bottom: 20px; right: 20px;
+      background: rgba(255,255,255,0.9);
+      padding: 10px;
+      border-radius: 10px;
+      width: 200px;
+      font-size: 14px;
+      text-align: center;
+    }
+    #cornerWidget div { margin: 5px 0; }
   </style>
 </head>
 <body>
@@ -92,6 +105,7 @@
       <h2>Your Progress 📈</h2>
       <p id="streak">🔥 Streak: 0 days</p>
       <p id="sessionsToday">📊 Sessions today: 0</p>
+      <p id="weeklyFocus">⏳ Focused this week: 0h 0m</p>
     </div>
   </div>
 
@@ -103,9 +117,26 @@
     <source src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" type="audio/ogg">
   </audio>
 
+  <!-- Corner Widget -->
+  <div id="cornerWidget">
+    <div id="liveTime"></div>
+    <div>Day Progress</div>
+    <div style="width:100%; background:#ccc; height:10px; border-radius:5px;">
+      <div id="dayProgressBar" style="height:10px; width:0%; background:#4CAF50; border-radius:5px;"></div>
+    </div>
+    <div>Month Progress</div>
+    <div style="width:100%; background:#ccc; height:6px; border-radius:3px;">
+      <div id="monthProgressBar" style="height:6px; width:0%; background:#2196F3; border-radius:3px;"></div>
+    </div>
+    <div>Year Progress</div>
+    <div style="width:100%; background:#ccc; height:6px; border-radius:3px;">
+      <div id="yearProgressBar" style="height:6px; width:0%; background:#FF9800; border-radius:3px;"></div>
+    </div>
+  </div>
+
   <script>
     let timer;
-    let timeLeft = 25 * 60;
+    let timeLeft = 25*60;
     let isRunning = false;
     let isWorkSession = true;
     let sessionCount = 0;
@@ -119,10 +150,9 @@
     const endSound = document.getElementById("endSound");
 
     function updateTimerDisplay() {
-      const minutes = Math.floor(timeLeft / 60);
-      const seconds = timeLeft % 60;
-      document.getElementById("timer").textContent =
-        `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
+      const minutes = Math.floor(timeLeft/60);
+      const seconds = timeLeft%60;
+      document.getElementById("timer").textContent = `${minutes}:${seconds<10?'0':''}${seconds}`;
     }
 
     function updateStatus() {
@@ -130,123 +160,145 @@
     }
 
     function startTimer() {
-      if (!isRunning) {
+      if(!isRunning){
         startSound.play();
         isRunning = true;
         document.getElementById("startBtn").disabled = true;
         document.getElementById("pauseBtn").disabled = false;
 
-        timer = setInterval(() => {
-          if (timeLeft > 0) {
+        timer = setInterval(()=>{
+          if(timeLeft>0){
             timeLeft--;
             updateTimerDisplay();
-          } else {
+          }else{
             clearInterval(timer);
-            isRunning = false;
-            document.getElementById("startBtn").disabled = false;
-            document.getElementById("pauseBtn").disabled = true;
-
+            isRunning=false;
+            document.getElementById("startBtn").disabled=false;
+            document.getElementById("pauseBtn").disabled=true;
             endSound.play();
 
-            if (isWorkSession) {
+            if(isWorkSession){
               sessionCount++;
               sessionsToday++;
               localStorage.setItem("sessionsToday", sessionsToday);
               checkStreak();
+              addFocusMinutes(25); // add 25 minutes for this session
 
-              if (sessionCount % 4 === 0) {
-                timeLeft = 15 * 60;
+              if(sessionCount%4===0){
+                timeLeft = 15*60;
                 alert("Great work! Take a long break.");
-              } else {
-                timeLeft = 5 * 60;
+              }else{
+                timeLeft = 5*60;
                 alert("Good job! Take a short break.");
               }
-              isWorkSession = false;
-            } else {
-              timeLeft = 25 * 60;
-              isWorkSession = true;
+              isWorkSession=false;
+            }else{
+              timeLeft=25*60;
+              isWorkSession=true;
               alert("Break’s over! Time to focus.");
             }
-
             updateTimerDisplay();
             updateStatus();
           }
-        }, 1000);
+        },1000);
       }
     }
 
-    function pauseTimer() {
+    function pauseTimer(){
       clearInterval(timer);
-      isRunning = false;
-      document.getElementById("startBtn").disabled = false;
-      document.getElementById("pauseBtn").disabled = true;
+      isRunning=false;
+      document.getElementById("startBtn").disabled=false;
+      document.getElementById("pauseBtn").disabled=true;
     }
 
-    function resetTimer() {
+    function resetTimer(){
       clearInterval(timer);
-      isRunning = false;
-      isWorkSession = true;
-      sessionCount = 0;
-      timeLeft = 25 * 60;
+      isRunning=false;
+      isWorkSession=true;
+      sessionCount=0;
+      timeLeft=25*60;
       updateTimerDisplay();
       updateStatus();
-      document.getElementById("startBtn").disabled = false;
-      document.getElementById("pauseBtn").disabled = true;
+      document.getElementById("startBtn").disabled=false;
+      document.getElementById("pauseBtn").disabled=true;
     }
 
-    function checkStreak() {
+    function checkStreak(){
       const today = new Date().toDateString();
-      if (lastActiveDate !== today) {
-        if (lastActiveDate) {
+      if(lastActiveDate !== today){
+        if(lastActiveDate){
           const yesterday = new Date();
-          yesterday.setDate(yesterday.getDate() - 1);
-          if (lastActiveDate === yesterday.toDateString()) {
+          yesterday.setDate(yesterday.getDate()-1);
+          if(lastActiveDate === yesterday.toDateString()){
             streak++;
-          } else {
-            streak = 1;
+          }else{
+            streak=1;
           }
-        } else {
-          streak = 1;
+        }else{
+          streak=1;
         }
-        lastActiveDate = today;
+        lastActiveDate=today;
         localStorage.setItem("streak", streak);
         localStorage.setItem("lastActiveDate", lastActiveDate);
       }
     }
 
-    // Modal Functions
-    function openStats() {
-      const modal = document.getElementById("statsModal");
-      modal.style.display = "flex";
-      document.getElementById("streak").textContent = `🔥 Streak: ${streak} days`;
-      document.getElementById("sessionsToday").textContent = `📊 Sessions today: ${sessionsToday}`;
-
-      const bgImage = localStorage.getItem("statsBackground");
-      if (bgImage) {
-        document.getElementById("statsContent").style.backgroundImage = `url(${bgImage})`;
-      }
-
-      // Close modal if clicked outside content
-      modal.onclick = function(event) {
-        if (event.target === modal) {
-          closeStats();
-        }
-      };
+    // Weekly Focus
+    function addFocusMinutes(minutes){
+      const today = new Date().toISOString().slice(0,10);
+      let weeklyData = JSON.parse(localStorage.getItem("weeklyFocus")||"{}");
+      weeklyData[today] = (weeklyData[today]||0) + minutes;
+      localStorage.setItem("weeklyFocus", JSON.stringify(weeklyData));
     }
 
-    function closeStats() {
-      document.getElementById("statsModal").style.display = "none";
+    function getWeeklyFocus(){
+      const weeklyData = JSON.parse(localStorage.getItem("weeklyFocus")||"{}");
+      const today = new Date();
+      let totalMinutes=0;
+      for(let i=0;i<7;i++){
+        const day = new Date(today);
+        day.setDate(today.getDate()-i);
+        const key = day.toISOString().slice(0,10);
+        if(weeklyData[key]) totalMinutes += weeklyData[key];
+      }
+      const hours = Math.floor(totalMinutes/60);
+      const minutes = totalMinutes%60;
+      return {hours, minutes};
+    }
+
+    function updateStatsModal(){
+      const {hours, minutes} = getWeeklyFocus();
+      document.getElementById("weeklyFocus").textContent = `⏳ Focused this week: ${hours}h ${minutes}m`;
+      document.getElementById("streak").textContent = `🔥 Streak: ${streak} days`;
+      document.getElementById("sessionsToday").textContent = `📊 Sessions today: ${sessionsToday}`;
+    }
+
+    // Modal Functions
+    function openStats(){
+      const modal = document.getElementById("statsModal");
+      modal.style.display="flex";
+      updateStatsModal();
+
+      modal.onclick = function(event){
+        if(event.target===modal){
+          closeStats();
+        }
+      }
+    }
+
+    function closeStats(){
+      document.getElementById("statsModal").style.display="none";
     }
 
     // Upload custom background
-    function uploadBackground() {
-      const input = document.createElement("input");
-      input.type = "file";
-      input.accept = "image/*";
-      input.onchange = (e) => {
-        const file = e.target.files[0];
-        const reader = new FileReader();
-        reader.onload = () => {
+    function uploadBackground(){
+      const input=document.createElement("input");
+      input.type="file";
+      input.accept="image/*";
+      input.onchange=(e)=>{
+        const file=e.target.files[0];
+        const reader=new FileReader();
+        reader.onload=()=>{
           localStorage.setItem("statsBackground", reader.result);
           alert("Background image set for stats popup!");
         };
@@ -255,6 +307,36 @@
       input.click();
     }
 
+    // Time & Progress Bars
+    function updateTimeAndProgress(){
+      const now = new Date();
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+      const seconds = now.getSeconds();
+      const dayOfMonth = now.getDate();
+      const monthDays = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+      const startOfYear = new Date(now.getFullYear(),0,0);
+      const diff = now - startOfYear;
+      const oneDay = 1000*60*60*24;
+      const dayOfYear = Math.floor(diff / oneDay);
+
+      document.getElementById("liveTime").textContent = now.toLocaleString();
+
+      // Day progress
+      const dayPercent = ((hours*60 + minutes)/(24*60))*100;
+      document.getElementById("dayProgressBar").style.width = dayPercent + "%";
+
+      // Month progress
+      const monthPercent = (dayOfMonth / monthDays)*100;
+      document.getElementById("monthProgressBar").style.width = monthPercent + "%";
+
+      // Year progress
+      const yearPercent = (dayOfYear / 365)*100;
+      document.getElementById("yearProgressBar").style.width = yearPercent + "%";
+    }
+
+    setInterval(updateTimeAndProgress, 1000);
+    updateTimeAndProgress();
     updateTimerDisplay();
     updateStatus();
   </script>
