@@ -62,6 +62,11 @@
   <button id="pauseBtn" onclick="pauseTimer()" disabled>Pause</button>
   <button onclick="resetTimer()">Reset</button>
 
+  <!-- Sound Effects -->
+  <audio id="startSound" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg" preload="auto"></audio>
+  <audio id="endSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
+  <audio id="cheerSound" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" preload="auto"></audio>
+
   <script>
     let timer;
     let timeLeft = 25 * 60; // default 25 minutes
@@ -69,6 +74,15 @@
     let isWorkSession = true;
     let sessionCount = 0;
     let workDuration = 25 * 60; // default
+
+    const startSound = document.getElementById("startSound");
+    const endSound = document.getElementById("endSound");
+    const cheerSound = document.getElementById("cheerSound");
+
+    function playSound(sound) {
+      sound.currentTime = 0; 
+      sound.play();
+    }
 
     function updateTimerDisplay() {
       const minutes = Math.floor(timeLeft / 60);
@@ -88,6 +102,9 @@
         document.getElementById("startBtn").disabled = true;
         document.getElementById("pauseBtn").disabled = false;
 
+        // Play start sound
+        playSound(startSound);
+
         // Update work duration from input field
         if (isWorkSession) {
           const customMinutes = parseInt(document.getElementById("customWork").value);
@@ -106,6 +123,9 @@
             isRunning = false;
             document.getElementById("startBtn").disabled = false;
             document.getElementById("pauseBtn").disabled = true;
+
+            // Play cheerful sound
+            playSound(cheerSound);
 
             if (isWorkSession) {
               sessionCount++;
