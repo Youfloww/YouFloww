@@ -22,12 +22,17 @@
       margin: 5px;
       cursor: pointer;
       border: none;
-      border-radius: 5px;
+      border-radius: 8px;
       background: #4CAF50;
       color: white;
+      transition: background 0.3s ease;
     }
     button:hover {
       background: #45a049;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
     }
   </style>
 </head>
@@ -36,12 +41,15 @@
   <p>Stay focused. Stay consistent.</p>
 
   <div id="timer">25:00</div>
-  <button onclick="startTimer()">Start</button>
+
+  <button id="startBtn" onclick="startTimer()">Start</button>
+  <button id="pauseBtn" onclick="pauseTimer()" disabled>Pause</button>
   <button onclick="resetTimer()">Reset</button>
 
   <script>
     let timer;
-    let timeLeft = 25 * 60; // 25 minutes in seconds
+    let timeLeft = 25 * 60; // 25 minutes
+    let isRunning = false;
 
     function updateTimerDisplay() {
       const minutes = Math.floor(timeLeft / 60);
@@ -51,25 +59,40 @@
     }
 
     function startTimer() {
-      if (!timer) {
+      if (!isRunning) {
+        isRunning = true;
+        document.getElementById("startBtn").disabled = true;
+        document.getElementById("pauseBtn").disabled = false;
+
         timer = setInterval(() => {
           if (timeLeft > 0) {
             timeLeft--;
             updateTimerDisplay();
           } else {
             clearInterval(timer);
-            timer = null;
+            isRunning = false;
+            document.getElementById("startBtn").disabled = false;
+            document.getElementById("pauseBtn").disabled = true;
             alert("Time’s up! Take a break.");
           }
         }, 1000);
       }
     }
 
+    function pauseTimer() {
+      clearInterval(timer);
+      isRunning = false;
+      document.getElementById("startBtn").disabled = false;
+      document.getElementById("pauseBtn").disabled = true;
+    }
+
     function resetTimer() {
       clearInterval(timer);
-      timer = null;
+      isRunning = false;
       timeLeft = 25 * 60;
       updateTimerDisplay();
+      document.getElementById("startBtn").disabled = false;
+      document.getElementById("pauseBtn").disabled = true;
     }
 
     updateTimerDisplay();
