@@ -96,19 +96,18 @@
   <button onclick="resetTimer()">Reset</button>
   <br>
   <button onclick="openStats()">View Stats</button>
-  <button onclick="uploadBackground()">Upload Stats Background</button>
+  
 
   <!-- Modal -->
   <div id="statsModal" class="modal">
-    <div id="statsContent" class="modal-content">
-      <span class="close-btn" onclick="closeStats()">&times;</span>
-      <h2>Your Progress 📈</h2>
-      <p id="streak">🔥 Streak: 0 days</p>
-      <p id="sessionsToday">📊 Sessions today: 0</p>
-      <p id="weeklyFocus">⏳ Focused this week: 0h 0m</p>
-    </div>
-  </div>
-
+   <div id="statsContent" class="modal-content">
+  <span class="close-btn" onclick="closeStats()">&times;</span>
+  <h2>Your Progress 📈</h2>
+  <p id="streak">🔥 Streak: 0 days</p>
+  <p id="sessionsToday">📊 Sessions today: 0</p>
+  <p id="weeklyFocus">⏳ Focused this week: 0h 0m</p>
+  <button onclick="uploadStatsBackground()">Upload Background</button>
+</div>
   <!-- Sound Effects -->
   <audio id="startSound">
     <source src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg" type="audio/ogg">
@@ -291,21 +290,49 @@
     }
 
     // Upload custom background
-    function uploadBackground(){
-      const input=document.createElement("input");
-      input.type="file";
-      input.accept="image/*";
-      input.onchange=(e)=>{
-        const file=e.target.files[0];
-        const reader=new FileReader();
-        reader.onload=()=>{
-          localStorage.setItem("statsBackground", reader.result);
-          alert("Background image set for stats popup!");
-        };
-        reader.readAsDataURL(file);
-      };
-      input.click();
+    function uploadStatsBackground() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.onchange = (e) => {
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = () => {
+      const modalContent = document.getElementById("statsContent");
+      modalContent.style.backgroundImage = `url(${reader.result})`;
+      modalContent.style.backgroundSize = "cover";
+      modalContent.style.backgroundPosition = "center";
+      localStorage.setItem("statsBackground", reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+}
+
+// Apply saved background on modal open
+function applySavedStatsBackground() {
+  const savedBg = localStorage.getItem("statsBackground");
+  if (savedBg) {
+    const modalContent = document.getElementById("statsContent");
+    modalContent.style.backgroundImage = `url(${savedBg})`;
+    modalContent.style.backgroundSize = "cover";
+    modalContent.style.backgroundPosition = "center";
+  }
+}
+
+// Call this inside openStats()
+function openStats(){
+  const modal = document.getElementById("statsModal");
+  modal.style.display="flex";
+  updateStatsModal();
+  applySavedStatsBackground(); // <-- apply saved background
+
+  modal.onclick = function(event){
+    if(event.target===modal){
+      closeStats();
     }
+  }
+}
 
     // Time & Progress Bars
     function updateTimeAndProgress(){
