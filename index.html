@@ -16,6 +16,11 @@
       font-size: 4rem;
       margin: 20px 0;
     }
+    #status {
+      font-size: 1.5rem;
+      margin-bottom: 20px;
+      color: #555;
+    }
     button {
       padding: 10px 20px;
       font-size: 1rem;
@@ -40,6 +45,7 @@
   <h1>Welcome to YouFloww ⏱️</h1>
   <p>Stay focused. Stay consistent.</p>
 
+  <div id="status">Work Session</div>
   <div id="timer">25:00</div>
 
   <button id="startBtn" onclick="startTimer()">Start</button>
@@ -50,12 +56,19 @@
     let timer;
     let timeLeft = 25 * 60; // 25 minutes
     let isRunning = false;
+    let isWorkSession = true;
+    let sessionCount = 0;
 
     function updateTimerDisplay() {
       const minutes = Math.floor(timeLeft / 60);
       const seconds = timeLeft % 60;
       document.getElementById("timer").textContent =
         `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
+    }
+
+    function updateStatus() {
+      document.getElementById("status").textContent = 
+        isWorkSession ? "Work Session" : "Break Time";
     }
 
     function startTimer() {
@@ -73,7 +86,28 @@
             isRunning = false;
             document.getElementById("startBtn").disabled = false;
             document.getElementById("pauseBtn").disabled = true;
-            alert("Time’s up! Take a break.");
+
+            if (isWorkSession) {
+              sessionCount++;
+              if (sessionCount % 4 === 0) {
+                // Long break after 4 work sessions
+                timeLeft = 15 * 60;
+                alert("Great work! Take a long break.");
+              } else {
+                // Short break
+                timeLeft = 5 * 60;
+                alert("Good job! Take a short break.");
+              }
+              isWorkSession = false;
+            } else {
+              // Switch back to work
+              timeLeft = 25 * 60;
+              isWorkSession = true;
+              alert("Break’s over! Time to focus.");
+            }
+
+            updateTimerDisplay();
+            updateStatus();
           }
         }, 1000);
       }
@@ -89,13 +123,17 @@
     function resetTimer() {
       clearInterval(timer);
       isRunning = false;
+      isWorkSession = true;
+      sessionCount = 0;
       timeLeft = 25 * 60;
       updateTimerDisplay();
+      updateStatus();
       document.getElementById("startBtn").disabled = false;
       document.getElementById("pauseBtn").disabled = true;
     }
 
     updateTimerDisplay();
+    updateStatus();
   </script>
 </body>
 </html>
