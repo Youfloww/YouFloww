@@ -187,8 +187,22 @@ function savePartialSession(){
         setTimeout(()=>{popup.style.display="none";},2000);
     }
 }
-function pauseTimer(){ clearInterval(timer); isRunning=false; document.getElementById("startBtn").disabled=false; document.getElementById("pauseBtn").disabled=true; }
-function resetTimer(){
+function pauseTimer(){
+    clearInterval(timer);
+    isRunning=false;
+    document.getElementById("startBtn").disabled=false;
+    document.getElementById("pauseBtn").disabled=true;
+
+    // Save partial session if >1 min
+    if(timeLeft < 25*60 && timeLeft > 60){ 
+        savePartialSession();
+        // Reset timer for next start
+        timeLeft = 25*60;
+        updateTimerDisplay();
+        updateStatus();
+    }
+}
+    function resetTimer(){
     clearInterval(timer);
     isRunning=false;
 
@@ -366,6 +380,11 @@ setInterval(updateCornerWidget, 1000);
 updateTimerDisplay();
 updateStatus();
 updateCornerWidget();
+window.addEventListener("beforeunload", function (e) {
+    if(timeLeft < 25*60 && timeLeft > 60){ // If session >1 min but not full
+        savePartialSession();
+    }
+});
 </script>
 
 </body>
