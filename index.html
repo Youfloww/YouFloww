@@ -32,13 +32,8 @@
       color: white;
       transition: background 0.3s ease;
     }
-    button:hover {
-      background: #45a049;
-    }
-    button:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-    }
+    button:hover { background: #45a049; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
 
     /* Modal Styles */
     .modal {
@@ -82,6 +77,30 @@
       text-align: center;
     }
     #cornerWidget div { margin: 5px 0; }
+
+    /* Coin Popup */
+    #coinPopup {
+      display:none; 
+      position: fixed; 
+      top: 50%; left: 50%; 
+      transform: translate(-50%, -50%);
+      background: url('https://i.imgur.com/XyZBgXc.png') no-repeat center center; 
+      background-size: cover;
+      padding: 30px; 
+      border-radius: 15px; 
+      color: white; 
+      font-size: 20px; 
+      text-align: center; 
+      z-index: 999;
+    }
+
+    /* Coin Counter and View Stats */
+    #coinContainer {
+      position: fixed; 
+      top: 20px; right: 20px; 
+      text-align: center;
+    }
+    #coinContainer button { margin-top:5px; }
   </style>
 </head>
 <body>
@@ -94,8 +113,12 @@
   <button id="startBtn" onclick="startTimer()">Start</button>
   <button id="pauseBtn" onclick="pauseTimer()" disabled>Pause</button>
   <button onclick="resetTimer()">Reset</button>
-  <br>
-  <button onclick="openStats()">View Stats</button>
+
+  <!-- Coin Counter & Stats Button -->
+  <div id="coinContainer">
+    <div>💰 Coins: <span id="coinCount">0</span></div>
+    <button onclick="openStats()">View Stats</button>
+  </div>
 
   <!-- Stats Modal -->
   <div id="statsModal" class="modal">
@@ -109,7 +132,15 @@
     </div>
   </div>
 
-  <!-- Sound Effects -->
+  <!-- Coin Popup -->
+  <div id="coinPopup">
+    +<span id="coinEarned">0</span> Coins!
+  </div>
+  <audio id="coinSound">
+    <source src="https://actions.google.com/sounds/v1/money/coin_drop.ogg" type="audio/ogg">
+  </audio>
+
+  <!-- Timer Sounds -->
   <audio id="startSound">
     <source src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg" type="audio/ogg">
   </audio>
@@ -117,7 +148,7 @@
     <source src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" type="audio/ogg">
   </audio>
 
-  <!-- Corner Widget on Main Page -->
+  <!-- Corner Widget -->
   <div id="cornerWidget">
     <div id="liveTime"></div>
     <div>Day Progress</div>
@@ -135,7 +166,7 @@
   </div>
 
   <script>
-    // Timer variables
+    // Timer
     let timer;
     let timeLeft = 25*60;
     let isRunning = false;
@@ -147,56 +178,50 @@
     let streak = parseInt(localStorage.getItem("streak")) || 0;
     let lastActiveDate = localStorage.getItem("lastActiveDate") || null;
 
+    // Coins
+    let coins = parseInt(localStorage.getItem("coins")) || 0;
+    let sessionCoinsToday = parseInt(localStorage.getItem("sessionCoinsToday")) || 0;
+
+    document.getElementById("coinCount").textContent = coins;
+
     const startSound = document.getElementById("startSound");
     const endSound = document.getElementById("endSound");
+    const coinSound = document.getElementById("coinSound");
 
-    // Timer functions
-    function updateTimerDisplay() {
+    function updateTimerDisplay(){
       const minutes = Math.floor(timeLeft/60);
       const seconds = timeLeft%60;
       document.getElementById("timer").textContent = `${minutes}:${seconds<10?'0':''}${seconds}`;
     }
-    function updateStatus() {
-      document.getElementById("status").textContent = isWorkSession ? "Work Session" : "Break Time";
-    }
+    function updateStatus(){ document.getElementById("status").textContent = isWorkSession ? "Work Session":"Break Time"; }
 
-    function startTimer() {
+    function startTimer(){
       if(!isRunning){
         startSound.play();
-        isRunning = true;
-        document.getElementById("startBtn").disabled = true;
-        document.getElementById("pauseBtn").disabled = false;
-
+        isRunning=true;
+        document.getElementById("startBtn").disabled=true;
+        document.getElementById("pauseBtn").disabled=false;
         timer = setInterval(()=>{
-          if(timeLeft>0){
-            timeLeft--;
-            updateTimerDisplay();
-          }else{
+          if(timeLeft>0){ timeLeft--; updateTimerDisplay(); }
+          else{
             clearInterval(timer);
             isRunning=false;
             document.getElementById("startBtn").disabled=false;
             document.getElementById("pauseBtn").disabled=true;
             endSound.play();
-
             if(isWorkSession){
               sessionCount++;
               sessionsToday++;
               localStorage.setItem("sessionsToday", sessionsToday);
               checkStreak();
-              addFocusMinutes(25); // default 25 mins per work session
-
-              if(sessionCount%4===0){
-                timeLeft = 15*60;
-                alert("Great work! Take a long break.");
-              }else{
-                timeLeft = 5*60;
-                alert("Good job! Take a short break.");
-              }
+              addFocusMinutes(25);
+              rewardCoins();
+              if(sessionCount%4===0) timeLeft=15*60;
+              else timeLeft=5*60;
               isWorkSession=false;
             }else{
               timeLeft=25*60;
               isWorkSession=true;
-              alert("Break’s over! Time to focus.");
             }
             updateTimerDisplay();
             updateStatus();
@@ -205,43 +230,23 @@
       }
     }
 
-    function pauseTimer(){
-      clearInterval(timer);
-      isRunning=false;
-      document.getElementById("startBtn").disabled=false;
-      document.getElementById("pauseBtn").disabled=true;
-    }
+    function pauseTimer(){ clearInterval(timer); isRunning=false; document.getElementById("startBtn").disabled=false; document.getElementById("pauseBtn").disabled=true; }
+    function resetTimer(){ clearInterval(timer); isRunning=false; isWorkSession=true; sessionCount=0; timeLeft=25*60; updateTimerDisplay(); updateStatus(); document.getElementById("startBtn").disabled=false; document.getElementById("pauseBtn").disabled=true; }
 
-    function resetTimer(){
-      clearInterval(timer);
-      isRunning=false;
-      isWorkSession=true;
-      sessionCount=0;
-      timeLeft=25*60;
-      updateTimerDisplay();
-      updateStatus();
-      document.getElementById("startBtn").disabled=false;
-      document.getElementById("pauseBtn").disabled=true;
-    }
-
-    // Streak functions
+    // Streak
     function checkStreak(){
       const today = new Date().toDateString();
-      if(lastActiveDate !== today){
+      if(lastActiveDate!==today){
         if(lastActiveDate){
-          const yesterday = new Date();
-          yesterday.setDate(yesterday.getDate()-1);
-          if(lastActiveDate === yesterday.toDateString()){
-            streak++;
-          }else{
-            streak=1;
-          }
-        }else{
-          streak=1;
-        }
+          const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
+          if(lastActiveDate===yesterday.toDateString()) streak++;
+          else streak=1;
+        }else streak=1;
         lastActiveDate=today;
         localStorage.setItem("streak", streak);
         localStorage.setItem("lastActiveDate", lastActiveDate);
+        sessionCoinsToday=0;
+        localStorage.setItem("sessionCoinsToday",0);
       }
     }
 
@@ -249,109 +254,70 @@
     function addFocusMinutes(minutes){
       const today = new Date().toISOString().slice(0,10);
       let weeklyData = JSON.parse(localStorage.getItem("weeklyFocus")||"{}");
-      weeklyData[today] = (weeklyData[today]||0) + minutes;
+      weeklyData[today]=(weeklyData[today]||0)+minutes;
       localStorage.setItem("weeklyFocus", JSON.stringify(weeklyData));
     }
-
     function getWeeklyFocus(){
       const weeklyData = JSON.parse(localStorage.getItem("weeklyFocus")||"{}");
       const today = new Date();
       let totalMinutes=0;
       for(let i=0;i<7;i++){
-        const day = new Date(today);
+        const day=new Date(today);
         day.setDate(today.getDate()-i);
         const key = day.toISOString().slice(0,10);
-        if(weeklyData[key]) totalMinutes += weeklyData[key];
+        if(weeklyData[key]) totalMinutes+=weeklyData[key];
       }
-      const hours = Math.floor(totalMinutes/60);
-      const minutes = totalMinutes%60;
+      const hours=Math.floor(totalMinutes/60);
+      const minutes=totalMinutes%60;
       return {hours, minutes};
     }
 
-    // Stats modal functions
+    // Stats modal
     function openStats(){
-      const modal = document.getElementById("statsModal");
+      const modal=document.getElementById("statsModal");
       modal.style.display="flex";
       updateStatsModal();
       applySavedStatsBackground();
-
-      modal.onclick = function(event){
-        if(event.target===modal){
-          closeStats();
-        }
-      }
+      modal.onclick=function(e){ if(e.target===modal) closeStats(); }
     }
-
-    function closeStats(){
-      document.getElementById("statsModal").style.display="none";
-    }
-
+    function closeStats(){ document.getElementById("statsModal").style.display="none"; }
     function updateStatsModal(){
       document.getElementById("streak").textContent = `🔥 Streak: ${streak} days`;
       document.getElementById("sessionsToday").textContent = `📊 Sessions today: ${sessionsToday}`;
-      const weeklyFocus = getWeeklyFocus();
+      const weeklyFocus=getWeeklyFocus();
       document.getElementById("weeklyFocus").textContent = `⏳ Focused this week: ${weeklyFocus.hours}h ${weeklyFocus.minutes}m`;
     }
 
-    // Stats background upload
-    function uploadStatsBackground() {
-      const input = document.createElement("input");
-      input.type = "file";
-      input.accept = "image/*";
-      input.onchange = (e) => {
-        const file = e.target.files[0];
-        const reader = new FileReader();
-        reader.onload = () => {
-          const modalContent = document.getElementById("statsContent");
-          modalContent.style.backgroundImage = `url(${reader.result})`;
-          modalContent.style.backgroundSize = "cover";
-          modalContent.style.backgroundPosition = "center";
+    function uploadStatsBackground(){
+      const input=document.createElement("input");
+      input.type="file"; input.accept="image/*";
+      input.onchange=(e)=>{
+        const file=e.target.files[0];
+        const reader=new FileReader();
+        reader.onload=()=>{
+          const modalContent=document.getElementById("statsContent");
+          modalContent.style.backgroundImage=`url(${reader.result})`;
+          modalContent.style.backgroundSize="cover";
+          modalContent.style.backgroundPosition="center";
           localStorage.setItem("statsBackground", reader.result);
         };
         reader.readAsDataURL(file);
       };
       input.click();
     }
-
     function applySavedStatsBackground(){
-      const savedBg = localStorage.getItem("statsBackground");
+      const savedBg=localStorage.getItem("statsBackground");
       if(savedBg){
-        const modalContent = document.getElementById("statsContent");
-        modalContent.style.backgroundImage = `url(${savedBg})`;
-        modalContent.style.backgroundSize = "cover";
-        modalContent.style.backgroundPosition = "center";
+        const modalContent=document.getElementById("statsContent");
+        modalContent.style.backgroundImage=`url(${savedBg})`;
+        modalContent.style.backgroundSize="cover";
+        modalContent.style.backgroundPosition="center";
       }
     }
 
-    // Corner widget updates
-    function updateCornerWidget(){
-      const now = new Date();
-      document.getElementById("liveTime").textContent = now.toLocaleString();
-
-      // Day progress
-      const dayProgress = ((now.getHours()*60 + now.getMinutes()) / (24*60))*100;
-      document.getElementById("dayProgressBar").style.width = dayProgress + "%";
-
-      // Month progress
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
-      const monthProgress = ((now.getDate()-1 + now.getHours()/24)/daysInMonth)*100;
-      document.getElementById("monthProgressBar").style.width = monthProgress + "%";
-
-      // Year progress
-      const startOfYear = new Date(now.getFullYear(),0,1);
-      const dayOfYear = Math.floor((now - startOfYear)/(1000*60*60*24)) +1;
-      const daysInYear = (new Date(now.getFullYear()+1,0,1)-startOfYear)/(1000*60*60*24);
-      const yearProgress = (dayOfYear/daysInYear)*100;
-      document.getElementById("yearProgressBar").style.width = yearProgress + "%";
-    }
-
-    setInterval(updateCornerWidget,1000);
-
-    // Initialize
-    updateTimerDisplay();
-    updateStatus();
-    updateCornerWidget();
-  </script>
-</body>
-</html>
+    // Coin system
+    function rewardCoins(){
+      const coinsThisSession = 5 + sessionCoinsToday*5;
+      coins+=coinsThisSession;
+      sessionCoinsToday++;
+      localStorage.set
