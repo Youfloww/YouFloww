@@ -121,7 +121,7 @@ button:disabled { background: #ccc; cursor: not-allowed; }
     
     <!-- Bar Chart Container -->
     <div id="barChartContainer" class="chart-container">
-      <div class="chart-title">Daily Focus (minutes)</div>
+      <div class="chart-title">Daily Focus (hours)</div>
       <canvas id="barChart"></canvas>
     </div>
     
@@ -484,7 +484,8 @@ function renderBarChart() {
     const key = day.toISOString().slice(0, 10);
     const dayName = day.toLocaleDateString('en-US', { weekday: 'short' });
     labels.push(dayName);
-    data.push(weeklyData[key] || 0);
+    // Convert minutes to hours with one decimal place
+    data.push(((weeklyData[key] || 0) / 60).toFixed(1));
   }
   
   // Create bar chart using canvas
@@ -516,7 +517,7 @@ function renderBarChart() {
     ctx.fillStyle = '#333';
     ctx.font = '12px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText(data[i], x + barWidth / 2, y - 5);
+    ctx.fillText(data[i] + 'h', x + barWidth / 2, y - 5);
     
     // Draw label
     ctx.fillText(labels[i], x + barWidth / 2, canvas.height - 20);
@@ -526,9 +527,9 @@ function renderBarChart() {
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
   for (let i = 0; i <= 5; i++) {
-    const value = Math.round((maxValue / 5) * i);
+    const value = (maxValue / 5 * i).toFixed(1);
     const y = canvas.height - 40 - (i / 5) * (canvas.height - 60);
-    ctx.fillText(value, 25, y);
+    ctx.fillText(value + 'h', 25, y);
   }
 }
 
@@ -594,18 +595,17 @@ function renderPieChart() {
   
   // Draw center circle for donut effect
   ctx.beginPath();
-  ctx.arc(centerX, centerY, radius * 0.5, 0, 2 * Math.PI);
-  ctx.fillStyle = 'white';
-  ctx.fill();
+    ctx.arc(centerX, centerY, radius * 0.5, 0, 2 * Math.PI);
+    ctx.fillStyle = 'white';
+    ctx.fill();
   
-  // Draw total in center
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
+  // Draw total in center (in hours)
+  const hours = (totalMinutes / 60).toFixed(1);
   ctx.fillStyle = '#333';
   ctx.font = 'bold 14px Arial';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(`${hours}h ${minutes}m`, centerX, centerY);
+  ctx.fillText(`${hours}h`, centerX, centerY);
 }
 
 function updateHistoryTable() {
@@ -617,13 +617,12 @@ function updateHistoryTable() {
   weeklyStats.sort((a, b) => new Date(b.weekStart) - new Date(a.weekStart));
   
   weeklyStats.forEach(week => {
-    const hours = Math.floor(week.totalMinutes / 60);
-    const minutes = week.totalMinutes % 60;
+    const hours = (week.totalMinutes / 60).toFixed(1);
     const row = document.createElement("tr");
     
     row.innerHTML = `
       <td>${formatDate(week.weekStart)}</td>
-      <td>${hours}h ${minutes}m</td>
+      <td>${hours}h</td>
       <td>${week.sessions}</td>
       <td>${week.daysActive}</td>
     `;
