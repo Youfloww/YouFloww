@@ -65,6 +65,7 @@ button:disabled { background: #ccc; cursor: not-allowed; }
 <button id="startBtn" onclick="startTimer()">Start</button>
 <button id="pauseBtn" onclick="pauseTimer()" disabled>Pause</button>
 <button onclick="resetTimer()">Reset</button>
+<button id="endSessionBtn" onclick="endSession()">End Session</button>
 
 <!-- Coin Counter & Stats Button -->
 <div id="coinContainer">
@@ -162,6 +163,25 @@ function startTimer(){
     },1000);
   }
 }
+function endSession(){
+    clearInterval(timer);
+    isRunning = false;
+
+    // Save partial session if >1 min
+    if(timeLeft < 25*60 && timeLeft > 60){
+        savePartialSession();
+    }
+
+    // Reset for next session
+    timeLeft = 25*60;
+    isWorkSession = true;
+    sessionCount = 0;
+    updateTimerDisplay();
+    updateStatus();
+    document.getElementById("startBtn").disabled = false;
+    document.getElementById("pauseBtn").disabled = true;
+}
+    
 function savePartialSession(){
     // Only count if at least 1 minute has passed
     const minutesFocused = Math.floor((25*60 - timeLeft)/60);
@@ -189,18 +209,9 @@ function savePartialSession(){
 }
 function pauseTimer(){
     clearInterval(timer);
-    isRunning=false;
-    document.getElementById("startBtn").disabled=false;
-    document.getElementById("pauseBtn").disabled=true;
-
-    // Save partial session if >1 min
-    if(timeLeft < 25*60 && timeLeft > 60){ 
-        savePartialSession();
-        // Reset timer for next start
-        timeLeft = 25*60;
-        updateTimerDisplay();
-        updateStatus();
-    }
+    isRunning = false;
+    document.getElementById("startBtn").disabled = false;
+    document.getElementById("pauseBtn").disabled = true;
 }
     function resetTimer(){
     clearInterval(timer);
