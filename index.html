@@ -76,6 +76,12 @@ button:disabled { background: #ccc; cursor: not-allowed; }
 .tabs { display: flex; margin-bottom: 15px; }
 .tab { flex: 1; padding: 8px; background: #ddd; cursor: pointer; }
 .tab.active { background: #4CAF50; color: white; }
+
+/* Stats table */
+.stats-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+.stats-table th, .stats-table td { padding: 8px; text-align: center; border-bottom: 1px solid #ddd; }
+.stats-table th { background-color: #f2f2f2; }
+.stats-table tr:hover { background-color: #f5f5f5; }
 </style>
 </head>
 <body>
@@ -110,6 +116,7 @@ button:disabled { background: #ccc; cursor: not-allowed; }
     <div class="tabs">
       <div class="tab active" onclick="switchTab('bar')">Weekly Focus</div>
       <div class="tab" onclick="switchTab('pie')">Session Distribution</div>
+      <div class="tab" onclick="switchTab('history')">History</div>
     </div>
     
     <!-- Bar Chart Container -->
@@ -124,7 +131,27 @@ button:disabled { background: #ccc; cursor: not-allowed; }
       <canvas id="pieChart"></canvas>
     </div>
     
+    <!-- History Table Container -->
+    <div id="historyContainer" class="chart-container" style="display:none">
+      <div class="chart-title">Weekly History</div>
+      <table class="stats-table">
+        <thead>
+          <tr>
+            <th>Week Starting</th>
+            <th>Total Focus</th>
+            <th>Sessions</th>
+            <th>Days Active</th>
+          </tr>
+        </thead>
+        <tbody id="historyTableBody">
+          <!-- Will be populated by JavaScript -->
+        </tbody>
+      </table>
+    </div>
+    
     <button onclick="uploadStatsBackground()">Upload Background</button>
+    <button onclick="exportData()" style="background: #2196F3;">Export Data</button>
+    <button onclick="clearAllData()" style="background: #f44336;">Clear All Data</button>
   </div>
 </div>
 
@@ -178,6 +205,11 @@ document.getElementById("coinCount").textContent = coins;
 const startSound = document.getElementById("startSound");
 const endSound = document.getElementById("endSound");
 const coinSound = document.getElementById("coinSound");
+
+// Initialize weekly stats if not exists
+if (!localStorage.getItem("weeklyStats")) {
+    localStorage.setItem("weeklyStats", JSON.stringify([]));
+}
 
 // ---- Timer Functions ----
 function updateTimerDisplay(){
@@ -314,12 +346,55 @@ function checkStreak(){
   }
 }
 
-// ---- Weekly Focus ----
+// ---- Enhanced Weekly Focus Tracking ----
 function addFocusMinutes(minutes){
   const today = new Date().toISOString().slice(0,10);
   let weeklyData = JSON.parse(localStorage.getItem("weeklyFocus") || "{}");
   weeklyData[today] = (weeklyData[today] || 0) + minutes;
   localStorage.setItem("weeklyFocus", JSON.stringify(weeklyData));
+  
+  // Update weekly stats
+  updateWeeklyStats(minutes);
+}
+
+function updateWeeklyStats(minutes) {
+  const today = new Date();
+  const weekStart = getWeekStartDate(today);
+  const weekKey = weekStart.toISOString().slice(0, 10);
+  
+  let weeklyStats = JSON.parse(localStorage.getItem("weeklyStats") || "[]");
+  let weekData = weeklyStats.find(w => w.weekStart === weekKey);
+  
+  if (!weekData) {
+    // Create new week entry
+    weekData = {
+      weekStart: weekKey,
+      totalMinutes: 0,
+      sessions: 0,
+      daysActive: 0,
+      lastUpdated: today.toISOString().slice(0, 10)
+    };
+    weeklyStats.push(weekData);
+  }
+  
+  // Update week data
+  weekData.totalMinutes += minutes;
+  weekData.sessions += 1;
+  
+  // Check if this is a new day for this week
+  if (weekData.lastUpdated !== today.toISOString().slice(0, 10)) {
+    weekData.daysActive += 1;
+    weekData.lastUpdated = today.toISOString().slice(0, 10);
+  }
+  
+  // Save updated stats
+  localStorage.setItem("weeklyStats", JSON.stringify(weeklyStats));
+}
+
+function getWeekStartDate(date) {
+  const day = date.getDay(); // 0 (Sunday) to 6 (Saturday)
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Adjust to Monday as start of week
+  return new Date(date.setDate(diff));
 }
 
 function getWeeklyFocus(){
@@ -344,6 +419,7 @@ function openStats(){
   updateStatsModal();
   applySavedStatsBackground();
   renderCharts();
+  updateHistoryTable();
   modal.onclick = function(e){
     if(e.target === modal) closeStats();
   }
@@ -532,10 +608,44 @@ function renderPieChart() {
   ctx.fillText(`${hours}h ${minutes}m`, centerX, centerY);
 }
 
+function updateHistoryTable() {
+  const weeklyStats = JSON.parse(localStorage.getItem("weeklyStats") || "[]");
+  const tableBody = document.getElementById("historyTableBody");
+  tableBody.innerHTML = "";
+  
+  // Sort by week starting date (newest first)
+  weeklyStats.sort((a, b) => new Date(b.weekStart) - new Date(a.weekStart));
+  
+  weeklyStats.forEach(week => {
+    const hours = Math.floor(week.totalMinutes / 60);
+    const minutes = week.totalMinutes % 60;
+    const row = document.createElement("tr");
+    
+    row.innerHTML = `
+      <td>${formatDate(week.weekStart)}</td>
+      <td>${hours}h ${minutes}m</td>
+      <td>${week.sessions}</td>
+      <td>${week.daysActive}</td>
+    `;
+    
+    tableBody.appendChild(row);
+  });
+  
+  if (weeklyStats.length === 0) {
+    tableBody.innerHTML = `<tr><td colspan="4">No data available yet</td></tr>`;
+  }
+}
+
+function formatDate(dateString) {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 function switchTab(tabName) {
   const tabs = document.querySelectorAll('.tab');
   const barContainer = document.getElementById('barChartContainer');
   const pieContainer = document.getElementById('pieChartContainer');
+  const historyContainer = document.getElementById('historyContainer');
   
   tabs.forEach(tab => tab.classList.remove('active'));
   
@@ -543,10 +653,67 @@ function switchTab(tabName) {
     document.querySelector('.tab:nth-child(1)').classList.add('active');
     barContainer.style.display = 'block';
     pieContainer.style.display = 'none';
-  } else {
+    historyContainer.style.display = 'none';
+  } else if (tabName === 'pie') {
     document.querySelector('.tab:nth-child(2)').classList.add('active');
     barContainer.style.display = 'none';
     pieContainer.style.display = 'block';
+    historyContainer.style.display = 'none';
+  } else {
+    document.querySelector('.tab:nth-child(3)').classList.add('active');
+    barContainer.style.display = 'none';
+    pieContainer.style.display = 'none';
+    historyContainer.style.display = 'block';
+  }
+}
+
+// ---- Data Management Functions ----
+function exportData() {
+  const weeklyFocus = JSON.parse(localStorage.getItem("weeklyFocus") || "{}");
+  const weeklyStats = JSON.parse(localStorage.getItem("weeklyStats") || "[]");
+  
+  const data = {
+    exportDate: new Date().toISOString(),
+    weeklyFocus,
+    weeklyStats,
+    streak: localStorage.getItem("streak"),
+    coins: localStorage.getItem("coins")
+  };
+  
+  const dataStr = JSON.stringify(data, null, 2);
+  const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+  
+  const exportFileDefaultName = `youfloww-data-${new Date().toISOString().slice(0,10)}.json`;
+  
+  const linkElement = document.createElement('a');
+  linkElement.setAttribute('href', dataUri);
+  linkElement.setAttribute('download', exportFileDefaultName);
+  linkElement.click();
+}
+
+function clearAllData() {
+  if (confirm("Are you sure you want to clear all data? This cannot be undone!")) {
+    localStorage.removeItem("weeklyFocus");
+    localStorage.removeItem("weeklyStats");
+    localStorage.removeItem("streak");
+    localStorage.removeItem("lastActiveDate");
+    localStorage.removeItem("sessionsToday");
+    localStorage.removeItem("coins");
+    localStorage.removeItem("sessionCoinsToday");
+    
+    // Reset variables
+    sessionsToday = 0;
+    streak = 0;
+    lastActiveDate = null;
+    coins = 0;
+    sessionCoinsToday = 0;
+    
+    // Update UI
+    document.getElementById("coinCount").textContent = coins;
+    updateStatsModal();
+    updateHistoryTable();
+    
+    alert("All data has been cleared.");
   }
 }
 
@@ -605,5 +772,3 @@ window.addEventListener("beforeunload", function (e) {
 
 </body>
 </html>
-
-
