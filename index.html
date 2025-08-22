@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>YouFloww - Focus Timer</title>
+<meta name="description" content="YouFloww is a simple and effective focus timer and productivity tool. Stay on task with Pomodoro sessions, track your progress, and earn coins.">
+<meta name="keywords" content="focus timer, Pomodoro, productivity, to-do list, study tool, work timer, time management, concentration">
+<title>YouFloww - Focus Timer & To-Do List</title>
+
 <style>
 body {
     font-family: Arial, sans-serif;
@@ -82,26 +85,100 @@ button:disabled { background: #ccc; cursor: not-allowed; }
 .stats-table th, .stats-table td { padding: 8px; text-align: center; border-bottom: 1px solid #ddd; }
 .stats-table th { background-color: #f2f2f2; }
 .stats-table tr:hover { background-color: #f5f5f5; }
+
+/* To-Do List Styles */
+#todo-container {
+    max-width: 500px;
+    margin: 20px auto;
+    padding: 20px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+#todo-container h2 { margin-bottom: 15px; color: #4CAF50; }
+#todo-input-container { display: flex; margin-bottom: 10px; }
+#todo-input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+#add-todo-btn { background: #2196F3; color: white; border: none; margin-left: 10px; }
+#add-todo-btn:hover { background: #1a7bbd; }
+#todo-list { list-style: none; padding: 0; text-align: left; }
+.todo-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+.todo-item:hover { background: #f9f9f9; }
+.todo-item.completed { text-decoration: line-through; color: #888; }
+.clear-todos-btn {
+    background: #f44336;
+    color: white;
+    padding: 8px 15px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-top: 10px;
+}
+.clear-todos-btn:hover { background: #d32f2f; }
 </style>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "YouFloww",
+  "url": "https://yourwebsite.com",
+  "applicationCategory": "Productivity",
+  "description": "A focus timer and to-do list application to improve concentration and time management.",
+  "operatingSystem": "Any",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "creator": {
+    "@type": "Person",
+    "name": "Your Name Here"
+  }
+}
+</script>
 </head>
 <body>
+<main>
+<section>
+  <h1 id="main-heading">Welcome to YouFloww ⏱️</h1>
+  <p>Stay focused. Stay consistent.</p>
 
-<h1>Welcome to YouFloww ⏱️</h1>
-<p>Stay focused. Stay consistent.</p>
+  <div id="status">Work Session</div>
+  <div id="timer">25:00</div>
 
-<div id="status">Work Session</div>
-<div id="timer">25:00</div>
+  <button id="startBtn" onclick="startTimer()">Start</button>
+  <button id="pauseBtn" onclick="pauseTimer()" disabled>Pause</button>
+  <button onclick="resetTimer()">Reset</button>
+  <button id="endSessionBtn" onclick="endSession()">End Session</button>
+  <button id="noiseBtn" onclick="toggleWhiteNoise()">🎧 Play Noise</button>
+</section>
 
-<button id="startBtn" onclick="startTimer()">Start</button>
-<button id="pauseBtn" onclick="pauseTimer()" disabled>Pause</button>
-<button onclick="resetTimer()">Reset</button>
-<button id="endSessionBtn" onclick="endSession()">End Session</button>
-<button id="noiseBtn" onclick="toggleWhiteNoise()">🎧 Play Noise</button>
+<section>
+  <div id="todo-container">
+      <h2>🎯 To-Do List</h2>
+      <div id="todo-input-container">
+          <input type="text" id="todo-input" placeholder="Add a new task..." aria-label="Add a new task">
+          <button id="add-todo-btn" onclick="addTodo()">Add</button>
+      </div>
+      <ul id="todo-list"></ul>
+      <button class="clear-todos-btn" onclick="clearTodos()">Clear All Tasks</button>
+  </div>
+</section>
 
-<div id="coinContainer">
-  <div>💰 Coins: <span id="coinCount">0</span></div>
-  <button onclick="openStats()">View Stats</button>
-</div>
+<section>
+  <div id="coinContainer">
+    <div>💰 Coins: <span id="coinCount">0</span></div>
+    <button onclick="openStats()">View Stats</button>
+  </div>
+</section>
 
 <div id="statsModal" class="modal">
   <div id="statsContent" class="modal-content">
@@ -162,10 +239,11 @@ button:disabled { background: #ccc; cursor: not-allowed; }
 <audio id="endSound">
   <source src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" type="audio/ogg">
 </audio>
-<audio id="whiteNoise" loop>
-  <source src="whitenoise.mp3" type="audio/mpeg">
+<audio id="whitenoice.mp3" loop>
+  <source src="whitenoice" type="audio/mpeg">
 </audio>
-
+</main>
+<aside>
 <div id="cornerWidget">
   <div id="liveTime"></div>
   <div>Day Progress</div>
@@ -181,7 +259,7 @@ button:disabled { background: #ccc; cursor: not-allowed; }
     <div id="yearProgressBar" style="height:6px; width:0%; background:#FF9800; border-radius:3px;"></div>
   </div>
 </div>
-
+</aside>
 <script>
 // ---- Timer Variables ----
 let timer, timeLeft = 25*60, isRunning = false, isWorkSession = true, sessionCount = 0;
@@ -739,6 +817,54 @@ function toggleWhiteNoise() {
     }
 }
 
+// ---- To-Do List Functions ----
+function loadTodos() {
+    const todos = JSON.parse(localStorage.getItem('todos')) || [];
+    const todoList = document.getElementById('todo-list');
+    todoList.innerHTML = '';
+    todos.forEach(todo => {
+        const li = document.createElement('li');
+        li.textContent = todo.text;
+        li.className = 'todo-item';
+        if (todo.completed) {
+            li.classList.add('completed');
+        }
+        li.onclick = () => toggleTodo(todo.text);
+        todoList.appendChild(li);
+    });
+}
+
+function addTodo() {
+    const todoInput = document.getElementById('todo-input');
+    const text = todoInput.value.trim();
+    if (text) {
+        let todos = JSON.parse(localStorage.getItem('todos')) || [];
+        todos.push({ text, completed: false });
+        localStorage.setItem('todos', JSON.stringify(todos));
+        todoInput.value = '';
+        loadTodos();
+    }
+}
+
+function toggleTodo(text) {
+    let todos = JSON.parse(localStorage.getItem('todos')) || [];
+    todos = todos.map(todo => {
+        if (todo.text === text) {
+            todo.completed = !todo.completed;
+        }
+        return todo;
+    });
+    localStorage.setItem('todos', JSON.stringify(todos));
+    loadTodos();
+}
+
+function clearTodos() {
+    if (confirm("Are you sure you want to clear all tasks?")) {
+        localStorage.removeItem('todos');
+        loadTodos();
+    }
+}
+
 // ---- Corner Widget: Time + Progress ----
 function updateCornerWidget(){
   const now = new Date();
@@ -769,6 +895,7 @@ setInterval(updateCornerWidget, 1000);
 updateTimerDisplay();
 updateStatus();
 updateCornerWidget();
+loadTodos(); // Load to-dos when the page loads
 window.addEventListener("beforeunload", function (e) {
     if(timeLeft < 25*60 && timeLeft > 60){ // If session >1 min but not full
         savePartialSession();
