@@ -128,6 +128,49 @@ button:disabled { background: #ccc; cursor: not-allowed; }
     margin-top: 10px;
 }
 .clear-todos-btn:hover { background: #d32f2f; }
+
+/* Container for the ambient effects */
+#ambient-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Allows clicks to pass through */
+    z-index: -1; /* Puts the effect behind other content */
+    overflow: hidden;
+}
+
+/* Base styles for snowflakes and raindrops */
+.ambient-effect {
+    position: absolute;
+    border-radius: 50%;
+    background-color: white;
+}
+
+/* Styles for a single snowflake */
+.snowflake {
+    width: 5px;
+    height: 5px;
+    opacity: 0.8;
+}
+
+/* Styles for a single raindrop */
+.raindrop {
+    width: 2px;
+    height: 15px; /* Creates a drop shape */
+    background-color: #a6c0e8; /* Light blue for rain */
+    transform: rotate(15deg); /* Slight angle for realistic rain */
+    border-radius: 0; /* Remove the round shape for drops */
+}
+
+/* Keyframe animation for falling effects */
+@keyframes fall {
+    to {
+        transform: translateY(100vh);
+    }
+}
+    
 </style>
 
 <script type="application/ld+json">
@@ -165,6 +208,13 @@ button:disabled { background: #ccc; cursor: not-allowed; }
   <button onclick="resetTimer()">Reset</button>
   <button id="endSessionBtn" onclick="endSession()">End Session</button>
   <button id="noiseBtn" onclick="toggleWhiteNoise()">🎧 Play Noise</button>
+</section>
+
+<section id="animation-controls">
+    <h2>🍃 Ambient Effects</h2>
+    <button onclick="startSnow()">❄️ Snowfall</button>
+    <button onclick="startRain()">🌧️ Rainfall</button>
+    <button onclick="stopAmbientEffects()">🚫 Stop</button>
 </section>
 
 <section>
@@ -917,6 +967,60 @@ window.addEventListener("beforeunload", function (e) {
             addTodo();
         }
     });
+
+    // New: Ambient Effects Variables
+const ambientContainer = document.createElement('div');
+ambientContainer.id = 'ambient-container';
+document.body.appendChild(ambientContainer);
+let ambientInterval;
+
+// New: Function to start snow animation
+function startSnow() {
+    stopAmbientEffects();
+    ambientContainer.className = 'snow';
+    ambientInterval = setInterval(() => {
+        const snowflake = createAmbientElement('snowflake');
+        animateAmbientElement(snowflake, 8000, 15000); // 8-15 seconds for snow
+    }, 100);
+}
+
+// New: Function to start rain animation
+function startRain() {
+    stopAmbientEffects();
+    ambientContainer.className = 'rain';
+    ambientInterval = setInterval(() => {
+        const raindrop = createAmbientElement('raindrop');
+        animateAmbientElement(raindrop, 400, 800); // 0.4-0.8 seconds for rain
+    }, 50);
+}
+
+// New: Helper function to create the elements
+function createAmbientElement(className) {
+    const el = document.createElement('div');
+    el.className = `ambient-effect ${className}`;
+    el.style.left = `${Math.random() * 100}vw`;
+    ambientContainer.appendChild(el);
+    return el;
+}
+
+// New: Helper function to animate the elements
+function animateAmbientElement(el, minDuration, maxDuration) {
+    const duration = Math.random() * (maxDuration - minDuration) + minDuration;
+    el.style.animation = `fall ${duration}ms linear forwards`;
+    el.style.animationDelay = `-${Math.random() * duration}ms`; // Stagger the start times
+    el.style.transform = `translateY(-20vh)`; // Start the animation above the viewport
+
+    // Remove the element after the animation is finished
+    el.addEventListener('animationend', () => {
+        el.remove();
+    });
+}
+
+// New: Function to stop all ambient effects
+function stopAmbientEffects() {
+    clearInterval(ambientInterval);
+    ambientContainer.innerHTML = '';
+}
 </script>
 
 </body>
