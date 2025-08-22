@@ -12,8 +12,9 @@ body {
     font-family: Arial, sans-serif;
     text-align: center;
     padding: 50px;
-    background: #f4f4f9;
+    background: linear-gradient(to bottom, #d4e0e6, #a6bdd4);
     color: #333;
+    overflow-x: hidden;
 }
 #timer { font-size: 4rem; margin: 20px 0; }
 #status { font-size: 1.5rem; margin-bottom: 20px; color: #555; }
@@ -148,10 +149,10 @@ button:disabled { background: #ccc; cursor: not-allowed; }
     background-color: white;
 }
 
-/* Styles for a single snowflake */
+/* Updated Styles for a single snowflake */
 .snowflake {
-    width: 5px;
-    height: 5px;
+    width: 10px;
+    height: 10px;
     opacity: 0.8;
 }
 
@@ -170,7 +171,6 @@ button:disabled { background: #ccc; cursor: not-allowed; }
         transform: translateY(100vh);
     }
 }
-    
 </style>
 
 <script type="application/ld+json">
@@ -210,7 +210,7 @@ button:disabled { background: #ccc; cursor: not-allowed; }
   <button id="noiseBtn" onclick="toggleWhiteNoise()">🎧 Play Noise</button>
 </section>
 
-<section id="animation-controls">
+<section>
     <h2>🍃 Ambient Effects</h2>
     <button onclick="startSnow()">❄️ Snowfall</button>
     <button onclick="startRain()">🌧️ Rainfall</button>
@@ -296,7 +296,7 @@ button:disabled { background: #ccc; cursor: not-allowed; }
   <source src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" type="audio/ogg">
 </audio>
 <audio id="whiteNoise" loop>
-  <source src="whitenoise.mp3" type="audio/mpeg">
+  <source src="https://freesound.org/data/previews/56/56317_491791-lq.mp3" type="audio/mpeg">
 </audio>
 </main>
 <aside>
@@ -372,12 +372,10 @@ function endSession(){
     clearInterval(timer);
     isRunning = false;
 
-    // Save partial session if >1 min
     if(timeLeft < 25*60 && timeLeft > 60){
         savePartialSession();
     }
 
-    // Reset for next session
     timeLeft = 25*60;
     isWorkSession = true;
     sessionCount = 0;
@@ -388,7 +386,6 @@ function endSession(){
 }
     
 function savePartialSession(){
-    // Only count if at least 1 minute has passed
     const minutesFocused = Math.floor((25*60 - timeLeft)/60);
     if(minutesFocused >= 1){
         sessionsToday++;
@@ -396,7 +393,6 @@ function savePartialSession(){
         checkStreak();
         addFocusMinutes(minutesFocused);
 
-        // Reward proportional coins for partial session
         const coinsThisSession = Math.floor(minutesFocused/5) + sessionCoinsToday*5;
         coins += coinsThisSession;
         sessionCoinsToday++;
@@ -404,7 +400,6 @@ function savePartialSession(){
         localStorage.setItem("sessionCoinsToday", sessionCoinsToday);
         document.getElementById("coinCount").textContent = coins;
 
-        // Show coin popup
         const popup = document.getElementById("coinPopup");
         document.getElementById("coinEarned").textContent = coinsThisSession;
         popup.style.display = "block";
@@ -422,7 +417,6 @@ function pauseTimer(){
     clearInterval(timer);
     isRunning=false;
 
-    // Save partial session if >1 min
     if(timeLeft < 25*60 && timeLeft > 25){
         savePartialSession();
     }
@@ -483,7 +477,6 @@ function addFocusMinutes(minutes){
   weeklyData[today] = (weeklyData[today] || 0) + minutes;
   localStorage.setItem("weeklyFocus", JSON.stringify(weeklyData));
   
-  // Update weekly stats
   updateWeeklyStats(minutes);
 }
 
@@ -496,7 +489,6 @@ function updateWeeklyStats(minutes) {
   let weekData = weeklyStats.find(w => w.weekStart === weekKey);
   
   if (!weekData) {
-    // Create new week entry
     weekData = {
       weekStart: weekKey,
       totalMinutes: 0,
@@ -507,23 +499,20 @@ function updateWeeklyStats(minutes) {
     weeklyStats.push(weekData);
   }
   
-  // Update week data
   weekData.totalMinutes += minutes;
   weekData.sessions += 1;
   
-  // Check if this is a new day for this week
   if (weekData.lastUpdated !== today.toISOString().slice(0, 10)) {
     weekData.daysActive += 1;
     weekData.lastUpdated = today.toISOString().slice(0, 10);
   }
   
-  // Save updated stats
   localStorage.setItem("weeklyStats", JSON.stringify(weeklyStats));
 }
 
 function getWeekStartDate(date) {
-  const day = date.getDay(); // 0 (Sunday) to 6 (Saturday)
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Adjust to Monday as start of week
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
   return new Date(date.setDate(diff));
 }
 
@@ -607,53 +596,43 @@ function renderBarChart() {
   const labels = [];
   const data = [];
   
-  // Get data for the last 7 days
   for (let i = 6; i >= 0; i--) {
     const day = new Date(today);
     day.setDate(today.getDate() - i);
     const key = day.toISOString().slice(0, 10);
     const dayName = day.toLocaleDateString('en-US', { weekday: 'short' });
     labels.push(dayName);
-    // Convert minutes to hours with one decimal place
     data.push(((weeklyData[key] || 0) / 60).toFixed(1));
   }
   
-  // Create bar chart using canvas
   const canvas = document.getElementById('barChart');
   const ctx = canvas.getContext('2d');
   
-  // Clear canvas
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   
-  // Set canvas dimensions
   canvas.width = canvas.offsetWidth;
   canvas.height = canvas.offsetHeight;
   
-  const maxValue = Math.max(...data, 1); // Avoid division by zero
+  const maxValue = Math.max(...data, 1);
   const barWidth = (canvas.width - 40) / data.length;
   const barSpacing = 10;
   
-  // Draw bars
   for (let i = 0; i < data.length; i++) {
     const barHeight = (data[i] / maxValue) * (canvas.height - 60);
     const x = 30 + i * (barWidth + barSpacing);
     const y = canvas.height - 40 - barHeight;
     
-    // Draw bar
     ctx.fillStyle = '#4CAF50';
     ctx.fillRect(x, y, barWidth, barHeight);
     
-    // Draw value text
     ctx.fillStyle = '#333';
     ctx.font = '12px Arial';
     ctx.textAlign = 'center';
     ctx.fillText(data[i] + 'h', x + barWidth / 2, y - 5);
     
-    // Draw label
     ctx.fillText(labels[i], x + barWidth / 2, canvas.height - 20);
   }
   
-  // Draw Y-axis markers
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
   for (let i = 0; i <= 5; i++) {
@@ -667,12 +646,10 @@ function renderPieChart() {
   const weeklyData = JSON.parse(localStorage.getItem("weeklyFocus") || "{}");
   let totalMinutes = 0;
   
-  // Calculate total minutes for the week
   for (const day in weeklyData) {
     totalMinutes += weeklyData[day];
   }
   
-  // If no data, show empty chart
   if (totalMinutes === 0) {
     const canvas = document.getElementById('pieChart');
     const ctx = canvas.getContext('2d');
@@ -683,14 +660,11 @@ function renderPieChart() {
     return;
   }
   
-  // Create pie chart using canvas
   const canvas = document.getElementById('pieChart');
   const ctx = canvas.getContext('2d');
   
-  // Clear canvas
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   
-  // Set canvas dimensions
   canvas.width = canvas.offsetWidth;
   canvas.height = canvas.offsetHeight;
   
@@ -698,7 +672,6 @@ function renderPieChart() {
   const centerY = canvas.height / 2;
   const radius = Math.min(centerX, centerY) - 20;
   
-  // Colors for different days
   const colors = [
     '#4CAF50', '#2196F3', '#FF9800', '#E91E63', 
     '#9C27B0', '#607D8B', '#FF5722'
@@ -707,7 +680,6 @@ function renderPieChart() {
   let startAngle = 0;
   let colorIndex = 0;
   
-  // Draw pie slices
   for (const day in weeklyData) {
     const sliceAngle = (weeklyData[day] / totalMinutes) * 2 * Math.PI;
     
@@ -723,13 +695,11 @@ function renderPieChart() {
     colorIndex++;
   }
   
-  // Draw center circle for donut effect
   ctx.beginPath();
-    ctx.arc(centerX, centerY, radius * 0.5, 0, 2 * Math.PI);
-    ctx.fillStyle = 'white';
-    ctx.fill();
+  ctx.arc(centerX, centerY, radius * 0.5, 0, 2 * Math.PI);
+  ctx.fillStyle = 'white';
+  ctx.fill();
   
-  // Draw total in center (in hours)
   const hours = (totalMinutes / 60).toFixed(1);
   ctx.fillStyle = '#333';
   ctx.font = 'bold 14px Arial';
@@ -743,7 +713,6 @@ function updateHistoryTable() {
   const tableBody = document.getElementById("historyTableBody");
   tableBody.innerHTML = "";
   
-  // Sort by week starting date (newest first)
   weeklyStats.sort((a, b) => new Date(b.weekStart) - new Date(a.weekStart));
   
   weeklyStats.forEach(week => {
@@ -830,14 +799,12 @@ function clearAllData() {
     localStorage.removeItem("coins");
     localStorage.removeItem("sessionCoinsToday");
     
-    // Reset variables
     sessionsToday = 0;
     streak = 0;
     lastActiveDate = null;
     coins = 0;
     sessionCoinsToday = 0;
     
-    // Update UI
     document.getElementById("coinCount").textContent = coins;
     updateStatsModal();
     updateHistoryTable();
@@ -925,50 +892,25 @@ function clearTodos() {
 function updateCornerWidget(){
   const now = new Date();
 
-  // Live Time
   const hours = now.getHours().toString().padStart(2,'0');
   const minutes = now.getMinutes().toString().padStart(2,'0');
   const seconds = now.getSeconds().toString().padStart(2,'0');
   document.getElementById("liveTime").textContent = `${hours}:${minutes}:${seconds} ${now.toDateString()}`;
 
-  // Day Progress
   const dayPercent = ((now.getHours()*60 + now.getMinutes()) / (24*60)) * 100;
   document.getElementById("dayProgressBar").style.width = dayPercent + "%";
 
-  // Month Progress
   const totalDays = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
   const monthPercent = (now.getDate() / totalDays) * 100;
   document.getElementById("monthProgressBar").style.width = monthPercent + "%";
 
-  // Year Progress
   const startYear = new Date(now.getFullYear(), 0, 1);
   const endYear = new Date(now.getFullYear() + 1, 0, 1);
   const yearPercent = ((now - startYear) / (endYear - startYear)) * 100;
   document.getElementById("yearProgressBar").style.width = yearPercent + "%";
 }
 
-setInterval(updateCornerWidget, 1000);
-updateTimerDisplay();
-updateStatus();
-updateCornerWidget();
-loadTodos(); // Load to-dos when the page loads
-window.addEventListener("beforeunload", function (e) {
-    if(timeLeft < 25*60 && timeLeft > 60){ // If session >1 min but not full
-        savePartialSession();
-    }
-});
-</script>
-
-<script>
-    // New: Event listener for the Enter key on the to-do input field
-    document.getElementById('todo-input').addEventListener('keydown', function(event) {
-        if (event.key === 'Enter') {
-            event.preventDefault(); // Prevents a new line in some browsers
-            addTodo();
-        }
-    });
-
-    // New: Ambient Effects Variables
+// New: Ambient Effects Variables
 const ambientContainer = document.createElement('div');
 ambientContainer.id = 'ambient-container';
 document.body.appendChild(ambientContainer);
@@ -980,7 +922,7 @@ function startSnow() {
     ambientContainer.className = 'snow';
     ambientInterval = setInterval(() => {
         const snowflake = createAmbientElement('snowflake');
-        animateAmbientElement(snowflake, 8000, 15000); // 8-15 seconds for snow
+        animateAmbientElement(snowflake, 8000, 15000);
     }, 100);
 }
 
@@ -990,7 +932,7 @@ function startRain() {
     ambientContainer.className = 'rain';
     ambientInterval = setInterval(() => {
         const raindrop = createAmbientElement('raindrop');
-        animateAmbientElement(raindrop, 400, 800); // 0.4-0.8 seconds for rain
+        animateAmbientElement(raindrop, 400, 800);
     }, 50);
 }
 
@@ -1007,10 +949,9 @@ function createAmbientElement(className) {
 function animateAmbientElement(el, minDuration, maxDuration) {
     const duration = Math.random() * (maxDuration - minDuration) + minDuration;
     el.style.animation = `fall ${duration}ms linear forwards`;
-    el.style.animationDelay = `-${Math.random() * duration}ms`; // Stagger the start times
-    el.style.transform = `translateY(-20vh)`; // Start the animation above the viewport
+    el.style.animationDelay = `-${Math.random() * duration}ms`;
+    el.style.transform = `translateY(-20vh)`;
 
-    // Remove the element after the animation is finished
     el.addEventListener('animationend', () => {
         el.remove();
     });
@@ -1021,6 +962,26 @@ function stopAmbientEffects() {
     clearInterval(ambientInterval);
     ambientContainer.innerHTML = '';
 }
+
+setInterval(updateCornerWidget, 1000);
+updateTimerDisplay();
+updateStatus();
+updateCornerWidget();
+loadTodos();
+window.addEventListener("beforeunload", function (e) {
+    if(timeLeft < 25*60 && timeLeft > 60){
+        savePartialSession();
+    }
+});
+</script>
+
+<script>
+    document.getElementById('todo-input').addEventListener('keydown', function(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            addTodo();
+        }
+    });
 </script>
 
 </body>
