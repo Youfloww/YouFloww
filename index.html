@@ -94,6 +94,12 @@ button:disabled { background: #ccc; cursor: not-allowed; }
     background: #fff;
     border-radius: 10px;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    
+    /* New: Default background */
+    background: linear-gradient(rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.8)), url('https://images.unsplash.com/photo-1579546929944-ef09c7355861?q=80&w=2070&auto=format&fit=crop');
+    background-size: cover;
+    background-position: center;
+    background-blend-mode: overlay;
 }
 #todo-container h2 { margin-bottom: 15px; color: #4CAF50; }
 #todo-input-container { display: flex; margin-bottom: 10px; }
@@ -239,7 +245,7 @@ button:disabled { background: #ccc; cursor: not-allowed; }
 <audio id="endSound">
   <source src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" type="audio/ogg">
 </audio>
-<audio id="whiteNoice" loop>
+<audio id="whiteNoise" loop>
   <source src="whitenoice.mp3" type="audio/mpeg">
 </audio>
 </main>
@@ -901,6 +907,16 @@ window.addEventListener("beforeunload", function (e) {
         savePartialSession();
     }
 });
+</script>
+
+<script>
+    // New: Event listener for the Enter key on the to-do input field
+    document.getElementById('todo-input').addEventListener('keydown', function(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault(); // Prevents a new line in some browsers
+            addTodo();
+        }
+    });
 </script>
 
 </body>
