@@ -96,7 +96,6 @@ button:disabled { background: #ccc; cursor: not-allowed; }
     border-radius: 10px;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     
-    /* New: Default background */
     background: linear-gradient(rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.8)), url('https://images.unsplash.com/photo-1579546929944-ef09c7355861?q=80&w=2070&auto=format&fit=crop');
     background-size: cover;
     background-position: center;
@@ -137,8 +136,8 @@ button:disabled { background: #ccc; cursor: not-allowed; }
     left: 0;
     width: 100%;
     height: 100%;
-    pointer-events: none; /* Allows clicks to pass through */
-    z-index: -1; /* Puts the effect behind other content */
+    pointer-events: none;
+    z-index: -1;
     overflow: hidden;
 }
 
@@ -159,10 +158,10 @@ button:disabled { background: #ccc; cursor: not-allowed; }
 /* Styles for a single raindrop */
 .raindrop {
     width: 2px;
-    height: 15px; /* Creates a drop shape */
-    background-color: #a6c0e8; /* Light blue for rain */
-    transform: rotate(15deg); /* Slight angle for realistic rain */
-    border-radius: 0; /* Remove the round shape for drops */
+    height: 15px;
+    background-color: #a6c0e8;
+    transform: rotate(15deg);
+    border-radius: 0;
 }
 
 /* Keyframe animation for falling effects */
@@ -170,6 +169,29 @@ button:disabled { background: #ccc; cursor: not-allowed; }
     to {
         transform: translateY(100vh);
     }
+}
+
+/* New: Store and Profile Styles */
+.store-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    margin-bottom: 10px;
+    background: #f9f9f9;
+    border-radius: 8px;
+    border: 1px solid #eee;
+}
+.store-item button {
+    background: #FF9800;
+    color: white;
+}
+.store-item button:hover {
+    background: #e68a00;
+}
+.store-item button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
 }
 </style>
 
@@ -245,9 +267,9 @@ button:disabled { background: #ccc; cursor: not-allowed; }
     <p id="weeklyFocus">⏳ Focused this week: 0h 0m</p>
     
     <div class="tabs">
-      <div class="tab active" onclick="switchTab('bar')">Weekly Focus</div>
-      <div class="tab" onclick="switchTab('pie')">Session Distribution</div>
-      <div class="tab" onclick="switchTab('history')">History</div>
+        <div class="tab active" onclick="switchTab('stats')">📈 Stats</div>
+        <div class="tab" onclick="switchTab('profile')">👤 Profile</div>
+        <div class="tab" onclick="switchTab('store')">🛒 Store</div>
     </div>
     
     <div id="barChartContainer" class="chart-container">
@@ -275,6 +297,30 @@ button:disabled { background: #ccc; cursor: not-allowed; }
           </tbody>
       </table>
     </div>
+
+    <div id="profileContainer" class="chart-container" style="display:none">
+        <div class="chart-title">Your Profile</div>
+        <p>Name: <span id="profileName">Floww User</span></p>
+        <p>Total Focus Time: <span id="totalFocusTime">0h 0m</span></p>
+        <p>Total Sessions: <span id="totalSessions">0</span></p>
+        <p>Total Coins Earned: <span id="totalCoinsEarned">0</span></p>
+        <button onclick="changeProfileName()">Change Name</button>
+    </div>
+    
+    <div id="storeContainer" class="chart-container" style="display:none">
+        <div class="chart-title">Customize Your Experience</div>
+        <p>Use your coins to unlock new features!</p>
+        <div id="storeItems">
+            <div class="store-item" data-price="25" data-feature="new-background">
+                <span>🌆 New Background Theme</span>
+                <button onclick="purchaseItem(this)">Buy (25 💰)</button>
+            </div>
+            <div class="store-item" data-price="50" data-feature="custom-sounds">
+                <span>🎶 Custom Sounds Pack</span>
+                <button onclick="purchaseItem(this)">Buy (50 💰)</button>
+            </div>
+        </div>
+    </div>
     
     <button onclick="uploadStatsBackground()">Upload Background</button>
     <button onclick="exportData()" style="background: #2196F3;">Export Data</button>
@@ -296,7 +342,7 @@ button:disabled { background: #ccc; cursor: not-allowed; }
   <source src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" type="audio/ogg">
 </audio>
 <audio id="whiteNoise" loop>
-  <source src="whitenoise.mp3" type="audio/mpeg">
+  <source src="https://freesound.org/data/previews/56/56317_491791-lq.mp3" type="audio/mpeg">
 </audio>
 </main>
 <aside>
@@ -322,6 +368,9 @@ let timer, timeLeft = 25*60, isRunning = false, isWorkSession = true, sessionCou
 
 // ---- Stats ----
 let sessionsToday = parseInt(localStorage.getItem("sessionsToday")) || 0;
+let totalFocusMinutes = parseInt(localStorage.getItem("totalFocusMinutes")) || 0;
+let totalSessions = parseInt(localStorage.getItem("totalSessions")) || 0;
+let totalCoinsEarned = parseInt(localStorage.getItem("totalCoinsEarned")) || 0;
 let streak = parseInt(localStorage.getItem("streak")) || 0;
 let lastActiveDate = localStorage.getItem("lastActiveDate") || null;
 
@@ -335,6 +384,11 @@ const endSound = document.getElementById("endSound");
 const coinSound = document.getElementById("coinSound");
 const whiteNoise = document.getElementById("whiteNoise");
 const noiseBtn = document.getElementById("noiseBtn");
+
+// New: Profile Variables
+let profileName = localStorage.getItem("profileName") || "Floww User";
+document.getElementById("profileName").textContent = profileName;
+
 
 // Initialize weekly stats if not exists
 if (!localStorage.getItem("weeklyStats")) {
@@ -478,6 +532,11 @@ function addFocusMinutes(minutes){
   localStorage.setItem("weeklyFocus", JSON.stringify(weeklyData));
   
   updateWeeklyStats(minutes);
+
+  totalFocusMinutes += minutes;
+  totalSessions++;
+  localStorage.setItem("totalFocusMinutes", totalFocusMinutes);
+  localStorage.setItem("totalSessions", totalSessions);
 }
 
 function updateWeeklyStats(minutes) {
@@ -740,29 +799,21 @@ function formatDate(dateString) {
 }
 
 function switchTab(tabName) {
-  const tabs = document.querySelectorAll('.tab');
-  const barContainer = document.getElementById('barChartContainer');
-  const pieContainer = document.getElementById('pieChartContainer');
-  const historyContainer = document.getElementById('historyContainer');
-  
-  tabs.forEach(tab => tab.classList.remove('active'));
-  
-  if (tabName === 'bar') {
-    document.querySelector('.tab:nth-child(1)').classList.add('active');
-    barContainer.style.display = 'block';
-    pieContainer.style.display = 'none';
-    historyContainer.style.display = 'none';
-  } else if (tabName === 'pie') {
-    document.querySelector('.tab:nth-child(2)').classList.add('active');
-    barContainer.style.display = 'none';
-    pieContainer.style.display = 'block';
-    historyContainer.style.display = 'none';
-  } else {
-    document.querySelector('.tab:nth-child(3)').classList.add('active');
-    barContainer.style.display = 'none';
-    pieContainer.style.display = 'none';
-    historyContainer.style.display = 'block';
-  }
+    const tabs = document.querySelectorAll('.tab');
+    const containers = document.querySelectorAll('.chart-container');
+    
+    tabs.forEach(tab => tab.classList.remove('active'));
+    containers.forEach(container => container.style.display = 'none');
+    
+    document.querySelector(`.tab[onclick*="'${tabName}'"]`).classList.add('active');
+    document.getElementById(`${tabName}Container`).style.display = 'block';
+
+    if (tabName === 'profile') {
+        updateProfile();
+    }
+    if (tabName === 'store') {
+        updateStoreUI();
+    }
 }
 
 // ---- Data Management Functions ----
@@ -798,16 +849,26 @@ function clearAllData() {
     localStorage.removeItem("sessionsToday");
     localStorage.removeItem("coins");
     localStorage.removeItem("sessionCoinsToday");
+    localStorage.removeItem("totalFocusMinutes");
+    localStorage.removeItem("totalSessions");
+    localStorage.removeItem("totalCoinsEarned");
+    localStorage.removeItem("profileName");
+    localStorage.removeItem("unlockedFeatures");
     
     sessionsToday = 0;
     streak = 0;
     lastActiveDate = null;
     coins = 0;
     sessionCoinsToday = 0;
+    totalFocusMinutes = 0;
+    totalSessions = 0;
+    totalCoinsEarned = 0;
     
     document.getElementById("coinCount").textContent = coins;
     updateStatsModal();
     updateHistoryTable();
+    updateProfile();
+    updateStoreUI();
     
     alert("All data has been cleared.");
   }
@@ -817,8 +878,9 @@ function clearAllData() {
 function rewardCoins(){
   const coinsThisSession = 5 + sessionCoinsToday*5;
   coins += coinsThisSession;
-  sessionCoinsToday++;
+  totalCoinsEarned += coinsThisSession;
   localStorage.setItem("coins", coins);
+  localStorage.setItem("totalCoinsEarned", totalCoinsEarned);
   localStorage.setItem("sessionCoinsToday", sessionCoinsToday);
   document.getElementById("coinCount").textContent = coins;
 
@@ -961,6 +1023,71 @@ function animateAmbientElement(el, minDuration, maxDuration) {
 function stopAmbientEffects() {
     clearInterval(ambientInterval);
     ambientContainer.innerHTML = '';
+}
+
+// New: Profile and Store Logic
+function updateProfile() {
+    let totalFocusMinutes = parseInt(localStorage.getItem("totalFocusMinutes")) || 0;
+    let totalSessions = parseInt(localStorage.getItem("totalSessions")) || 0;
+    let totalCoinsEarned = parseInt(localStorage.getItem("totalCoinsEarned")) || 0;
+
+    const hours = Math.floor(totalFocusMinutes / 60);
+    const minutes = totalFocusMinutes % 60;
+
+    document.getElementById("profileName").textContent = profileName;
+    document.getElementById("totalFocusTime").textContent = `${hours}h ${minutes}m`;
+    document.getElementById("totalSessions").textContent = totalSessions;
+    document.getElementById("totalCoinsEarned").textContent = totalCoinsEarned;
+    updateStoreUI();
+}
+
+function changeProfileName() {
+    let newName = prompt("Enter your new name:");
+    if (newName && newName.trim() !== "") {
+        profileName = newName;
+        localStorage.setItem("profileName", profileName);
+        document.getElementById("profileName").textContent = profileName;
+    }
+}
+
+function purchaseItem(button) {
+    const item = button.parentElement;
+    const price = parseInt(item.dataset.price);
+    const feature = item.dataset.feature;
+
+    if (coins >= price) {
+        coins -= price;
+        localStorage.setItem("coins", coins);
+        document.getElementById("coinCount").textContent = coins;
+        
+        let unlockedFeatures = JSON.parse(localStorage.getItem("unlockedFeatures")) || [];
+        unlockedFeatures.push(feature);
+        localStorage.setItem("unlockedFeatures", JSON.stringify(unlockedFeatures));
+
+        alert(`You have purchased a new feature! (${feature})`);
+        updateStoreUI();
+    } else {
+        alert("Not enough coins!");
+    }
+}
+
+function updateStoreUI() {
+    const unlockedFeatures = JSON.parse(localStorage.getItem("unlockedFeatures")) || [];
+    const storeItems = document.querySelectorAll(".store-item");
+
+    storeItems.forEach(item => {
+        const feature = item.dataset.feature;
+        const price = parseInt(item.dataset.price);
+        const button = item.querySelector("button");
+        
+        if (unlockedFeatures.includes(feature)) {
+            button.textContent = "Unlocked";
+            button.disabled = true;
+        } else {
+            button.textContent = `Buy (${price} 💰)`;
+            button.disabled = coins < price;
+        }
+    });
 }
 
 setInterval(updateCornerWidget, 1000);
