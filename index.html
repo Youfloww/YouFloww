@@ -15,6 +15,7 @@ body {
     background: linear-gradient(to bottom, #d4e0e6, #a6bdd4);
     color: #333;
     overflow-x: hidden;
+    transition: background-image 0.5s ease-in-out;
 }
 #timer { font-size: 4rem; margin: 20px 0; }
 #status { font-size: 1.5rem; margin-bottom: 20px; color: #555; }
@@ -311,11 +312,11 @@ button:disabled { background: #ccc; cursor: not-allowed; }
         <div class="chart-title">Customize Your Experience</div>
         <p>Use your coins to unlock new features!</p>
         <div id="storeItems">
-            <div class="store-item" data-price="25" data-feature="new-background">
-                <span>🌆 New Background Theme</span>
+            <div class="store-item" data-price="25" data-feature="background-theme-1" data-path="https://images.unsplash.com/photo-1542831371-d648083a23de?q=80&w=2070&auto=format&fit=crop">
+                <span>🌆 Cosmic Background</span>
                 <button onclick="purchaseItem(this)">Buy (25 💰)</button>
             </div>
-            <div class="store-item" data-price="50" data-feature="custom-sounds">
+            <div class="store-item" data-price="50" data-feature="ambient-sounds-1" data-path="[path_to_new_sound_file]">
                 <span>🎶 Custom Sounds Pack</span>
                 <button onclick="purchaseItem(this)">Buy (50 💰)</button>
             </div>
@@ -342,7 +343,7 @@ button:disabled { background: #ccc; cursor: not-allowed; }
   <source src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" type="audio/ogg">
 </audio>
 <audio id="whiteNoise" loop>
-  <source src="https://freesound.org/data/previews/56/56317_491791-lq.mp3" type="audio/mpeg">
+  <source src="whitenoise.mp3" type="audio/mpeg">
 </audio>
 </main>
 <aside>
@@ -806,7 +807,14 @@ function switchTab(tabName) {
     containers.forEach(container => container.style.display = 'none');
     
     document.querySelector(`.tab[onclick*="'${tabName}'"]`).classList.add('active');
-    document.getElementById(`${tabName}Container`).style.display = 'block';
+    
+    // The "Stats" tab has no single container, so we handle it as a special case.
+    // This fixes the TypeError: Cannot read properties of null (reading 'style').
+    if (tabName === 'stats') {
+        document.getElementById('barChartContainer').style.display = 'block';
+    } else {
+        document.getElementById(`${tabName}Container`).style.display = 'block';
+    }
 
     if (tabName === 'profile') {
         updateProfile();
@@ -1050,8 +1058,7 @@ function changeProfileName() {
     }
 }
 
-function purchaseItem(button) {
-    const item = button.parentElement;
+function purchaseItem(item) {
     const price = parseInt(item.dataset.price);
     const feature = item.dataset.feature;
 
@@ -1079,16 +1086,31 @@ function updateStoreUI() {
         const feature = item.dataset.feature;
         const price = parseInt(item.dataset.price);
         const button = item.querySelector("button");
-        
+
         if (unlockedFeatures.includes(feature)) {
-            button.textContent = "Unlocked";
-            button.disabled = true;
+            if (feature.startsWith("background-theme")) {
+                button.textContent = "Select";
+                button.onclick = () => applyBackgroundTheme(item.dataset.path);
+                button.disabled = false;
+            } else if (feature.startsWith("ambient-sounds")) {
+                button.textContent = "Unlocked";
+                button.disabled = true;
+            }
         } else {
             button.textContent = `Buy (${price} 💰)`;
+            button.onclick = () => purchaseItem(item);
             button.disabled = coins < price;
         }
     });
 }
+
+function applyBackgroundTheme(path) {
+    document.body.style.backgroundImage = `url('${path}')`;
+    document.body.style.backgroundSize = 'cover';
+    document.body.style.backgroundPosition = 'center';
+    localStorage.setItem("currentBackgroundPath", path);
+}
+
 
 setInterval(updateCornerWidget, 1000);
 updateTimerDisplay();
@@ -1100,6 +1122,11 @@ window.addEventListener("beforeunload", function (e) {
         savePartialSession();
     }
 });
+
+const savedBackground = localStorage.getItem("currentBackgroundPath");
+if (savedBackground) {
+    applyBackgroundTheme(savedBackground);
+}
 </script>
 
 <script>
