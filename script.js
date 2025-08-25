@@ -695,6 +695,55 @@ function applyBackgroundTheme(path) {
     localStorage.setItem("currentBackgroundPath", path);
 }
 
+// ... (all other JavaScript remains the same)
+
+// ---- Ambient Effects ----
+function createAmbientElement(className) {
+    const el = document.createElement('div');
+    el.className = `ambient-effect ${className}`;
+    el.style.left = `${Math.random() * 100}vw`;
+    ambientContainer.appendChild(el);
+    return el;
+}
+
+function animateAmbientElement(el, minDuration, maxDuration) {
+    const duration = Math.random() * (maxDuration - minDuration) + minDuration;
+    el.style.animation = `fall ${duration}ms linear forwards`;
+    el.style.animationDelay = `-${Math.random() * duration}ms`;
+    el.style.transform = `translateY(-20vh)`;
+    el.addEventListener('animationend', () => {
+        el.remove();
+    });
+}
+
+function startSnow() {
+    stopAmbientEffects();
+    ambientContainer.className = 'snow';
+    ambientInterval = setInterval(() => {
+        const snowflake = createAmbientElement('snowflake');
+        animateAmbientElement(snowflake, 8000, 15000);
+    }, 100);
+}
+
+function startRain() {
+    stopAmbientEffects();
+    ambientContainer.className = 'rain';
+    ambientInterval = setInterval(() => {
+        const raindrop = createAmbientElement('raindrop');
+        animateAmbientElement(raindrop, 400, 800);
+    }, 50);
+}
+
+function stopAmbientEffects() {
+    clearInterval(ambientInterval);
+    // Remove all existing ambient elements
+    while (ambientContainer.firstChild) {
+        ambientContainer.removeChild(ambientContainer.firstChild);
+    }
+}
+
+// ... (all other JavaScript remains the same)
+
 // ---- Initialization ----
 document.addEventListener("DOMContentLoaded", () => {
     updateTimerDisplay();
