@@ -224,7 +224,7 @@ function renderCharts() {
   renderPieChart();
 }
 function renderBarChart() {
-    const weeklyData = JSON.json(localStorage.getItem("weeklyFocus") || "{}");
+    const weeklyData = JSON.parse(localStorage.getItem("weeklyFocus") || "{}");
     const today = new Date();
     const labels = [];
     const data = [];
