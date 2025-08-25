@@ -29,6 +29,8 @@ main {
     border-radius: 20px;
     box-shadow: 0 10px 25px rgba(0,0,0,0.5);
     border: 1px solid var(--border-color);
+    z-index: 10;
+    position: relative;
 }
 section {
     margin-bottom: 40px;
@@ -37,6 +39,8 @@ section {
     border-radius: 15px;
     border: 1px solid var(--border-color);
     box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    z-index: 10;
+    position: relative;
 }
 h1 {
     font-size: 2.5rem;
@@ -391,9 +395,21 @@ button:disabled {
     transform: rotate(15deg);
     border-radius: 0;
 }
+.sakura {
+    width: 15px;
+    height: 15px;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill="%23FFC0CB" d="M50,95c-22,0-40-18-40-40c0-10,4-19,10-26C25,22,37,13,50,5c13,8,25,17,30,24c6,7,10,16,10,26C90,77,72,95,50,95zM50,5L50,5z"/></svg>');
+    background-size: contain;
+    background-repeat: no-repeat;
+}
 @keyframes fall {
     to {
         transform: translateY(100vh);
+    }
+}
+@keyframes spinFall {
+    to {
+        transform: translateY(100vh) rotate(720deg);
     }
 }
 /* Store and Profile Styles */
