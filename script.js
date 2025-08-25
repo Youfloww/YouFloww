@@ -501,7 +501,7 @@ function startSnow() {
     ambientContainer.className = 'snow';
     ambientInterval = setInterval(() => {
         const snowflake = createAmbientElement('snowflake');
-        animateAmbientElement(snowflake, 8000, 15000);
+        animateAmbientElement(snowflake, 8000, 15000, 'fall');
     }, 100);
 }
 // New: Function to start rain animation
@@ -510,8 +510,17 @@ function startRain() {
     ambientContainer.className = 'rain';
     ambientInterval = setInterval(() => {
         const raindrop = createAmbientElement('raindrop');
-        animateAmbientElement(raindrop, 400, 800);
+        animateAmbientElement(raindrop, 400, 800, 'fall');
     }, 50);
+}
+// New: Function to start sakura animation
+function startSakura() {
+    stopAmbientEffects();
+    ambientContainer.className = 'sakura';
+    ambientInterval = setInterval(() => {
+        const petal = createAmbientElement('sakura');
+        animateAmbientElement(petal, 15000, 25000, 'spinFall');
+    }, 250);
 }
 // New: Helper function to create the elements
 function createAmbientElement(className) {
@@ -522,9 +531,9 @@ function createAmbientElement(className) {
     return el;
 }
 // New: Helper function to animate the elements
-function animateAmbientElement(el, minDuration, maxDuration) {
+function animateAmbientElement(el, minDuration, maxDuration, animationName) {
     const duration = Math.random() * (maxDuration - minDuration) + minDuration;
-    el.style.animation = `fall ${duration}ms linear forwards`;
+    el.style.animation = `${animationName} ${duration}ms linear forwards`;
     el.style.animationDelay = `-${Math.random() * duration}ms`;
     el.style.transform = `translateY(-20vh)`;
     el.addEventListener('animationend', () => {
@@ -617,8 +626,3 @@ if (savedBackground) {
     applyBackgroundTheme(savedBackground);
 }
 document.getElementById('todo-input').addEventListener('keydown', function(event) {
-    if (event.key === 'Enter') {
-        event.preventDefault();
-        addTodo();
-    }
-});
