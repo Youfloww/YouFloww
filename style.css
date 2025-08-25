@@ -185,6 +185,7 @@ button:disabled {
     border-radius: 10px;
     box-shadow: var(--box-shadow);
     border: 1px solid var(--border-color);
+    height: 350px; /* New: Fixed height for the container */
 }
 
 .chart-title {
