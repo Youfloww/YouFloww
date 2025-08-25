@@ -626,3 +626,8 @@ if (savedBackground) {
     applyBackgroundTheme(savedBackground);
 }
 document.getElementById('todo-input').addEventListener('keydown', function(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        addTodo();
+    }
+});
