@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="YouFloww is a simple and effective focus timer and productivity tool. Stay on task with Pomodoro sessions, track your progress, and earn coins.">
+    <meta name="keywords" content="focus timer, Pomodoro, productivity, to-do list, study tool, work timer, time management, concentration">
+    <title>YouFloww - Focus Timer & To-Do List</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "WebApplication",
+          "name": "YouFloww",
+          "url": "https://yourwebsite.com",
+          "applicationCategory": "Productivity",
+          "description": "A focus timer and to-do list application to improve concentration and time management.",
+          "operatingSystem": "Any",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          },
+          "creator": {
+            "@type": "Person",
+            "name": "Your Name Here"
+          }
+        }
+    </script>
+</head>
+<body>
+    <main>
+        <section>
+            <h1>Welcome to YouFloww ⏱️</h1>
+            <p>Stay focused. Stay consistent.</p>
+            <div id="status">Work Session</div>
+            <div id="timer">25:00</div>
+            <div class="timer-controls">
+                <button id="startBtn">Start</button>
+                <button id="pauseBtn" disabled>Pause</button>
+                <button id="resetBtn">Reset</button>
+            </div>
+            <button id="endSessionBtn">End Session</button>
+            <button id="noiseBtn">🎧 Play Noise</button>
+        </section>
+
+        <section class="ambient-section">
+            <h2>🍃 Ambient Effects</h2>
+            <div class="ambient-controls">
+                <button id="snowBtn">❄️ Snowfall</button>
+                <button id="rainBtn">🌧️ Rainfall</button>
+                <button id="stopAmbientBtn">🚫 Stop</button>
+            </div>
+        </section>
+
+        <section class="todo-section">
+            <div id="todo-container">
+                <h2>🎯 To-Do List</h2>
+                <div id="todo-input-container">
+                    <input type="text" id="todo-input" placeholder="Add a new task..." aria-label="Add a new task">
+                    <button id="add-todo-btn">Add</button>
+                </div>
+                <ul id="todo-list"></ul>
+                <button class="clear-todos-btn">Clear All Tasks</button>
+            </div>
+        </section>
+
+        <div id="coinContainer">
+            <div>💰 Coins: <span id="coinCount">0</span></div>
+            <button id="viewStatsBtn">View Stats</button>
+        </div>
+
+        <div id="statsModal" class="modal">
+            <div id="statsContent" class="modal-content">
+                <span class="close-btn">&times;</span>
+                <h2>Your Progress 📈</h2>
+                <p id="streak">🔥 Streak: 0 days</p>
+                <p id="sessionsToday">📊 Sessions today: 0</p>
+                <p id="weeklyFocus">⏳ Focused this week: 0h 0m</p>
+
+                <div class="tabs">
+                    <div class="tab active" data-tab="stats">📈 Stats</div>
+                    <div class="tab" data-tab="profile">👤 Profile</div>
+                    <div class="tab" data-tab="store">🛒 Store</div>
+                </div>
+                
+                <div id="statsTab" class="tab-content active">
+                    <div id="barChartContainer" class="chart-container">
+                        <div class="chart-title">Daily Focus (hours)</div>
+                        <canvas id="barChart"></canvas>
+                    </div>
+                    <div id="pieChartContainer" class="chart-container" style="display:none">
+                        <div class="chart-title">Session Types</div>
+                        <canvas id="pieChart"></canvas>
+                    </div>
+                    <div id="historyContainer" class="chart-container" style="display:none">
+                        <div class="chart-title">Weekly History</div>
+                        <table class="stats-table">
+                            <thead>
+                                <tr>
+                                    <th>Week Starting</th>
+                                    <th>Total Focus</th>
+                                    <th>Sessions</th>
+                                    <th>Days Active</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="profileTab" class="tab-content">
+                    <div class="chart-title">Your Profile</div>
+                    <p>Name: <span id="profileName">Floww User</span></p>
+                    <p>Total Focus Time: <span id="totalFocusTime">0h 0m</span></p>
+                    <p>Total Sessions: <span id="totalSessions">0</span></p>
+                    <p>Total Coins Earned: <span id="totalCoinsEarned">0</span></p>
+                    <button id="changeProfileNameBtn">Change Name</button>
+                </div>
+
+                <div id="storeTab" class="tab-content">
+                    <div class="chart-title">Customize Your Experience</div>
+                    <p>Use your coins to unlock new features!</p>
+                    <div id="storeItems">
+                        <div class="store-item" data-price="25" data-feature="background-theme-1" data-path="https://images.unsplash.com/photo-1542831371-d648083a23de?q=80&w=2070&auto=format&fit=crop">
+                            <span>🌆 Cosmic Background</span>
+                            <button class="purchase-btn">Buy (25 💰)</button>
+                        </div>
+                        <div class="store-item" data-price="50" data-feature="ambient-sounds-1" data-path="[path_to_new_sound_file]">
+                            <span>🎶 Custom Sounds Pack</span>
+                            <button class="purchase-btn">Buy (50 💰)</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stats-actions">
+                    <button id="uploadBgBtn">Upload Background</button>
+                    <button id="exportDataBtn">Export Data</button>
+                    <button id="clearDataBtn">Clear All Data</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="coinPopup">
+            +<span id="coinEarned">0</span> Coins!
+        </div>
+
+        <audio id="coinSound" src="https://actions.google.com/sounds/v1/money/coin_drop.ogg"></audio>
+        <audio id="startSound" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
+        <audio id="endSound" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
+        <audio id="whiteNoise" src="whitenoise.mp3" loop></audio>
+    </main>
+
+    <aside>
+        <div id="cornerWidget">
+            <div id="liveTime"></div>
+            <div>Day Progress</div>
+            <div class="progress-bar-container">
+                <div id="dayProgressBar" class="progress-bar"></div>
+            </div>
+            <div>Month Progress</div>
+            <div class="progress-bar-container">
+                <div id="monthProgressBar" class="progress-bar"></div>
+            </div>
+            <div>Year Progress</div>
+            <div class="progress-bar-container">
+                <div id="yearProgressBar" class="progress-bar"></div>
+            </div>
+        </div>
+    </aside>
+
+    <div id="ambient-container"></div>
+    <script src="script.js"></script>
+</body>
+</html>
