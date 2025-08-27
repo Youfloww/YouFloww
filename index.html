@@ -108,6 +108,11 @@
                 </div>
             </div>
         </div>
+        <div class="store-item" data-price="100" data-feature="youtube-bg">
+            <span>🎬 YouTube Background</span>
+            <input type="text" id="youtube-input" placeholder="Paste YouTube URL here...">
+            <button id="setYoutubeBtn" onclick="setYoutubeBackground()">Set</button>
+        </div>
     </div>
     <div class="stats-actions">
         <button id="exportDataBtn" onclick="exportData()">Export Data</button>
@@ -148,6 +153,7 @@
 </div>
 </aside>
 <div id="ambient-container"></div>
+<div id="video-background-container"></div>
 <script src="script.js"></script>
 </body>
 </html>
