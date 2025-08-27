@@ -462,3 +462,45 @@ button:disabled {
     color: var(--text-color);
     cursor: not-allowed;
 }
+#video-background-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -2;
+    pointer-events: none;
+    overflow: hidden;
+}
+#video-background-container iframe {
+    width: 100vw;
+    height: 100vh;
+    transform: scale(1.1);
+    pointer-events: none;
+}
+
+body.focus-mode .timer-controls,
+body.focus-mode .ambient-controls,
+body.focus-mode #todo-container,
+body.focus-mode #coinContainer,
+body.focus-mode #cornerWidget,
+body.focus-mode main p,
+body.focus-mode main h1,
+body.focus-mode main h2 {
+    display: none !important;
+}
+
+body.focus-mode main {
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    border: none !important;
+}
+
+body.focus-mode #timer {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 10rem;
+}
