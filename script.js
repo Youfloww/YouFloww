@@ -597,6 +597,11 @@ function updateStoreUI() {
             } else if (feature.startsWith("ambient-sounds")) {
                 button.textContent = "Unlocked";
                 button.disabled = true;
+            } else if (feature === "youtube-bg") {
+                button.textContent = "Unlocked";
+                button.disabled = true;
+                document.getElementById('youtube-input').disabled = false;
+                document.getElementById('setYoutubeBtn').disabled = false;
             }
         } else {
             button.textContent = `Buy (${price} 💰)`;
@@ -611,6 +616,43 @@ function applyBackgroundTheme(path) {
     document.body.style.backgroundPosition = 'center';
     localStorage.setItem("currentBackgroundPath", path);
 }
+
+function setYoutubeBackground() {
+    const youtubeInput = document.getElementById("youtube-input");
+    const url = youtubeInput.value;
+    const videoId = getYoutubeVideoId(url);
+    if (videoId) {
+        const container = document.getElementById("video-background-container");
+        container.innerHTML = `
+            <iframe
+                src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&modestbranding=1"
+                frameborder="0"
+                allow="autoplay; encrypted-media"
+                allowfullscreen
+            ></iframe>
+        `;
+        alert("YouTube background set!");
+    } else {
+        alert("Please enter a valid YouTube URL.");
+    }
+}
+
+function getYoutubeVideoId(url) {
+    const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
+    const match = url.match(regex);
+    return match ? match[1] : null;
+}
+
+function toggleFocusMode() {
+    document.body.classList.toggle('focus-mode');
+    const focusBtn = document.getElementById('focusModeBtn');
+    if (document.body.classList.contains('focus-mode')) {
+        focusBtn.textContent = 'Exit Focus Mode';
+    } else {
+        focusBtn.textContent = 'Focus Mode';
+    }
+}
+
 setInterval(updateCornerWidget, 1000);
 updateTimerDisplay();
 updateStatus();
