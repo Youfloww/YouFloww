@@ -478,7 +478,6 @@ button:disabled {
     transform: scale(1.1);
     pointer-events: none;
 }
-
 body.focus-mode .timer-controls,
 body.focus-mode .ambient-controls,
 body.focus-mode #todo-container,
@@ -489,18 +488,16 @@ body.focus-mode main h1,
 body.focus-mode main h2 {
     display: none !important;
 }
-
 body.focus-mode main {
     background: transparent !important;
     box-shadow: none !important;
     padding: 0 !important;
     border: none !important;
 }
-
 body.focus-mode #timer {
     position: fixed;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
     font-size: 10rem;
-}
+}}
