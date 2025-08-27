@@ -616,7 +616,6 @@ function applyBackgroundTheme(path) {
     document.body.style.backgroundPosition = 'center';
     localStorage.setItem("currentBackgroundPath", path);
 }
-
 function setYoutubeBackground() {
     const youtubeInput = document.getElementById("youtube-input");
     const url = youtubeInput.value;
@@ -636,23 +635,11 @@ function setYoutubeBackground() {
         alert("Please enter a valid YouTube URL.");
     }
 }
-
 function getYoutubeVideoId(url) {
     const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
     const match = url.match(regex);
     return match ? match[1] : null;
 }
-
-function toggleFocusMode() {
-    document.body.classList.toggle('focus-mode');
-    const focusBtn = document.getElementById('focusModeBtn');
-    if (document.body.classList.contains('focus-mode')) {
-        focusBtn.textContent = 'Exit Focus Mode';
-    } else {
-        focusBtn.textContent = 'Focus Mode';
-    }
-}
-
 setInterval(updateCornerWidget, 1000);
 updateTimerDisplay();
 updateStatus();
