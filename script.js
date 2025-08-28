@@ -285,7 +285,7 @@ function renderBarChart() {
 }
 function renderPieChart() {
     const totalFocusMinutes = parseInt(localStorage.getItem("totalFocusMinutes") || 0);
-    const totalSessions = parseInt(localStorage.getItem("totalSessions") || 0);
+    const totalSessions = parseInt(localStorage.getItem("totalSessions")) || 0;
     const totalBreakMinutes = totalSessions * 5;
     const canvas = document.getElementById('pieChart');
     const ctx = canvas.getContext('2d');
@@ -597,6 +597,11 @@ function updateStoreUI() {
             } else if (feature.startsWith("ambient-sounds")) {
                 button.textContent = "Unlocked";
                 button.disabled = true;
+            } else if (feature === "youtube-bg") {
+                button.textContent = "Unlocked";
+                button.disabled = true;
+                document.getElementById('youtube-input').disabled = false;
+                document.getElementById('setYoutubeBtn').disabled = false;
             }
         } else {
             button.textContent = `Buy (${price} 💰)`;
