@@ -353,7 +353,7 @@ function switchTab(tabName) {
     tabs.forEach(tab => tab.classList.remove('active'));
     tabContents.forEach(content => content.classList.remove('active'));
     document.querySelector(`.tab[onclick*="'${tabName}'"]`).classList.add('active');
-    document.getElementById(`${tabName}TabContent` || `${tabName}Container`).classList.add('active'); // Adjusted to handle both naming conventions
+    document.getElementById(`${tabName}Container`).classList.add('active'); // CORRECTED
     if (tabName === 'profile') {
         updateProfile();
     }
@@ -385,36 +385,37 @@ function exportData() {
   linkElement.click();
 }
 function clearAllData() {
-  if (confirm("Are you sure you want to clear all data? This cannot be undone!")) {
-    localStorage.clear(); // Simpler way to clear all data
-    // Reset all variables to their default state
-    sessionsToday = 0;
-    totalFocusMinutes = 0;
-    totalSessions = 0;
-    totalCoinsEarned = 0;
-    streak = 0;
-    lastActiveDate = null;
-    coins = 0;
-    sessionCoinsToday = 0;
-    profileName = "Floww User";
-    
-    // Update UI elements
-    document.getElementById("coinCount").textContent = coins;
-    updateStatsModal();
-    updateHistoryTable();
-    updateProfile();
-    updateStoreUI();
-    loadTodos();
-    renderCharts();
-    alert("All data has been cleared.");
-  }
+    if (confirm("Are you sure you want to clear all data? This cannot be undone!")) {
+        localStorage.clear();
+        // Reset all variables to their default state
+        sessionsToday = 0;
+        totalFocusMinutes = 0;
+        totalSessions = 0;
+        totalCoinsEarned = 0;
+        streak = 0;
+        lastActiveDate = null;
+        coins = 0;
+        sessionCoinsToday = 0;
+        profileName = "Floww User";
+        
+        // Update UI elements
+        document.getElementById("coinCount").textContent = coins;
+        updateStatsModal();
+        updateHistoryTable();
+        updateProfile();
+        updateStoreUI();
+        loadTodos();
+        renderCharts();
+        alert("All data has been cleared.");
+        location.reload(); // Reload to ensure a clean state
+    }
 }
 // ---- Coin System ----
 function rewardCoins(){
   const coinsThisSession = 5 + sessionCoinsToday*5;
   coins += coinsThisSession;
   totalCoinsEarned += coinsThisSession;
-  sessionCoinsToday++; // Increment after calculating reward for current session
+  sessionCoinsToday++;
   localStorage.setItem("coins", coins);
   localStorage.setItem("totalCoinsEarned", totalCoinsEarned);
   localStorage.setItem("sessionCoinsToday", sessionCoinsToday);
@@ -473,7 +474,6 @@ function toggleTodo(text) {
     localStorage.setItem('todos', JSON.stringify(todos));
     loadTodos();
 }
-// Event listener for clear all button
 document.querySelector('.clear-todos-btn').addEventListener('click', clearTodos);
 
 function clearTodos() {
@@ -619,6 +619,7 @@ function applyBackgroundTheme(path) {
     document.body.style.backgroundPosition = 'center';
     localStorage.setItem("currentBackgroundPath", path);
     localStorage.removeItem('youtubeVideoId');
+    localStorage.removeItem('customBackground');
     document.getElementById("video-background-container").innerHTML = '';
 }
 function setYoutubeBackground() {
@@ -708,7 +709,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const savedBackgroundPath = localStorage.getItem('currentBackgroundPath');
 
     if (savedYoutubeId) {
-        setYoutubeBackground(); // Re-use function to set it up
+        const youtubeInput = document.getElementById("youtube-input");
+        youtubeInput.value = `https://www.youtube.com/watch?v=${savedYoutubeId}`;
+        setYoutubeBackground(); 
     } else if (savedCustomBg) {
         document.body.style.backgroundImage = `url('${savedCustomBg}')`;
     } else if (savedBackgroundPath) {
