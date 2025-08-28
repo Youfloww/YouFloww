@@ -641,9 +641,11 @@ function getYoutubeVideoId(url) {
     return match ? match[1] : null;
 }
 function toggleFocusMode() {
-    document.body.classList.toggle('focus-mode');
+    const body = document.body;
+    body.classList.toggle('focus-mode');
+
     const focusBtn = document.getElementById('focusModeBtn');
-    if (document.body.classList.contains('focus-mode')) {
+    if (body.classList.contains('focus-mode')) {
         focusBtn.textContent = 'Exit Focus Mode';
     } else {
         focusBtn.textContent = 'Focus Mode';
