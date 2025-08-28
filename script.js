@@ -353,7 +353,7 @@ function switchTab(tabName) {
     tabs.forEach(tab => tab.classList.remove('active'));
     tabContents.forEach(content => content.classList.remove('active'));
     document.querySelector(`.tab[onclick*="'${tabName}'"]`).classList.add('active');
-    document.getElementById(`${tabName}Container`).classList.add('active');
+    document.getElementById(`${tabName}TabContent` || `${tabName}Container`).classList.add('active'); // Adjusted to handle both naming conventions
     if (tabName === 'profile') {
         updateProfile();
     }
@@ -386,31 +386,26 @@ function exportData() {
 }
 function clearAllData() {
   if (confirm("Are you sure you want to clear all data? This cannot be undone!")) {
-    localStorage.removeItem("weeklyFocus");
-    localStorage.removeItem("weeklyStats");
-    localStorage.removeItem("streak");
-    localStorage.removeItem("lastActiveDate");
-    localStorage.removeItem("sessionsToday");
-    localStorage.removeItem("coins");
-    localStorage.removeItem("sessionCoinsToday");
-    localStorage.removeItem("totalFocusMinutes");
-    localStorage.removeItem("totalSessions");
-    localStorage.removeItem("totalCoinsEarned");
-    localStorage.removeItem("profileName");
-    localStorage.removeItem("unlockedFeatures");
+    localStorage.clear(); // Simpler way to clear all data
+    // Reset all variables to their default state
     sessionsToday = 0;
+    totalFocusMinutes = 0;
+    totalSessions = 0;
+    totalCoinsEarned = 0;
     streak = 0;
     lastActiveDate = null;
     coins = 0;
     sessionCoinsToday = 0;
-    totalFocusMinutes = 0;
-    totalSessions = 0;
-    totalCoinsEarned = 0;
+    profileName = "Floww User";
+    
+    // Update UI elements
     document.getElementById("coinCount").textContent = coins;
     updateStatsModal();
     updateHistoryTable();
     updateProfile();
     updateStoreUI();
+    loadTodos();
+    renderCharts();
     alert("All data has been cleared.");
   }
 }
@@ -419,6 +414,7 @@ function rewardCoins(){
   const coinsThisSession = 5 + sessionCoinsToday*5;
   coins += coinsThisSession;
   totalCoinsEarned += coinsThisSession;
+  sessionCoinsToday++; // Increment after calculating reward for current session
   localStorage.setItem("coins", coins);
   localStorage.setItem("totalCoinsEarned", totalCoinsEarned);
   localStorage.setItem("sessionCoinsToday", sessionCoinsToday);
@@ -477,6 +473,9 @@ function toggleTodo(text) {
     localStorage.setItem('todos', JSON.stringify(todos));
     loadTodos();
 }
+// Event listener for clear all button
+document.querySelector('.clear-todos-btn').addEventListener('click', clearTodos);
+
 function clearTodos() {
     if (confirm("Are you sure you want to clear all tasks?")) {
         localStorage.removeItem('todos');
@@ -574,7 +573,8 @@ function changeProfileName() {
         document.getElementById("profileName").textContent = profileName;
     }
 }
-function purchaseItem(item) {
+function purchaseItem(buttonElement) {
+    const item = buttonElement.closest('.store-item');
     const price = parseInt(item.dataset.price);
     const feature = item.dataset.feature;
     if (coins >= price) {
@@ -602,13 +602,13 @@ function updateStoreUI() {
                 button.textContent = "Select";
                 button.onclick = () => applyBackgroundTheme(item.dataset.path);
                 button.disabled = false;
-            } else if (feature.startsWith("ambient-sounds")) {
+            } else {
                 button.textContent = "Unlocked";
                 button.disabled = true;
             }
         } else {
             button.textContent = `Buy (${price} 💰)`;
-            button.onclick = () => purchaseItem(item);
+            button.onclick = () => purchaseItem(button);
             button.disabled = coins < price;
         }
     });
@@ -637,6 +637,7 @@ function setYoutubeBackground() {
         `;
         localStorage.setItem('youtubeVideoId', videoId);
         localStorage.removeItem('customBackground');
+        localStorage.removeItem("currentBackgroundPath");
         document.body.style.backgroundImage = 'none';
         alert("YouTube background set!");
     } else {
@@ -659,6 +660,7 @@ function setCustomBackground() {
             document.body.style.backgroundImage = `url('${dataUrl}')`;
             localStorage.setItem('customBackground', dataUrl);
             localStorage.removeItem('youtubeVideoId');
+            localStorage.removeItem("currentBackgroundPath");
             document.getElementById("video-background-container").innerHTML = '';
         };
         reader.readAsDataURL(file);
@@ -692,29 +694,25 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById("focusModeExitBtn").addEventListener('click', () => {
         toggleFocusMode();
-        // You may want to reset the timer here, or just exit.
-        // For now, it will just exit the mode.
     });
     document.getElementById("custom-image-input").addEventListener('change', setCustomBackground);
     document.getElementById("removeCustomBgBtn").addEventListener('click', removeCustomBackground);
     document.getElementById("startBtn").addEventListener('click', startTimer);
     document.getElementById("pauseBtn").addEventListener('click', pauseTimer);
+    document.getElementById("endSessionBtn").addEventListener('click', endSession);
     document.getElementById("add-todo-btn").addEventListener('click', addTodo);
     
     // Initial load check for backgrounds
     const savedYoutubeId = localStorage.getItem('youtubeVideoId');
     const savedCustomBg = localStorage.getItem('customBackground');
+    const savedBackgroundPath = localStorage.getItem('currentBackgroundPath');
+
     if (savedYoutubeId) {
-        document.getElementById("video-background-container").innerHTML = `
-            <iframe
-                src="https://www.youtube.com/embed/${savedYoutubeId}?autoplay=1&mute=1&loop=1&playlist=${savedYoutubeId}&controls=0&modestbranding=1"
-                frameborder="0"
-                allow="autoplay; encrypted-media"
-                allowfullscreen
-            ></iframe>
-        `;
+        setYoutubeBackground(); // Re-use function to set it up
     } else if (savedCustomBg) {
         document.body.style.backgroundImage = `url('${savedCustomBg}')`;
+    } else if (savedBackgroundPath) {
+        applyBackgroundTheme(savedBackgroundPath);
     }
 });
 setInterval(updateCornerWidget, 1000);
@@ -723,14 +721,11 @@ updateStatus();
 updateCornerWidget();
 loadTodos();
 window.addEventListener("beforeunload", function (e) {
-    if(timeLeft < 25*60 && timeLeft > 60){
+    if(isRunning && timeLeft < pomodoroDuration && timeLeft > 0){
         savePartialSession();
     }
 });
-const savedBackground = localStorage.getItem("currentBackgroundPath");
-if (savedBackground) {
-    applyBackgroundTheme(savedBackground);
-}
+
 document.getElementById('todo-input').addEventListener('keydown', function(event) {
     if (event.key === 'Enter') {
         event.preventDefault();
