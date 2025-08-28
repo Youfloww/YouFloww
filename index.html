@@ -17,10 +17,11 @@
   <div id="status">Work Session</div>
   <div id="timer">25:00</div>
   <div class="timer-controls">
-    <button id="startBtn" onclick="startTimer()">Start</button>
-    <button id="pauseBtn" onclick="pauseTimer()" disabled>Pause</button>
+    <button id="startBtn">Start</button>
+    <button id="pauseBtn" disabled>Pause</button>
     <button onclick="resetTimer()">Reset</button>
-    <button id="endSessionBtn" onclick="endSession()">End Session</button>
+    <button id="endSessionBtn">End Session</button>
+    <button id="focusModeBtn">Focus Mode</button>
   </div>
   <div class="ambient-controls">
     <button id="noiseBtn" onclick="toggleWhiteNoise()">🎧 Play Noise</button>
@@ -35,10 +36,10 @@
       <h2>🎯 To-Do List</h2>
       <div id="todo-input-container">
           <input type="text" id="todo-input" placeholder="Add a new task..." aria-label="Add a new task">
-          <button id="add-todo-btn" onclick="addTodo()">Add</button>
+          <button id="add-todo-btn">Add</button>
       </div>
       <ul id="todo-list"></ul>
-      <button class="clear-todos-btn" onclick="clearTodos()">Clear All Tasks</button>
+      <button class="clear-todos-btn">Clear All Tasks</button>
   </div>
 </section>
 <section>
@@ -46,13 +47,13 @@
         <div class="youtube-feature">
             <span>🎬 YouTube Background</span>
             <input type="text" id="youtube-input" placeholder="Paste YouTube URL here...">
-            <button id="setYoutubeBtn" onclick="setYoutubeBackground()">Set</button>
-            <button id="removeYoutubeBtn" onclick="removeYoutubeBackground()">Remove</button>
+            <button id="setYoutubeBtn">Set</button>
+            <button id="removeYoutubeBtn">Remove</button>
         </div>
         <div class="custom-bg-feature">
             <span>🖼️ Custom Background</span>
             <input type="file" id="custom-image-input" accept="image/*" style="flex:1">
-            <button id="removeCustomBgBtn" onclick="removeCustomBackground()">Remove</button>
+            <button id="removeCustomBgBtn">Remove</button>
         </div>
     </div>
 </section>
