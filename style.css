@@ -485,7 +485,7 @@ button:disabled {
     justify-content: center;
     gap: 15px;
 }
-.youtube-feature {
+.youtube-feature, .custom-bg-feature {
     display: flex;
     justify-content: center;
     align-items: center;
@@ -494,11 +494,11 @@ button:disabled {
     flex: 1;
     max-width: 600px;
 }
-.youtube-feature span {
+.youtube-feature span, .custom-bg-feature span {
     font-weight: bold;
     color: var(--primary-color);
 }
-.youtube-feature input {
+.youtube-feature input, .custom-bg-feature input[type="text"] {
     flex: 1;
     max-width: 300px;
     padding: 12px;
@@ -508,7 +508,7 @@ button:disabled {
     background-color: #2a2a2a;
     color: var(--text-color);
 }
-.youtube-feature button {
+.youtube-feature button, .custom-bg-feature button {
     padding: 12px 24px;
 }
 /* Focus Mode Styles */
