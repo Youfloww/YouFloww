@@ -1,5 +1,6 @@
 // ---- Timer Variables ----
 let timer, timeLeft = 25*60, isRunning = false, isWorkSession = true, sessionCount = 0;
+const pomodoroDuration = 25 * 60; // Store the original session duration
 // ---- Stats ----
 let sessionsToday = parseInt(localStorage.getItem("sessionsToday")) || 0;
 let totalFocusMinutes = parseInt(localStorage.getItem("totalFocusMinutes")) || 0;
@@ -27,8 +28,13 @@ if (!localStorage.getItem("weeklyStats")) {
 function updateTimerDisplay(){
   const minutes=Math.floor(timeLeft/60);
   const seconds=timeLeft%60;
-  document.getElementById("timer").textContent=`${minutes}:${seconds<10?'0':''}${seconds}`;
-  document.getElementById("focusModeTimer").textContent = `${minutes}:${seconds<10?'0':''}${seconds}`;
+  const timeString = `${minutes}:${seconds<10?'0':''}${seconds}`;
+  document.getElementById("timer").textContent = timeString;
+  if (document.body.classList.contains('focus-mode')) {
+    document.getElementById("focusModeTimer").textContent = timeString;
+    const progress = ((pomodoroDuration - timeLeft) / pomodoroDuration) * 100;
+    document.getElementById("focusModeProgressBar").style.width = `${progress}%`;
+  }
 }
 function updateStatus(){ document.getElementById("status").textContent=isWorkSession?"Work Session":"Break Time"; }
 function startTimer(){
@@ -37,6 +43,7 @@ function startTimer(){
     isRunning=true;
     document.getElementById("startBtn").disabled=true;
     document.getElementById("pauseBtn").disabled=false;
+    document.getElementById("focusModePlayPauseBtn").classList.remove('paused');
     timer=setInterval(()=>{
       if(timeLeft>0){ timeLeft--; updateTimerDisplay(); }
       else{
@@ -89,6 +96,7 @@ function pauseTimer(){
     isRunning = false;
     document.getElementById("startBtn").disabled = false;
     document.getElementById("pauseBtn").disabled = true;
+    document.getElementById("focusModePlayPauseBtn").classList.add('paused');
 }
 function resetTimer(){
     clearInterval(timer);
@@ -598,6 +606,11 @@ function updateStoreUI() {
             } else if (feature.startsWith("ambient-sounds")) {
                 button.textContent = "Unlocked";
                 button.disabled = true;
+            } else if (feature === "youtube-bg") {
+                button.textContent = "Unlocked";
+                button.disabled = true;
+                document.getElementById('youtube-input').disabled = false;
+                document.getElementById('setYoutubeBtn').disabled = false;
             }
         } else {
             button.textContent = `Buy (${price} 💰)`;
@@ -639,23 +652,26 @@ function getYoutubeVideoId(url) {
 function toggleFocusMode() {
     const body = document.body;
     body.classList.toggle('focus-mode');
-    const focusModeUI = document.getElementById('focusModeUI');
-    const mainContent = document.querySelector('main');
-    const cornerWidget = document.getElementById('cornerWidget');
-    const coinContainer = document.getElementById('coinContainer');
-    if (body.classList.contains('focus-mode')) {
-        mainContent.style.display = 'none';
-        cornerWidget.style.display = 'none';
-        coinContainer.style.display = 'none';
-        focusModeUI.style.display = 'flex';
-        updateTimerDisplay(); // Update the timer in the new UI
-    } else {
-        mainContent.style.display = 'block';
-        cornerWidget.style.display = 'block';
-        coinContainer.style.display = 'block';
-        focusModeUI.style.display = 'none';
-    }
 }
+// Attach event listeners after DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById("focusModeBtn").addEventListener('click', toggleFocusMode);
+    document.getElementById("focusModePlayPauseBtn").addEventListener('click', () => {
+        if(isRunning){
+            pauseTimer();
+        } else {
+            startTimer();
+        }
+    });
+    document.getElementById("focusModeExitBtn").addEventListener('click', () => {
+        toggleFocusMode();
+        resetTimer();
+    });
+    document.getElementById("startBtn").addEventListener('click', startTimer);
+    document.getElementById("pauseBtn").addEventListener('click', pauseTimer);
+    document.getElementById("add-todo-btn").addEventListener('click', addTodo);
+    document.getElementById("setYoutubeBtn").addEventListener('click', setYoutubeBackground);
+});
 setInterval(updateCornerWidget, 1000);
 updateTimerDisplay();
 updateStatus();
