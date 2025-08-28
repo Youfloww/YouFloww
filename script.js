@@ -1,6 +1,7 @@
 // ---- Timer Variables ----
 let timer, timeLeft = 25*60, isRunning = false, isWorkSession = true, sessionCount = 0;
-const pomodoroDuration = 25 * 60; // Store the original session duration
+let endTime = 0; // <-- ADDED for accurate background timing
+const pomodoroDuration = 25 * 60;
 let startTime = Date.now();
 // ---- Stats ----
 let sessionsToday = parseInt(localStorage.getItem("sessionsToday")) || 0;
@@ -36,26 +37,40 @@ function updateTimerDisplay(){
   document.getElementById("focusModeProgressBar").style.width = `${progress}%`;
 }
 function updateStatus(){ document.getElementById("status").textContent=isWorkSession?"Work Session":"Break Time"; }
-function startTimer(){
-  if(!isRunning){
-    startSound.play();
-    isRunning=true;
-    document.getElementById("startBtn").disabled=true;
-    document.getElementById("pauseBtn").disabled=false;
-    document.getElementById("focusModePlayPauseBtn").classList.remove('paused');
-    timer=setInterval(()=>{
-      if(timeLeft>0){ timeLeft--; updateTimerDisplay(); }
-      else{
-        clearInterval(timer);
-        isRunning=false;
-        document.getElementById("startBtn").disabled=false;
-        document.getElementById("pauseBtn").disabled=true;
-        endSound.play();
-        handleSessionCompletion();
-      }
-    },1000);
-  }
+
+// THIS IS THE CORRECTED, ACCURATE startTimer FUNCTION
+function startTimer() {
+    if (!isRunning) {
+        isRunning = true;
+        // Calculate the exact time in the future when the timer should end
+        endTime = Date.now() + timeLeft * 1000;
+
+        document.getElementById("startBtn").disabled = true;
+        document.getElementById("pauseBtn").disabled = false;
+        document.getElementById("focusModePlayPauseBtn").classList.remove('paused');
+        startSound.play();
+
+        timer = setInterval(() => {
+            // Calculate remaining time on every tick
+            const remaining = endTime - Date.now();
+            timeLeft = Math.round(remaining / 1000);
+
+            if (timeLeft <= 0) {
+                clearInterval(timer);
+                timeLeft = 0; // Ensure timer display is clean
+                updateTimerDisplay();
+                isRunning = false;
+                document.getElementById("startBtn").disabled = false;
+                document.getElementById("pauseBtn").disabled = true;
+                endSound.play();
+                handleSessionCompletion();
+            } else {
+                updateTimerDisplay();
+            }
+        }, 1000);
+    }
 }
+
 function endSession(){
     clearInterval(timer);
     isRunning = false;
@@ -71,7 +86,7 @@ function endSession(){
     document.getElementById("pauseBtn").disabled = true;
 }
 function savePartialSession(){
-    const minutesFocused = Math.floor((25*60 - timeLeft)/60);
+    const minutesFocused = Math.floor((pomodoroDuration - timeLeft)/60);
     if(minutesFocused >= 1){
         sessionsToday++;
         localStorage.setItem("sessionsToday", sessionsToday);
@@ -100,12 +115,12 @@ function pauseTimer(){
 function resetTimer(){
     clearInterval(timer);
     isRunning=false;
-    if(timeLeft < 25*60 && timeLeft > 25){
+    if(timeLeft < pomodoroDuration && timeLeft > 25){
         savePartialSession();
     }
     isWorkSession=true;
     sessionCount=0;
-    timeLeft=25*60;
+    timeLeft=pomodoroDuration;
     updateTimerDisplay();
     updateStatus();
     document.getElementById("startBtn").disabled=false;
@@ -118,13 +133,13 @@ function handleSessionCompletion(){
     sessionsToday++;
     localStorage.setItem("sessionsToday", sessionsToday);
     checkStreak();
-    addFocusMinutes(25);
+    addFocusMinutes(pomodoroDuration / 60);
     rewardCoins();
     if(sessionCount%4===0) timeLeft=15*60;
     else timeLeft=5*60;
     isWorkSession=false;
   }else{
-    timeLeft=25*60;
+    timeLeft=pomodoroDuration;
     isWorkSession=true;
   }
   updateTimerDisplay();
@@ -181,16 +196,18 @@ function updateWeeklyStats(minutes) {
   }
   weekData.totalMinutes += minutes;
   weekData.sessions += 1;
-  if (weekData.lastUpdated !== today.toISOString().slice(0, 10)) {
-    weekData.daysActive += 1;
-    weekData.lastUpdated = today.toISOString().slice(0, 10);
+  const todayStr = today.toISOString().slice(0,10);
+  if (weekData.lastUpdated !== todayStr) {
+    weekData.daysActive = weekData.daysActive ? weekData.daysActive + 1 : 1;
+    weekData.lastUpdated = todayStr;
   }
   localStorage.setItem("weeklyStats", JSON.stringify(weeklyStats));
 }
 function getWeekStartDate(date) {
-  const day = date.getDay();
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-  return new Date(date.setDate(diff));
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); 
+  return new Date(d.setDate(diff));
 }
 function getWeeklyFocus(){
   const weeklyData = JSON.parse(localStorage.getItem("weeklyFocus") || "{}");
@@ -367,16 +384,8 @@ function switchTab(tabName) {
 }
 // ---- Data Management Functions ----
 function exportData() {
-  const weeklyFocus = JSON.parse(localStorage.getItem("weeklyFocus") || "{}");
-  const weeklyStats = JSON.parse(localStorage.getItem("weeklyStats") || "[]");
-  const data = {
-    exportDate: new Date().toISOString(),
-    weeklyFocus,
-    weeklyStats,
-    streak: localStorage.getItem("streak"),
-    coins: localStorage.getItem("coins")
-  };
-  const dataStr = JSON.stringify(data, null, 2);
+  const allData = { ...localStorage };
+  const dataStr = JSON.stringify(allData, null, 2);
   const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
   const exportFileDefaultName = `youfloww-data-${new Date().toISOString().slice(0,10)}.json`;
   const linkElement = document.createElement('a');
@@ -387,27 +396,7 @@ function exportData() {
 function clearAllData() {
     if (confirm("Are you sure you want to clear all data? This cannot be undone!")) {
         localStorage.clear();
-        // Reset all variables to their default state
-        sessionsToday = 0;
-        totalFocusMinutes = 0;
-        totalSessions = 0;
-        totalCoinsEarned = 0;
-        streak = 0;
-        lastActiveDate = null;
-        coins = 0;
-        sessionCoinsToday = 0;
-        profileName = "Floww User";
-        
-        // Update UI elements
-        document.getElementById("coinCount").textContent = coins;
-        updateStatsModal();
-        updateHistoryTable();
-        updateProfile();
-        updateStoreUI();
-        loadTodos();
-        renderCharts();
-        alert("All data has been cleared.");
-        location.reload(); // Reload to ensure a clean state
+        location.reload(); 
     }
 }
 // ---- Coin System ----
@@ -628,7 +617,6 @@ function setYoutubeBackground() {
     const videoId = getYoutubeVideoId(url);
     if (videoId) {
         const container = document.getElementById("video-background-container");
-        // CORRECTED: Added &rel=0 to the URL to remove suggestions
         container.innerHTML = `
             <iframe
                 src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&modestbranding=1&rel=0"
