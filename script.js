@@ -1,6 +1,7 @@
 // ---- Timer Variables ----
 let timer, timeLeft = 25*60, isRunning = false, isWorkSession = true, sessionCount = 0;
 const pomodoroDuration = 25 * 60; // Store the original session duration
+let startTime = Date.now();
 // ---- Stats ----
 let sessionsToday = parseInt(localStorage.getItem("sessionsToday")) || 0;
 let totalFocusMinutes = parseInt(localStorage.getItem("totalFocusMinutes")) || 0;
@@ -30,11 +31,9 @@ function updateTimerDisplay(){
   const seconds=timeLeft%60;
   const timeString = `${minutes}:${seconds<10?'0':''}${seconds}`;
   document.getElementById("timer").textContent = timeString;
-  if (document.body.classList.contains('focus-mode')) {
-    document.getElementById("focusModeTimer").textContent = timeString;
-    const progress = ((pomodoroDuration - timeLeft) / pomodoroDuration) * 100;
-    document.getElementById("focusModeProgressBar").style.width = `${progress}%`;
-  }
+  document.getElementById("focusModeTimer").textContent = timeString;
+  const progress = ((pomodoroDuration - timeLeft) / pomodoroDuration) * 100;
+  document.getElementById("focusModeProgressBar").style.width = `${progress}%`;
 }
 function updateStatus(){ document.getElementById("status").textContent=isWorkSession?"Work Session":"Break Time"; }
 function startTimer(){
@@ -294,7 +293,7 @@ function renderBarChart() {
 }
 function renderPieChart() {
     const totalFocusMinutes = parseInt(localStorage.getItem("totalFocusMinutes") || 0);
-    const totalSessions = parseInt(localStorage.getItem("totalSessions") || 0);
+    const totalSessions = parseInt(localStorage.getItem("totalSessions")) || 0;
     const totalBreakMinutes = totalSessions * 5;
     const canvas = document.getElementById('pieChart');
     const ctx = canvas.getContext('2d');
@@ -606,11 +605,6 @@ function updateStoreUI() {
             } else if (feature.startsWith("ambient-sounds")) {
                 button.textContent = "Unlocked";
                 button.disabled = true;
-            } else if (feature === "youtube-bg") {
-                button.textContent = "Unlocked";
-                button.disabled = true;
-                document.getElementById('youtube-input').disabled = false;
-                document.getElementById('setYoutubeBtn').disabled = false;
             }
         } else {
             button.textContent = `Buy (${price} 💰)`;
@@ -639,10 +633,37 @@ function setYoutubeBackground() {
                 allowfullscreen
             ></iframe>
         `;
+        localStorage.setItem('youtubeVideoId', videoId);
         alert("YouTube background set!");
     } else {
         alert("Please enter a valid YouTube URL.");
     }
+}
+function removeYoutubeBackground() {
+    const container = document.getElementById("video-background-container");
+    container.innerHTML = '';
+    localStorage.removeItem('youtubeVideoId');
+    alert("YouTube video removed.");
+}
+function setCustomBackground() {
+    const fileInput = document.getElementById('custom-image-input');
+    const file = fileInput.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const dataUrl = e.target.result;
+            document.body.style.backgroundImage = `url('${dataUrl}')`;
+            localStorage.setItem('customBackground', dataUrl);
+            localStorage.removeItem('youtubeVideoId');
+            document.getElementById("video-background-container").innerHTML = '';
+        };
+        reader.readAsDataURL(file);
+    }
+}
+function removeCustomBackground() {
+    document.body.style.backgroundImage = 'linear-gradient(to bottom, #d4e0e6, #a6bdd4)';
+    localStorage.removeItem('customBackground');
+    alert("Custom background removed.");
 }
 function getYoutubeVideoId(url) {
     const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
@@ -653,9 +674,11 @@ function toggleFocusMode() {
     const body = document.body;
     body.classList.toggle('focus-mode');
 }
-// Attach event listeners after DOM is loaded
+// Event listeners for the new buttons
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById("focusModeBtn").addEventListener('click', toggleFocusMode);
+    document.getElementById("setYoutubeBtn").addEventListener('click', setYoutubeBackground);
+    document.getElementById("removeYoutubeBtn").addEventListener('click', removeYoutubeBackground);
     document.getElementById("focusModePlayPauseBtn").addEventListener('click', () => {
         if(isRunning){
             pauseTimer();
@@ -665,12 +688,27 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById("focusModeExitBtn").addEventListener('click', () => {
         toggleFocusMode();
-        resetTimer();
+        // You may want to reset the timer here, or just exit.
+        // For now, it will just exit the mode.
     });
-    document.getElementById("startBtn").addEventListener('click', startTimer);
-    document.getElementById("pauseBtn").addEventListener('click', pauseTimer);
-    document.getElementById("add-todo-btn").addEventListener('click', addTodo);
-    document.getElementById("setYoutubeBtn").addEventListener('click', setYoutubeBackground);
+    document.getElementById("custom-image-input").addEventListener('change', setCustomBackground);
+    document.getElementById("removeCustomBgBtn").addEventListener('click', removeCustomBackground);
+
+    // Initial load check for backgrounds
+    const savedYoutubeId = localStorage.getItem('youtubeVideoId');
+    const savedCustomBg = localStorage.getItem('customBackground');
+    if (savedYoutubeId) {
+        document.getElementById("video-background-container").innerHTML = `
+            <iframe
+                src="https://www.youtube.com/embed/${savedYoutubeId}?autoplay=1&mute=1&loop=1&playlist=${savedYoutubeId}&controls=0&modestbranding=1"
+                frameborder="0"
+                allow="autoplay; encrypted-media"
+                allowfullscreen
+            ></iframe>
+        `;
+    } else if (savedCustomBg) {
+        document.body.style.backgroundImage = `url('${savedCustomBg}')`;
+    }
 });
 setInterval(updateCornerWidget, 1000);
 updateTimerDisplay();
