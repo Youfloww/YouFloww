@@ -462,41 +462,6 @@ button:disabled {
     color: var(--text-color);
     cursor: not-allowed;
 }
-
-/* New main page styles for the YouTube feature */
-.main-features-section {
-    margin-top: 20px;
-}
-
-.youtube-feature {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-top: 20px;
-}
-
-.youtube-feature span {
-    font-weight: bold;
-    color: var(--primary-color);
-}
-
-.youtube-feature input {
-    flex: 1;
-    max-width: 300px;
-    padding: 12px;
-    border: 1px solid #444;
-    border-radius: 8px;
-    font-size: 1rem;
-    background-color: #2a2a2a;
-    color: var(--text-color);
-}
-
-.youtube-feature button {
-    padding: 12px 24px;
-}
-
 #video-background-container {
     position: fixed;
     top: 0;
@@ -507,22 +472,54 @@ button:disabled {
     pointer-events: none;
     overflow: hidden;
 }
-
 #video-background-container iframe {
     width: 100vw;
     height: 100vh;
     transform: scale(1.1);
     pointer-events: none;
 }
-/* New focus mode styles */
-body.focus-mode .timer-controls,
-body.focus-mode .ambient-controls,
+/* New main page styles for the YouTube feature */
+.main-features-section {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+.youtube-feature {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    flex: 1;
+    max-width: 600px;
+}
+.youtube-feature span {
+    font-weight: bold;
+    color: var(--primary-color);
+}
+.youtube-feature input {
+    flex: 1;
+    max-width: 300px;
+    padding: 12px;
+    border: 1px solid #444;
+    border-radius: 8px;
+    font-size: 1rem;
+    background-color: #2a2a2a;
+    color: var(--text-color);
+}
+.youtube-feature button {
+    padding: 12px 24px;
+}
+/* Focus Mode Styles */
+body.focus-mode main .youtube-feature,
+body.focus-mode main .ambient-controls,
 body.focus-mode #todo-container,
 body.focus-mode #coinContainer,
 body.focus-mode #cornerWidget,
 body.focus-mode main p,
 body.focus-mode main h1,
-body.focus-mode .main-features-section {
+body.focus-mode main h2 {
     display: none !important;
 }
 
@@ -532,7 +529,6 @@ body.focus-mode main {
     padding: 0 !important;
     border: none !important;
 }
-
 body.focus-mode #timer {
     position: fixed;
     top: 50%;
@@ -541,4 +537,17 @@ body.focus-mode #timer {
     font-size: 10rem;
     color: #fff;
     text-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+    z-index: 10;
+}
+body.focus-mode #focusModeBtn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 10;
+    color: #fff;
+    background-color: rgba(244, 67, 54, 0.7); /* A transparent red for exit */
+    transition: background-color 0.3s;
+}
+body.focus-mode #focusModeBtn:hover {
+    background-color: rgba(244, 67, 54, 1);
 }
