@@ -17,10 +17,10 @@
   <div id="status">Work Session</div>
   <div id="timer">25:00</div>
   <div class="timer-controls">
-    <button id="startBtn" onclick="startTimer()">Start</button>
-    <button id="pauseBtn" onclick="pauseTimer()" disabled>Pause</button>
+    <button id="startBtn">Start</button>
+    <button id="pauseBtn" disabled>Pause</button>
     <button onclick="resetTimer()">Reset</button>
-    <button id="endSessionBtn" onclick="endSession()">End Session</button>
+    <button id="endSessionBtn">End Session</button>
   </div>
   <div class="ambient-controls">
     <button id="noiseBtn" onclick="toggleWhiteNoise()">🎧 Play Noise</button>
@@ -35,10 +35,10 @@
       <h2>🎯 To-Do List</h2>
       <div id="todo-input-container">
           <input type="text" id="todo-input" placeholder="Add a new task..." aria-label="Add a new task">
-          <button id="add-todo-btn" onclick="addTodo()">Add</button>
+          <button id="add-todo-btn">Add</button>
       </div>
       <ul id="todo-list"></ul>
-      <button class="clear-todos-btn" onclick="clearTodos()">Clear All Tasks</button>
+      <button class="clear-todos-btn">Clear All Tasks</button>
   </div>
 </section>
 <section>
@@ -46,7 +46,8 @@
         <div class="youtube-feature">
             <span>🎬 YouTube Background</span>
             <input type="text" id="youtube-input" placeholder="Paste YouTube URL here...">
-            <button id="setYoutubeBtn" onclick="setYoutubeBackground()">Set</button>
+            <button id="setYoutubeBtn">Set</button>
+            <button id="focusModeBtn">Focus Mode</button>
         </div>
     </div>
 </section>
@@ -159,10 +160,19 @@
 <div id="ambient-container"></div>
 <div id="video-background-container"></div>
 
-<!-- New Focus Mode UI -->
 <div id="focusModeUI">
     <div id="focusModeTimer"></div>
-    <button id="exitFocusModeBtn" onclick="toggleFocusMode()">Exit Focus Mode</button>
+    <div id="focusModeProgressBarContainer">
+        <div id="focusModeProgressBar"></div>
+    </div>
+    <div id="focusModeControls">
+        <button id="focusModePlayPauseBtn" aria-label="Play/Pause">
+            <span class="icon"></span>
+        </button>
+        <button id="focusModeExitBtn" aria-label="Exit Focus Mode">
+            <span class="icon"></span>
+        </button>
+    </div>
 </div>
 
 <script src="script.js"></script>
