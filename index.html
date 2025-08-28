@@ -31,6 +31,16 @@
   </div>
 </section>
 <section>
+  <div class="main-features-section">
+      <div class="youtube-feature">
+          <span>🎬 YouTube Background</span>
+          <input type="text" id="youtube-input" placeholder="Paste YouTube URL here...">
+          <button id="setYoutubeBtn" onclick="setYoutubeBackground()">Set</button>
+          <button id="focusModeBtn" onclick="toggleFocusMode()">Focus Mode</button>
+      </div>
+  </div>
+</section>
+<section>
   <div id="todo-container">
       <h2>🎯 To-Do List</h2>
       <div id="todo-input-container">
@@ -107,11 +117,6 @@
                     <button onclick="purchaseItem(this)">Buy (25 💰)</button>
                 </div>
             </div>
-        </div>
-        <div class="store-item">
-            <span>🎬 YouTube Background</span>
-            <input type="text" id="youtube-input" placeholder="Paste YouTube URL here...">
-            <button id="setYoutubeBtn" onclick="setYoutubeBackground()">Set</button>
         </div>
     </div>
     <div class="stats-actions">
