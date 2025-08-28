@@ -1,752 +1,592 @@
-// ---- Timer Variables ----
-let timer, timeLeft = 25*60, isRunning = false, isWorkSession = true, sessionCount = 0;
-const pomodoroDuration = 25 * 60; // Store the original session duration
-let startTime = Date.now();
-// ---- Stats ----
-let sessionsToday = parseInt(localStorage.getItem("sessionsToday")) || 0;
-let totalFocusMinutes = parseInt(localStorage.getItem("totalFocusMinutes")) || 0;
-let totalSessions = parseInt(localStorage.getItem("totalSessions")) || 0;
-let totalCoinsEarned = parseInt(localStorage.getItem("totalCoinsEarned")) || 0;
-let streak = parseInt(localStorage.getItem("streak")) || 0;
-let lastActiveDate = localStorage.getItem("lastActiveDate") || null;
-// ---- Coins ----
-let coins = parseInt(localStorage.getItem("coins")) || 0;
-let sessionCoinsToday = parseInt(localStorage.getItem("sessionCoinsToday")) || 0;
-document.getElementById("coinCount").textContent = coins;
-const startSound = document.getElementById("startSound");
-const endSound = document.getElementById("endSound");
-const coinSound = document.getElementById("coinSound");
-const whiteNoise = document.getElementById("whiteNoise");
-const noiseBtn = document.getElementById("noiseBtn");
-// New: Profile Variables
-let profileName = localStorage.getItem("profileName") || "Floww User";
-document.getElementById("profileName").textContent = profileName;
-// Initialize weekly stats if not exists
-if (!localStorage.getItem("weeklyStats")) {
-    localStorage.setItem("weeklyStats", JSON.stringify([]));
+:root {
+    --primary-color: #f7a047; /* Warm orange for accents */
+    --secondary-color: #6c63ff; /* Purple/blue for secondary elements */
+    --background-dark: #121212; /* Very dark background */
+    --card-dark: #1e1e1e; /* Slightly lighter dark for content cards */
+    --text-color: #e0e0e0; /* Light gray for text */
+    --border-color: #333333; /* Subtle dark border */
+    --hover-color: #d1822e; /* Darker orange on hover */
+    --disabled-color: #444;
+    --border-radius: 12px;
+    --box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
-// ---- Timer Functions ----
-function updateTimerDisplay(){
-  const minutes=Math.floor(timeLeft/60);
-  const seconds=timeLeft%60;
-  const timeString = `${minutes}:${seconds<10?'0':''}${seconds}`;
-  document.getElementById("timer").textContent = timeString;
-  document.getElementById("focusModeTimer").textContent = timeString;
-  const progress = ((pomodoroDuration - timeLeft) / pomodoroDuration) * 100;
-  document.getElementById("focusModeProgressBar").style.width = `${progress}%`;
+body {
+    font-family: 'Arial', sans-serif;
+    text-align: center;
+    padding: 50px;
+    background-color: var(--background-dark);
+    color: var(--text-color);
+    overflow-x: hidden;
+    transition: background-image 0.5s ease-in-out;
+    background-size: cover;
+    background-position: center;
 }
-function updateStatus(){ document.getElementById("status").textContent=isWorkSession?"Work Session":"Break Time"; }
-function startTimer(){
-  if(!isRunning){
-    startSound.play();
-    isRunning=true;
-    document.getElementById("startBtn").disabled=true;
-    document.getElementById("pauseBtn").disabled=false;
-    document.getElementById("focusModePlayPauseBtn").classList.remove('paused');
-    timer=setInterval(()=>{
-      if(timeLeft>0){ timeLeft--; updateTimerDisplay(); }
-      else{
-        clearInterval(timer);
-        isRunning=false;
-        document.getElementById("startBtn").disabled=false;
-        document.getElementById("pauseBtn").disabled=true;
-        endSound.play();
-        handleSessionCompletion();
-      }
-    },1000);
-  }
+main {
+    max-width: 900px;
+    margin: 0 auto;
+    background-color: var(--card-dark);
+    padding: 30px;
+    border-radius: 20px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    border: 1px solid var(--border-color);
+    z-index: 10;
+    position: relative;
 }
-function endSession(){
-    clearInterval(timer);
-    isRunning = false;
-    if(timeLeft < 25*60 && timeLeft > 60){
-        savePartialSession();
-    }
-    timeLeft = 25*60;
-    isWorkSession = true;
-    sessionCount = 0;
-    updateTimerDisplay();
-    updateStatus();
-    document.getElementById("startBtn").disabled = false;
-    document.getElementById("pauseBtn").disabled = true;
+section {
+    margin-bottom: 40px;
+    padding: 20px;
+    background-color: var(--card-dark);
+    border-radius: 15px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    z-index: 10;
+    position: relative;
 }
-function savePartialSession(){
-    const minutesFocused = Math.floor((25*60 - timeLeft)/60);
-    if(minutesFocused >= 1){
-        sessionsToday++;
-        localStorage.setItem("sessionsToday", sessionsToday);
-        checkStreak();
-        addFocusMinutes(minutesFocused);
-        const coinsThisSession = Math.floor(minutesFocused/5) + sessionCoinsToday*5;
-        coins += coinsThisSession;
-        sessionCoinsToday++;
-        localStorage.setItem("coins", coins);
-        localStorage.setItem("sessionCoinsToday", sessionCoinsToday);
-        document.getElementById("coinCount").textContent = coins;
-        const popup = document.getElementById("coinPopup");
-        document.getElementById("coinEarned").textContent = coinsThisSession;
-        popup.style.display = "block";
-        coinSound.play();
-        setTimeout(()=>{popup.style.display="none";},2000);
-    }
+h1 {
+    font-size: 2.5rem;
+    color: var(--primary-color);
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
 }
-function pauseTimer(){
-    clearInterval(timer);
-    isRunning = false;
-    document.getElementById("startBtn").disabled = false;
-    document.getElementById("pauseBtn").disabled = true;
-    document.getElementById("focusModePlayPauseBtn").classList.add('paused');
+h2 {
+    font-size: 1.8rem;
+    color: var(--text-color);
+    border-bottom: 2px solid var(--primary-color);
+    display: inline-block;
+    padding-bottom: 5px;
 }
-function resetTimer(){
-    clearInterval(timer);
-    isRunning=false;
-    if(timeLeft < 25*60 && timeLeft > 25){
-        savePartialSession();
-    }
-    isWorkSession=true;
-    sessionCount=0;
-    timeLeft=25*60;
-    updateTimerDisplay();
-    updateStatus();
-    document.getElementById("startBtn").disabled=false;
-    document.getElementById("pauseBtn").disabled=true;
+#timer {
+    font-size: 6rem;
+    font-weight: bold;
+    margin: 20px 0;
+    color: var(--primary-color);
+    text-shadow: 2px 2px 10px rgba(247, 160, 71, 0.5);
 }
-// ---- Session Completion ----
-function handleSessionCompletion(){
-  if(isWorkSession){
-    sessionCount++;
-    sessionsToday++;
-    localStorage.setItem("sessionsToday", sessionsToday);
-    checkStreak();
-    addFocusMinutes(25);
-    rewardCoins();
-    if(sessionCount%4===0) timeLeft=15*60;
-    else timeLeft=5*60;
-    isWorkSession=false;
-  }else{
-    timeLeft=25*60;
-    isWorkSession=true;
-  }
-  updateTimerDisplay();
-  updateStatus();
+#status {
+    font-size: 1.5rem;
+    margin-bottom: 20px;
+    color: var(--text-color);
 }
-function checkStreak(){
-  const today = new Date().toDateString();
-  if(lastActiveDate !== today){
-    if(lastActiveDate){
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      if(lastActiveDate === yesterday.toDateString()){
-        streak++;
-      } else {
-        streak = 1;
-      }
-    } else {
-      streak = 1;
-    }
-    lastActiveDate = today;
-    localStorage.setItem("streak", streak);
-    localStorage.setItem("lastActiveDate", lastActiveDate);
-    sessionCoinsToday = 0;
-    localStorage.setItem("sessionCoinsToday", sessionCoinsToday);
-  }
+.timer-controls, .ambient-controls {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-top: 20px;
 }
-// ---- Enhanced Weekly Focus Tracking ----
-function addFocusMinutes(minutes){
-  const today = new Date().toISOString().slice(0,10);
-  let weeklyData = JSON.parse(localStorage.getItem("weeklyFocus") || "{}");
-  weeklyData[today] = (weeklyData[today] || 0) + minutes;
-  localStorage.setItem("weeklyFocus", JSON.stringify(weeklyData));
-  updateWeeklyStats(minutes);
-  totalFocusMinutes += minutes;
-  totalSessions++;
-  localStorage.setItem("totalFocusMinutes", totalFocusMinutes);
-  localStorage.setItem("totalSessions", totalSessions);
+button {
+    padding: 12px 24px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    border: none;
+    border-radius: var(--border-radius);
+    background-color: var(--primary-color);
+    color: var(--background-dark);
+    transition: background 0.3s ease, transform 0.2s ease;
+    text-transform: uppercase;
+    font-weight: bold;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.2);
 }
-function updateWeeklyStats(minutes) {
-  const today = new Date();
-  const weekStart = getWeekStartDate(today);
-  const weekKey = weekStart.toISOString().slice(0, 10);
-  let weeklyStats = JSON.parse(localStorage.getItem("weeklyStats") || "[]");
-  let weekData = weeklyStats.find(w => w.weekStart === weekKey);
-  if (!weekData) {
-    weekData = {
-      weekStart: weekKey,
-      totalMinutes: 0,
-      sessions: 0,
-      daysActive: 0,
-      lastUpdated: today.toISOString().slice(0, 10)
-    };
-    weeklyStats.push(weekData);
-  }
-  weekData.totalMinutes += minutes;
-  weekData.sessions += 1;
-  if (weekData.lastUpdated !== today.toISOString().slice(0, 10)) {
-    weekData.daysActive += 1;
-    weekData.lastUpdated = today.toISOString().slice(0, 10);
-  }
-  localStorage.setItem("weeklyStats", JSON.stringify(weeklyStats));
+button:hover {
+    background-color: var(--hover-color);
+    transform: translateY(-3px);
+    box-shadow: 0 6px 10px rgba(0,0,0,0.3);
 }
-function getWeekStartDate(date) {
-  const day = date.getDay();
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-  return new Date(date.setDate(diff));
+button:disabled {
+    background-color: var(--disabled-color);
+    color: var(--text-color);
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
 }
-function getWeeklyFocus(){
-  const weeklyData = JSON.parse(localStorage.getItem("weeklyFocus") || "{}");
-  const today = new Date();
-  let totalMinutes = 0;
-  for(let i=0; i<7; i++){
-    const day = new Date(today);
-    day.setDate(today.getDate() - i);
-    const key = day.toISOString().slice(0,10);
-    if(weeklyData[key]) totalMinutes += weeklyData[key];
-  }
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return {hours, minutes};
+#add-todo-btn {
+    background: var(--secondary-color);
+    color: var(--background-dark);
 }
-// ---- Stats Modal ----
-function openStats(){
-  const modal = document.getElementById("statsModal");
-  modal.style.display = "flex";
-  updateStatsModal();
-  renderCharts();
-  updateHistoryTable();
-  modal.onclick = function(e){
-    if(e.target === modal) closeStats();
-  }
+#add-todo-btn:hover {
+    background: #5650e6;
 }
-function closeStats(){
-  document.getElementById("statsModal").style.display = "none";
+.clear-todos-btn {
+    background: #f44336;
 }
-function updateStatsModal(){
-  document.getElementById("streak").textContent = `🔥 Streak: ${streak} days`;
-  document.getElementById("sessionsToday").textContent = `📊 Sessions today: ${sessionsToday}`;
-  const weeklyFocus = getWeeklyFocus();
-  document.getElementById("weeklyFocus").textContent = `⏳ Focused this week: ${weeklyFocus.hours}h ${weeklyFocus.minutes}m`;
+.clear-todos-btn:hover {
+    background: #d32f2f;
 }
-// ---- Chart Functions ----
-function renderCharts() {
-  renderBarChart();
-  renderPieChart();
+#endSessionBtn, #noiseBtn {
+    margin: 10px;
+    background: #546E7A;
 }
-function renderBarChart() {
-    const weeklyData = JSON.parse(localStorage.getItem("weeklyFocus") || "{}");
-    const today = new Date();
-    const labels = [];
-    const data = [];
-    for (let i = 6; i >= 0; i--) {
-        const day = new Date(today);
-        day.setDate(today.getDate() - i);
-        const key = day.toISOString().slice(0, 10);
-        const dayName = day.toLocaleDateString('en-US', { weekday: 'short' });
-        labels.push(dayName);
-        data.push((weeklyData[key] || 0) / 60);
-    }
-    const canvas = document.getElementById('barChart');
-    const ctx = canvas.getContext('2d');
-    if (window.myBarChart) {
-        window.myBarChart.destroy();
-    }
-    window.myBarChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Daily Focus (hours)',
-                data: data,
-                backgroundColor: '#f7a047',
-                borderColor: '#d1822e',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    title: {
-                        display: true,
-                        text: 'Hours'
-                    },
-                    grid: {
-                        color: 'rgba(255, 255, 255, 0.1)'
-                    }
-                },
-                x: {
-                    grid: {
-                        color: 'rgba(255, 255, 255, 0.1)'
-                    }
-                }
-            },
-            plugins: {
-                legend: {
-                    labels: {
-                        color: '#e0e0e0'
-                    }
-                }
-            }
-        }
-    });
+#endSessionBtn:hover, #noiseBtn:hover {
+    background: #455a64;
 }
-function renderPieChart() {
-    const totalFocusMinutes = parseInt(localStorage.getItem("totalFocusMinutes") || 0);
-    const totalSessions = parseInt(localStorage.getItem("totalSessions")) || 0;
-    const totalBreakMinutes = totalSessions * 5;
-    const canvas = document.getElementById('pieChart');
-    const ctx = canvas.getContext('2d');
-    if (window.myPieChart) {
-        window.myPieChart.destroy();
-    }
-    window.myPieChart = new Chart(ctx, {
-        type: 'pie',
-        data: {
-            labels: ['Work Sessions', 'Break Sessions'],
-            datasets: [{
-                data: [totalFocusMinutes, totalBreakMinutes],
-                backgroundColor: ['#f7a047', '#6c63ff'],
-                hoverOffset: 4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    labels: {
-                        color: '#e0e0e0'
-                    }
-                }
-            }
-        }
-    });
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.8);
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(8px);
 }
-function updateHistoryTable() {
-    const weeklyStats = JSON.parse(localStorage.getItem("weeklyStats") || "[]");
-    const tableBody = document.getElementById("historyTableBody");
-    tableBody.innerHTML = "";
-    weeklyStats.sort((a, b) => new Date(b.weekStart) - new Date(a.weekStart));
-    weeklyStats.forEach(week => {
-        const hours = (week.totalMinutes / 60).toFixed(1);
-        const row = document.createElement("tr");
-        row.innerHTML = `
-            <td>${formatDate(week.weekStart)}</td>
-            <td>${hours}h</td>
-            <td>${week.sessions}</td>
-            <td>${week.daysActive}</td>
-        `;
-        tableBody.appendChild(row);
-    });
-    if (weeklyStats.length === 0) {
-        tableBody.innerHTML = `<tr><td colspan="4">No data available yet</td></tr>`;
-    }
+.modal-content {
+    background: var(--card-dark);
+    border-radius: 20px;
+    padding: 30px;
+    width: 90%;
+    max-width: 900px;
+    text-align: center;
+    position: relative;
+    color: var(--text-color);
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+    border: 1px solid var(--border-color);
+    background-size: cover;
+    background-position: center;
+    transition: background-image 0.5s ease;
 }
-function formatDate(dateString) {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+.close-btn {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    font-size: 2.5rem;
+    cursor: pointer;
+    color: var(--text-color);
+    transition: color 0.2s;
 }
-function switchTab(tabName) {
-    const tabs = document.querySelectorAll('.tab');
-    const tabContents = document.querySelectorAll('.tab-content');
-    tabs.forEach(tab => tab.classList.remove('active'));
-    tabContents.forEach(content => content.classList.remove('active'));
-    document.querySelector(`.tab[onclick*="'${tabName}'"]`).classList.add('active');
-    document.getElementById(`${tabName}Container`).classList.add('active');
-    if (tabName === 'profile') {
-        updateProfile();
-    }
-    if (tabName === 'store') {
-        updateStoreUI();
-    }
-    if (tabName === 'stats' || tabName === 'history') {
-        renderCharts();
-        updateHistoryTable();
-    }
+.close-btn:hover {
+    color: var(--primary-color);
 }
-// ---- Data Management Functions ----
-function exportData() {
-  const weeklyFocus = JSON.parse(localStorage.getItem("weeklyFocus") || "{}");
-  const weeklyStats = JSON.parse(localStorage.getItem("weeklyStats") || "[]");
-  const data = {
-    exportDate: new Date().toISOString(),
-    weeklyFocus,
-    weeklyStats,
-    streak: localStorage.getItem("streak"),
-    coins: localStorage.getItem("coins")
-  };
-  const dataStr = JSON.stringify(data, null, 2);
-  const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-  const exportFileDefaultName = `youfloww-data-${new Date().toISOString().slice(0,10)}.json`;
-  const linkElement = document.createElement('a');
-  linkElement.setAttribute('href', dataUri);
-  linkElement.setAttribute('download', exportFileDefaultName);
-  linkElement.click();
+.chart-container {
+    margin: 20px 0;
+    background: var(--background-dark);
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: var(--box-shadow);
+    border: 1px solid var(--border-color);
+    height: 350px;
 }
-function clearAllData() {
-  if (confirm("Are you sure you want to clear all data? This cannot be undone!")) {
-    localStorage.removeItem("weeklyFocus");
-    localStorage.removeItem("weeklyStats");
-    localStorage.removeItem("streak");
-    localStorage.removeItem("lastActiveDate");
-    localStorage.removeItem("sessionsToday");
-    localStorage.removeItem("coins");
-    localStorage.removeItem("sessionCoinsToday");
-    localStorage.removeItem("totalFocusMinutes");
-    localStorage.removeItem("totalSessions");
-    localStorage.removeItem("totalCoinsEarned");
-    localStorage.removeItem("profileName");
-    localStorage.removeItem("unlockedFeatures");
-    sessionsToday = 0;
-    streak = 0;
-    lastActiveDate = null;
-    coins = 0;
-    sessionCoinsToday = 0;
-    totalFocusMinutes = 0;
-    totalSessions = 0;
-    totalCoinsEarned = 0;
-    document.getElementById("coinCount").textContent = coins;
-    updateStatsModal();
-    updateHistoryTable();
-    updateProfile();
-    updateStoreUI();
-    alert("All data has been cleared.");
-  }
+.chart-title {
+    font-weight: bold;
+    margin-bottom: 15px;
+    font-size: 1.2rem;
+    color: var(--primary-color);
 }
-// ---- Coin System ----
-function rewardCoins(){
-  const coinsThisSession = 5 + sessionCoinsToday*5;
-  coins += coinsThisSession;
-  totalCoinsEarned += coinsThisSession;
-  localStorage.setItem("coins", coins);
-  localStorage.setItem("totalCoinsEarned", totalCoinsEarned);
-  localStorage.setItem("sessionCoinsToday", sessionCoinsToday);
-  document.getElementById("coinCount").textContent = coins;
-  const popup = document.getElementById("coinPopup");
-  document.getElementById("coinEarned").textContent = coinsThisSession;
-  popup.style.display = "block";
-  coinSound.play();
-  setTimeout(() => { popup.style.display = "none"; }, 2000);
+/* Corner Widget */
+#cornerWidget {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--card-dark);
+    padding: 15px;
+    border-radius: 15px;
+    width: 220px;
+    font-size: 14px;
+    text-align: left;
+    box-shadow: var(--box-shadow);
+    z-index: 500;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
 }
-// ---- White Noise Function ----
-function toggleWhiteNoise() {
-    if (whiteNoise.paused) {
-        whiteNoise.play();
-        noiseBtn.textContent = "🎧 Stop Noise";
-    } else {
-        whiteNoise.pause();
-        noiseBtn.textContent = "🎧 Play Noise";
+#cornerWidget div {
+    margin: 8px 0;
+}
+.progress-bar-container {
+    width: 100%;
+    background: #333;
+    border-radius: 5px;
+    overflow: hidden;
+}
+.progress-bar {
+    height: 10px;
+    background: var(--primary-color);
+    border-radius: 5px;
+    transition: width 0.5s ease;
+}
+#monthProgressBar {
+    background: var(--secondary-color);
+    height: 6px;
+}
+#yearProgressBar {
+    background: #f44336;
+    height: 6px;
+}
+/* Coin Popup */
+#coinPopup {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--primary-color);
+    padding: 30px;
+    border-radius: 15px;
+    color: var(--background-dark);
+    font-size: 20px;
+    text-align: center;
+    z-index: 999;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+}
+/* Coin Counter and View Stats */
+#coinContainer {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    text-align: right;
+    z-index: 500;
+}
+#coinContainer div {
+    color: var(--primary-color);
+    font-size: 1.5rem;
+    font-weight: bold;
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.3);
+}
+#coinContainer button {
+    margin-top: 5px;
+    font-size: 0.9rem;
+    padding: 8px 15px;
+    background: var(--secondary-color);
+    color: var(--background-dark);
+}
+#coinContainer button:hover {
+    background: #5650e6;
+}
+/* Tabs for charts */
+.tabs {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+    border-bottom: 2px solid var(--border-color);
+}
+.tab {
+    padding: 10px 20px;
+    cursor: pointer;
+    background: var(--card-dark);
+    color: var(--text-color);
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    transition: background 0.3s, color 0.3s;
+    border-right: 1px solid var(--border-color);
+    border-top: 1px solid var(--border-color);
+    border-left: 1px solid var(--border-color);
+}
+.tab:hover {
+    background: #252525;
+}
+.tab.active {
+    background: var(--primary-color);
+    color: var(--background-dark);
+    font-weight: bold;
+    border-color: var(--primary-color);
+}
+.tab-content {
+    display: none;
+    animation: fadeIn 0.5s ease-in-out;
+}
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+.tab-content.active {
+    display: block;
+}
+/* Stats table */
+.stats-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+    box-shadow: var(--box-shadow);
+}
+.stats-table th, .stats-table td {
+    padding: 12px;
+    text-align: center;
+    border-bottom: 1px solid #444;
+}
+.stats-table th {
+    background-color: var(--primary-color);
+    color: var(--background-dark);
+}
+.stats-table tr:hover {
+    background-color: #2a2a2a;
+}
+/* To-Do List Styles */
+#todo-container {
+    max-width: 500px;
+    margin: 20px auto;
+    padding: 25px;
+    background-color: var(--card-dark);
+    border-radius: 15px;
+    box-shadow: 0 6px 12px rgba(0,0,0,0.5);
+    border: 1px solid var(--border-color);
+}
+#todo-container h2 {
+    margin-bottom: 15px;
+    color: var(--primary-color);
+}
+#todo-input-container {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+#todo-input {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid #444;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.3s;
+    background-color: #2a2a2a;
+    color: var(--text-color);
+}
+#todo-input:focus {
+    outline: none;
+    border-color: var(--secondary-color);
+}
+#todo-list {
+    list-style: none;
+    padding: 0;
+    text-align: left;
+}
+.todo-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    border-bottom: 1px solid #444;
+    cursor: pointer;
+    transition: background 0.3s ease;
+    font-size: 1.1rem;
+}
+.todo-item:hover {
+    background: #2a2a2a;
+}
+.todo-item.completed {
+    text-decoration: line-through;
+    color: #888;
+}
+/* Ambient Effects */
+#ambient-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: -1;
+    overflow: hidden;
+}
+.ambient-effect {
+    position: absolute;
+    border-radius: 50%;
+}
+.snowflake {
+    width: 10px;
+    height: 10px;
+    background-color: white;
+    opacity: 0.8;
+}
+.raindrop {
+    width: 2px;
+    height: 15px;
+    background-color: #a6c0e8;
+    transform: rotate(15deg);
+    border-radius: 0;
+}
+.sakura {
+    width: 15px;
+    height: 15px;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill="%23FFC0CB" d="M50,95c-22,0-40-18-40-40c0-10,4-19,10-26C25,22,37,13,50,5c13,8,25,17,30,24c6,7,10,16,10,26C90,77,72,95,50,95zM50,5L50,5z"/></svg>');
+    background-size: contain;
+    background-repeat: no-repeat;
+}
+@keyframes fall {
+    to {
+        transform: translateY(100vh);
     }
 }
-// ---- To-Do List Functions ----
-function loadTodos() {
-    const todos = JSON.parse(localStorage.getItem('todos')) || [];
-    const todoList = document.getElementById('todo-list');
-    todoList.innerHTML = '';
-    todos.forEach(todo => {
-        const li = document.createElement('li');
-        li.textContent = todo.text;
-        li.className = 'todo-item';
-        if (todo.completed) {
-            li.classList.add('completed');
-        }
-        li.onclick = () => toggleTodo(todo.text);
-        todoList.appendChild(li);
-    });
-}
-function addTodo() {
-    const todoInput = document.getElementById('todo-input');
-    const text = todoInput.value.trim();
-    if (text) {
-        let todos = JSON.parse(localStorage.getItem('todos')) || [];
-        todos.push({ text, completed: false });
-        localStorage.setItem('todos', JSON.stringify(todos));
-        todoInput.value = '';
-        loadTodos();
+@keyframes spinFall {
+    to {
+        transform: translateY(100vh) rotate(720deg);
     }
 }
-function toggleTodo(text) {
-    let todos = JSON.parse(localStorage.getItem('todos')) || [];
-    todos = todos.map(todo => {
-        if (todo.text === text) {
-            todo.completed = !todo.completed;
-        }
-        return todo;
-    });
-    localStorage.setItem('todos', JSON.stringify(todos));
-    loadTodos();
+/* Store and Profile Styles */
+.stats-actions {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
 }
-function clearTodos() {
-    if (confirm("Are you sure you want to clear all tasks?")) {
-        localStorage.removeItem('todos');
-        loadTodos();
-    }
+.stats-actions button {
+    padding: 10px 20px;
+    font-size: 0.9rem;
 }
-// ---- Corner Widget: Time + Progress ----
-function updateCornerWidget(){
-  const now = new Date();
-  const hours = now.getHours().toString().padStart(2,'0');
-  const minutes = now.getMinutes().toString().padStart(2,'0');
-  const seconds = now.getSeconds().toString().padStart(2,'0');
-  document.getElementById("liveTime").textContent = `${hours}:${minutes}:${seconds} ${now.toDateString()}`;
-  const dayPercent = ((now.getHours()*60 + now.getMinutes()) / (24*60)) * 100;
-  document.getElementById("dayProgressBar").style.width = dayPercent + "%";
-  const totalDays = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
-  const monthPercent = (now.getDate() / totalDays) * 100;
-  document.getElementById("monthProgressBar").style.width = monthPercent + "%";
-  const startYear = new Date(now.getFullYear(), 0, 1);
-  const endYear = new Date(now.getFullYear() + 1, 0, 1);
-  const yearPercent = ((now - startYear) / (endYear - startYear)) * 100;
-  document.getElementById("yearProgressBar").style.width = yearPercent + "%";
+#exportDataBtn {
+    background: var(--secondary-color);
 }
-// New: Ambient Effects Variables
-const ambientContainer = document.getElementById('ambient-container');
-let ambientInterval;
-// New: Function to start snow animation
-function startSnow() {
-    stopAmbientEffects();
-    ambientContainer.className = 'snow';
-    ambientInterval = setInterval(() => {
-        const snowflake = createAmbientElement('snowflake');
-        animateAmbientElement(snowflake, 8000, 15000, 'fall');
-    }, 100);
+#exportDataBtn:hover {
+    background: #5650e6;
 }
-// New: Function to start rain animation
-function startRain() {
-    stopAmbientEffects();
-    ambientContainer.className = 'rain';
-    ambientInterval = setInterval(() => {
-        const raindrop = createAmbientElement('raindrop');
-        animateAmbientElement(raindrop, 400, 800, 'fall');
-    }, 50);
+#clearDataBtn {
+    background: #f44336;
 }
-// New: Function to start sakura animation
-function startSakura() {
-    stopAmbientEffects();
-    ambientContainer.className = 'sakura';
-    ambientInterval = setInterval(() => {
-        const petal = createAmbientElement('sakura');
-        animateAmbientElement(petal, 15000, 25000, 'spinFall');
-    }, 250);
+#clearDataBtn:hover {
+    background: #d32f2f;
 }
-// New: Helper function to create the elements
-function createAmbientElement(className) {
-    const el = document.createElement('div');
-    el.className = `ambient-effect ${className}`;
-    el.style.left = `${Math.random() * 100}vw`;
-    ambientContainer.appendChild(el);
-    return el;
+.store-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    margin-bottom: 15px;
+    background: #2a2a2a;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    border: 1px solid #444;
 }
-// New: Helper function to animate the elements
-function animateAmbientElement(el, minDuration, maxDuration, animationName) {
-    const duration = Math.random() * (maxDuration - minDuration) + minDuration;
-    el.style.animation = `${animationName} ${duration}ms linear forwards`;
-    el.style.animationDelay = `-${Math.random() * duration}ms`;
-    el.style.transform = `translateY(-20vh)`;
-    el.addEventListener('animationend', () => {
-        el.remove();
-    });
+.store-item span {
+    font-weight: bold;
+    font-size: 1.1rem;
 }
-// New: Function to stop all ambient effects
-function stopAmbientEffects() {
-    clearInterval(ambientInterval);
-    ambientContainer.innerHTML = '';
+.store-item button {
+    background: var(--primary-color);
+    color: var(--background-dark);
 }
-// New: Profile and Store Logic
-function updateProfile() {
-    let totalFocusMinutes = parseInt(localStorage.getItem("totalFocusMinutes")) || 0;
-    let totalSessions = parseInt(localStorage.getItem("totalSessions")) || 0;
-    let totalCoinsEarned = parseInt(localStorage.getItem("totalCoinsEarned")) || 0;
-    const hours = Math.floor(totalFocusMinutes / 60);
-    const minutes = totalFocusMinutes % 60;
-    document.getElementById("profileName").textContent = profileName;
-    document.getElementById("totalFocusTime").textContent = `${hours}h ${minutes}m`;
-    document.getElementById("totalSessions").textContent = totalSessions;
-    document.getElementById("totalCoinsEarned").textContent = totalCoinsEarned;
-    updateStoreUI();
+.store-item button:hover {
+    background: var(--hover-color);
 }
-function changeProfileName() {
-    let newName = prompt("Enter your new name:");
-    if (newName && newName.trim() !== "") {
-        profileName = newName;
-        localStorage.setItem("profileName", profileName);
-        document.getElementById("profileName").textContent = profileName;
-    }
+.store-item button:disabled {
+    background: var(--disabled-color);
+    color: var(--text-color);
+    cursor: not-allowed;
 }
-function purchaseItem(item) {
-    const price = parseInt(item.dataset.price);
-    const feature = item.dataset.feature;
-    if (coins >= price) {
-        coins -= price;
-        localStorage.setItem("coins", coins);
-        document.getElementById("coinCount").textContent = coins;
-        let unlockedFeatures = JSON.parse(localStorage.getItem("unlockedFeatures")) || [];
-        unlockedFeatures.push(feature);
-        localStorage.setItem("unlockedFeatures", JSON.stringify(unlockedFeatures));
-        alert(`You have purchased a new feature! (${feature})`);
-        updateStoreUI();
-    } else {
-        alert("Not enough coins!");
-    }
+#video-background-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -2;
+    pointer-events: none;
+    overflow: hidden;
 }
-function updateStoreUI() {
-    const unlockedFeatures = JSON.parse(localStorage.getItem("unlockedFeatures")) || [];
-    const storeItems = document.querySelectorAll(".store-item");
-    storeItems.forEach(item => {
-        const feature = item.dataset.feature;
-        const price = parseInt(item.dataset.price);
-        const button = item.querySelector("button");
-        if (unlockedFeatures.includes(feature)) {
-            if (feature.startsWith("background-theme")) {
-                button.textContent = "Select";
-                button.onclick = () => applyBackgroundTheme(item.dataset.path);
-                button.disabled = false;
-            } else if (feature.startsWith("ambient-sounds")) {
-                button.textContent = "Unlocked";
-                button.disabled = true;
-            }
-        } else {
-            button.textContent = `Buy (${price} 💰)`;
-            button.onclick = () => purchaseItem(item);
-            button.disabled = coins < price;
-        }
-    });
+#video-background-container iframe {
+    width: 100vw;
+    height: 100vh;
+    transform: scale(1.1);
+    pointer-events: none;
 }
-function applyBackgroundTheme(path) {
-    document.body.style.backgroundImage = `url('${path}')`;
-    document.body.style.backgroundSize = 'cover';
-    document.body.style.backgroundPosition = 'center';
-    localStorage.setItem("currentBackgroundPath", path);
-    localStorage.removeItem('youtubeVideoId');
-    document.getElementById("video-background-container").innerHTML = '';
+/* New main page styles for the YouTube feature */
+.main-features-section {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    gap: 15px;
 }
-function setYoutubeBackground() {
-    const youtubeInput = document.getElementById("youtube-input");
-    const url = youtubeInput.value;
-    const videoId = getYoutubeVideoId(url);
-    if (videoId) {
-        const container = document.getElementById("video-background-container");
-        container.innerHTML = `
-            <iframe
-                src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&modestbranding=1"
-                frameborder="0"
-                allow="autoplay; encrypted-media"
-                allowfullscreen
-            ></iframe>
-        `;
-        localStorage.setItem('youtubeVideoId', videoId);
-        localStorage.removeItem('customBackground');
-        document.body.style.backgroundImage = 'none';
-        alert("YouTube background set!");
-    } else {
-        alert("Please enter a valid YouTube URL.");
-    }
+.youtube-feature, .custom-bg-feature {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    flex: 1;
+    max-width: 600px;
 }
-function removeYoutubeBackground() {
-    const container = document.getElementById("video-background-container");
-    container.innerHTML = '';
-    localStorage.removeItem('youtubeVideoId');
-    alert("YouTube video removed.");
+.youtube-feature span, .custom-bg-feature span {
+    font-weight: bold;
+    color: var(--primary-color);
 }
-function setCustomBackground() {
-    const fileInput = document.getElementById('custom-image-input');
-    const file = fileInput.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const dataUrl = e.target.result;
-            document.body.style.backgroundImage = `url('${dataUrl}')`;
-            localStorage.setItem('customBackground', dataUrl);
-            localStorage.removeItem('youtubeVideoId');
-            document.getElementById("video-background-container").innerHTML = '';
-        };
-        reader.readAsDataURL(file);
-    }
+.youtube-feature input, .custom-bg-feature input[type="text"] {
+    flex: 1;
+    max-width: 300px;
+    padding: 12px;
+    border: 1px solid #444;
+    border-radius: 8px;
+    font-size: 1rem;
+    background-color: #2a2a2a;
+    color: var(--text-color);
 }
-function removeCustomBackground() {
-    document.body.style.backgroundImage = 'none';
-    localStorage.removeItem('customBackground');
-    alert("Custom background removed.");
+.youtube-feature button, .custom-bg-feature button {
+    padding: 12px 24px;
 }
-function getYoutubeVideoId(url) {
-    const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
-    const match = url.match(regex);
-    return match ? match[1] : null;
+/* Focus Mode Styles */
+body.focus-mode main,
+body.focus-mode #coinContainer,
+body.focus-mode #cornerWidget,
+body.focus-mode #statsModal,
+body.focus-mode #coinPopup {
+    display: none !important;
 }
-function toggleFocusMode() {
-    const body = document.body;
-    const focusModeUI = document.getElementById('focusModeUI');
-    const mainContent = document.querySelector('main');
-    const cornerWidget = document.getElementById('cornerWidget');
-    const coinContainer = document.getElementById('coinContainer');
-    if (body.classList.contains('focus-mode')) {
-        body.classList.remove('focus-mode');
-        mainContent.style.display = 'block';
-        cornerWidget.style.display = 'block';
-        coinContainer.style.display = 'block';
-        focusModeUI.style.display = 'none';
-    } else {
-        body.classList.add('focus-mode');
-        mainContent.style.display = 'none';
-        cornerWidget.style.display = 'none';
-        coinContainer.style.display = 'none';
-        focusModeUI.style.display = 'flex';
-        updateTimerDisplay();
-    }
-}
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById("focusModeBtn").addEventListener('click', toggleFocusMode);
-    document.getElementById("setYoutubeBtn").addEventListener('click', setYoutubeBackground);
-    document.getElementById("removeYoutubeBtn").addEventListener('click', removeYoutubeBackground);
-    document.getElementById("focusModePlayPauseBtn").addEventListener('click', () => {
-        if(isRunning){
-            pauseTimer();
-        } else {
-            startTimer();
-        }
-    });
-    document.getElementById("focusModeExitBtn").addEventListener('click', () => {
-        toggleFocusMode();
-        // You may want to reset the timer here, or just exit.
-        // For now, it will just exit the mode.
-    });
-    document.getElementById("custom-image-input").addEventListener('change', setCustomBackground);
-    document.getElementById("removeCustomBgBtn").addEventListener('click', removeCustomBackground);
 
-    // Initial load check for backgrounds
-    const savedYoutubeId = localStorage.getItem('youtubeVideoId');
-    const savedCustomBg = localStorage.getItem('customBackground');
-    if (savedYoutubeId) {
-        document.getElementById("video-background-container").innerHTML = `
-            <iframe
-                src="https://www.youtube.com/embed/${savedYoutubeId}?autoplay=1&mute=1&loop=1&playlist=${savedYoutubeId}&controls=0&modestbranding=1"
-                frameborder="0"
-                allow="autoplay; encrypted-media"
-                allowfullscreen
-            ></iframe>
-        `;
-    } else if (savedCustomBg) {
-        document.body.style.backgroundImage = `url('${savedCustomBg}')`;
-    }
-});
-setInterval(updateCornerWidget, 1000);
-updateTimerDisplay();
-updateStatus();
-updateCornerWidget();
-loadTodos();
-window.addEventListener("beforeunload", function (e) {
-    if(timeLeft < 25*60 && timeLeft > 60){
-        savePartialSession();
-    }
-});
-const savedBackground = localStorage.getItem("currentBackgroundPath");
-if (savedBackground) {
-    applyBackgroundTheme(savedBackground);
+#focusModeUI {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    z-index: 10;
 }
-document.getElementById('todo-input').addEventListener('keydown', function(event) {
-    if (event.key === 'Enter') {
-        event.preventDefault();
-        addTodo();
-    }
-});
+#focusModeTimer {
+    font-size: 15rem;
+    font-weight: bold;
+    color: #fff;
+    text-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+    z-index: 10;
+    line-height: 1em;
+}
+#focusModeProgressBarContainer {
+    width: 350px;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    margin-top: 20px;
+    overflow: hidden;
+}
+#focusModeProgressBar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(to right, var(--primary-color), var(--hover-color));
+    transition: width 0.5s ease;
+}
+#focusModeControls {
+    position: absolute;
+    bottom: 50px;
+    display: flex;
+    gap: 20px;
+    z-index: 10;
+}
+#focusModeControls button {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    font-size: 2rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(5px);
+    transition: background-color 0.3s;
+    color: white;
+}
+#focusModeControls button:hover {
+    background-color: rgba(255, 255, 255, 0.4);
+}
+#focusModePlayPauseBtn .icon::before {
+    content: '||';
+}
+#focusModePlayPauseBtn.paused .icon::before {
+    content: '▶';
+    font-size: 1.5rem;
+    transform: translateX(2px);
+}
+#focusModeExitBtn .icon::before {
+    content: '✕';
+}
