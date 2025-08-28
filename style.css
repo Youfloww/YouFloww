@@ -533,6 +533,13 @@ body.focus-mode #coinPopup {
     background: transparent;
     z-index: 10;
 }
+
+/* --- THIS IS THE ADDED RULE --- */
+body.focus-mode #focusModeUI {
+    display: flex;
+}
+/* ----------------------------- */
+
 #focusModeTimer {
     font-size: 15rem;
     font-weight: bold;
