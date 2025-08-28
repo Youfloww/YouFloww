@@ -618,6 +618,8 @@ function applyBackgroundTheme(path) {
     document.body.style.backgroundSize = 'cover';
     document.body.style.backgroundPosition = 'center';
     localStorage.setItem("currentBackgroundPath", path);
+    localStorage.removeItem('youtubeVideoId');
+    document.getElementById("video-background-container").innerHTML = '';
 }
 function setYoutubeBackground() {
     const youtubeInput = document.getElementById("youtube-input");
@@ -634,6 +636,8 @@ function setYoutubeBackground() {
             ></iframe>
         `;
         localStorage.setItem('youtubeVideoId', videoId);
+        localStorage.removeItem('customBackground');
+        document.body.style.backgroundImage = 'none';
         alert("YouTube background set!");
     } else {
         alert("Please enter a valid YouTube URL.");
@@ -661,7 +665,7 @@ function setCustomBackground() {
     }
 }
 function removeCustomBackground() {
-    document.body.style.backgroundImage = 'linear-gradient(to bottom, #d4e0e6, #a6bdd4)';
+    document.body.style.backgroundImage = 'none';
     localStorage.removeItem('customBackground');
     alert("Custom background removed.");
 }
@@ -672,9 +676,25 @@ function getYoutubeVideoId(url) {
 }
 function toggleFocusMode() {
     const body = document.body;
-    body.classList.toggle('focus-mode');
+    const focusModeUI = document.getElementById('focusModeUI');
+    const mainContent = document.querySelector('main');
+    const cornerWidget = document.getElementById('cornerWidget');
+    const coinContainer = document.getElementById('coinContainer');
+    if (body.classList.contains('focus-mode')) {
+        body.classList.remove('focus-mode');
+        mainContent.style.display = 'block';
+        cornerWidget.style.display = 'block';
+        coinContainer.style.display = 'block';
+        focusModeUI.style.display = 'none';
+    } else {
+        body.classList.add('focus-mode');
+        mainContent.style.display = 'none';
+        cornerWidget.style.display = 'none';
+        coinContainer.style.display = 'none';
+        focusModeUI.style.display = 'flex';
+        updateTimerDisplay();
+    }
 }
-// Event listeners for the new buttons
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById("focusModeBtn").addEventListener('click', toggleFocusMode);
     document.getElementById("setYoutubeBtn").addEventListener('click', setYoutubeBackground);
