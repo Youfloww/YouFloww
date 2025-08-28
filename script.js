@@ -28,6 +28,7 @@ function updateTimerDisplay(){
   const minutes=Math.floor(timeLeft/60);
   const seconds=timeLeft%60;
   document.getElementById("timer").textContent=`${minutes}:${seconds<10?'0':''}${seconds}`;
+  document.getElementById("focusModeTimer").textContent = `${minutes}:${seconds<10?'0':''}${seconds}`;
 }
 function updateStatus(){ document.getElementById("status").textContent=isWorkSession?"Work Session":"Break Time"; }
 function startTimer(){
@@ -285,7 +286,7 @@ function renderBarChart() {
 }
 function renderPieChart() {
     const totalFocusMinutes = parseInt(localStorage.getItem("totalFocusMinutes") || 0);
-    const totalSessions = parseInt(localStorage.getItem("totalSessions")) || 0;
+    const totalSessions = parseInt(localStorage.getItem("totalSessions") || 0);
     const totalBreakMinutes = totalSessions * 5;
     const canvas = document.getElementById('pieChart');
     const ctx = canvas.getContext('2d');
@@ -597,11 +598,6 @@ function updateStoreUI() {
             } else if (feature.startsWith("ambient-sounds")) {
                 button.textContent = "Unlocked";
                 button.disabled = true;
-            } else if (feature === "youtube-bg") {
-                button.textContent = "Unlocked";
-                button.disabled = true;
-                document.getElementById('youtube-input').disabled = false;
-                document.getElementById('setYoutubeBtn').disabled = false;
             }
         } else {
             button.textContent = `Buy (${price} 💰)`;
@@ -643,12 +639,21 @@ function getYoutubeVideoId(url) {
 function toggleFocusMode() {
     const body = document.body;
     body.classList.toggle('focus-mode');
-
-    const focusBtn = document.getElementById('focusModeBtn');
+    const focusModeUI = document.getElementById('focusModeUI');
+    const mainContent = document.querySelector('main');
+    const cornerWidget = document.getElementById('cornerWidget');
+    const coinContainer = document.getElementById('coinContainer');
     if (body.classList.contains('focus-mode')) {
-        focusBtn.textContent = 'Exit Focus Mode';
+        mainContent.style.display = 'none';
+        cornerWidget.style.display = 'none';
+        coinContainer.style.display = 'none';
+        focusModeUI.style.display = 'flex';
+        updateTimerDisplay(); // Update the timer in the new UI
     } else {
-        focusBtn.textContent = 'Focus Mode';
+        mainContent.style.display = 'block';
+        cornerWidget.style.display = 'block';
+        coinContainer.style.display = 'block';
+        focusModeUI.style.display = 'none';
     }
 }
 setInterval(updateCornerWidget, 1000);
