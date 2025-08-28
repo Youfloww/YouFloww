@@ -21,6 +21,7 @@
     <button id="pauseBtn" onclick="pauseTimer()" disabled>Pause</button>
     <button onclick="resetTimer()">Reset</button>
     <button id="endSessionBtn" onclick="endSession()">End Session</button>
+    <button id="focusModeBtn" onclick="toggleFocusMode()">Focus Mode</button>
   </div>
   <div class="ambient-controls">
     <button id="noiseBtn" onclick="toggleWhiteNoise()">🎧 Play Noise</button>
@@ -28,16 +29,6 @@
     <button onclick="startRain()">🌧️ Rainfall</button>
     <button onclick="startSakura()">🌸 Sakura</button>
     <button onclick="stopAmbientEffects()">🚫 Stop</button>
-  </div>
-</section>
-<section>
-  <div class="main-features-section">
-      <div class="youtube-feature">
-          <span>🎬 YouTube Background</span>
-          <input type="text" id="youtube-input" placeholder="Paste YouTube URL here...">
-          <button id="setYoutubeBtn" onclick="setYoutubeBackground()">Set</button>
-          <button id="focusModeBtn" onclick="toggleFocusMode()">Focus Mode</button>
-      </div>
   </div>
 </section>
 <section>
@@ -50,6 +41,15 @@
       <ul id="todo-list"></ul>
       <button class="clear-todos-btn" onclick="clearTodos()">Clear All Tasks</button>
   </div>
+</section>
+<section>
+    <div class="main-features-section">
+        <div class="youtube-feature">
+            <span>🎬 YouTube Background</span>
+            <input type="text" id="youtube-input" placeholder="Paste YouTube URL here...">
+            <button id="setYoutubeBtn" onclick="setYoutubeBackground()">Set</button>
+        </div>
+    </div>
 </section>
 </main>
 <div id="coinContainer">
