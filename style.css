@@ -513,8 +513,8 @@ button:disabled {
 }
 /* Focus Mode Styles */
 body.focus-mode main,
+body.focus-mode aside,
 body.focus-mode #coinContainer,
-body.focus-mode #cornerWidget,
 body.focus-mode #statsModal,
 body.focus-mode #coinPopup {
     display: none !important;
@@ -531,14 +531,12 @@ body.focus-mode #coinPopup {
     width: 100%;
     height: 100%;
     background: transparent;
-    z-index: 10;
+    z-index: 1001; /* CORRECTED: Ensures it's on top of everything */
 }
 
-/* --- THIS IS THE ADDED RULE --- */
 body.focus-mode #focusModeUI {
     display: flex;
 }
-/* ----------------------------- */
 
 #focusModeTimer {
     font-size: 15rem;
