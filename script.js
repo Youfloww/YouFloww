@@ -353,7 +353,7 @@ function switchTab(tabName) {
     tabs.forEach(tab => tab.classList.remove('active'));
     tabContents.forEach(content => content.classList.remove('active'));
     document.querySelector(`.tab[onclick*="'${tabName}'"]`).classList.add('active');
-    document.getElementById(`${tabName}Container`).classList.add('active'); // CORRECTED
+    document.getElementById(`${tabName}Container`).classList.add('active');
     if (tabName === 'profile') {
         updateProfile();
     }
@@ -628,9 +628,10 @@ function setYoutubeBackground() {
     const videoId = getYoutubeVideoId(url);
     if (videoId) {
         const container = document.getElementById("video-background-container");
+        // CORRECTED: Added &rel=0 to the URL to remove suggestions
         container.innerHTML = `
             <iframe
-                src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&modestbranding=1"
+                src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&modestbranding=1&rel=0"
                 frameborder="0"
                 allow="autoplay; encrypted-media"
                 allowfullscreen
