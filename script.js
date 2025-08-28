@@ -676,22 +676,9 @@ function getYoutubeVideoId(url) {
 }
 function toggleFocusMode() {
     const body = document.body;
-    if (body.classList.contains('focus-mode')) {
-        body.classList.remove('focus-mode');
-        // Resume the main timer UI if we were running
-        if(isRunning){
-            document.getElementById('startBtn').disabled = true;
-            document.getElementById('pauseBtn').disabled = false;
-        } else {
-            document.getElementById('startBtn').disabled = false;
-            document.getElementById('pauseBtn').disabled = true;
-        }
-    } else {
-        body.classList.add('focus-mode');
-        // Sync the timer in the new UI
-        updateTimerDisplay();
-    }
+    body.classList.toggle('focus-mode');
 }
+// Attach event listeners after DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById("focusModeBtn").addEventListener('click', toggleFocusMode);
     document.getElementById("setYoutubeBtn").addEventListener('click', setYoutubeBackground);
