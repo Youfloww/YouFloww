@@ -676,22 +676,19 @@ function getYoutubeVideoId(url) {
 }
 function toggleFocusMode() {
     const body = document.body;
-    const focusModeUI = document.getElementById('focusModeUI');
-    const mainContent = document.querySelector('main');
-    const cornerWidget = document.getElementById('cornerWidget');
-    const coinContainer = document.getElementById('coinContainer');
     if (body.classList.contains('focus-mode')) {
         body.classList.remove('focus-mode');
-        mainContent.style.display = 'block';
-        cornerWidget.style.display = 'block';
-        coinContainer.style.display = 'block';
-        focusModeUI.style.display = 'none';
+        // Resume the main timer UI if we were running
+        if(isRunning){
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('pauseBtn').disabled = false;
+        } else {
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('pauseBtn').disabled = true;
+        }
     } else {
         body.classList.add('focus-mode');
-        mainContent.style.display = 'none';
-        cornerWidget.style.display = 'none';
-        coinContainer.style.display = 'none';
-        focusModeUI.style.display = 'flex';
+        // Sync the timer in the new UI
         updateTimerDisplay();
     }
 }
@@ -713,7 +710,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById("custom-image-input").addEventListener('change', setCustomBackground);
     document.getElementById("removeCustomBgBtn").addEventListener('click', removeCustomBackground);
-
+    document.getElementById("startBtn").addEventListener('click', startTimer);
+    document.getElementById("pauseBtn").addEventListener('click', pauseTimer);
+    document.getElementById("add-todo-btn").addEventListener('click', addTodo);
+    
     // Initial load check for backgrounds
     const savedYoutubeId = localStorage.getItem('youtubeVideoId');
     const savedCustomBg = localStorage.getItem('customBackground');
