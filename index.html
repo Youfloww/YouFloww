@@ -47,7 +47,6 @@
             <span>🎬 YouTube Background</span>
             <input type="text" id="youtube-input" placeholder="Paste YouTube URL here...">
             <button id="setYoutubeBtn" onclick="setYoutubeBackground()">Set</button>
-            <button id="focusModeBtn" onclick="toggleFocusMode()">Focus Mode</button>
         </div>
     </div>
 </section>
@@ -159,6 +158,13 @@
 </aside>
 <div id="ambient-container"></div>
 <div id="video-background-container"></div>
+
+<!-- New Focus Mode UI -->
+<div id="focusModeUI">
+    <div id="focusModeTimer"></div>
+    <button id="exitFocusModeBtn" onclick="toggleFocusMode()">Exit Focus Mode</button>
+</div>
+
 <script src="script.js"></script>
 </body>
 </html>
