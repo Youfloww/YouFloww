@@ -13,32 +13,33 @@
 body {
     font-family: 'Arial', sans-serif;
     text-align: center;
-    padding: 50px;
+    padding: 20px;
     background-color: var(--background-dark);
     color: var(--text-color);
     overflow-x: hidden;
-    transition: background-image 0.5s ease-in-out;
+    transition: background-image 0.5s ease-in-out, background-color 0.5s ease;
     background-size: cover;
     background-position: center;
 }
 main {
     max-width: 900px;
     margin: 0 auto;
-    background-color: var(--card-dark);
+    background-color: rgba(30, 30, 30, 0.9);
     padding: 30px;
     border-radius: 20px;
     box-shadow: 0 10px 25px rgba(0,0,0,0.5);
     border: 1px solid var(--border-color);
     z-index: 10;
     position: relative;
+    backdrop-filter: blur(10px);
 }
 section {
     margin-bottom: 40px;
     padding: 20px;
-    background-color: var(--card-dark);
+    background-color: transparent;
     border-radius: 15px;
-    border: 1px solid var(--border-color);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    border: none;
+    box-shadow: none;
     z-index: 10;
     position: relative;
 }
@@ -60,6 +61,7 @@ h2 {
     margin: 20px 0;
     color: var(--primary-color);
     text-shadow: 2px 2px 10px rgba(247, 160, 71, 0.5);
+    transition: color 0.5s ease;
 }
 #status {
     font-size: 1.5rem;
@@ -71,6 +73,7 @@ h2 {
     justify-content: center;
     gap: 15px;
     margin-top: 20px;
+    flex-wrap: wrap;
 }
 button {
     padding: 12px 24px;
@@ -90,6 +93,9 @@ button:hover {
     transform: translateY(-3px);
     box-shadow: 0 6px 10px rgba(0,0,0,0.3);
 }
+button:active {
+    transform: translateY(-1px) scale(0.98);
+}
 button:disabled {
     background-color: var(--disabled-color);
     color: var(--text-color);
@@ -97,11 +103,11 @@ button:disabled {
     transform: none;
     box-shadow: none;
 }
-#add-todo-btn {
+#add-todo-btn, #saveSettingsBtn {
     background: var(--secondary-color);
     color: var(--background-dark);
 }
-#add-todo-btn:hover {
+#add-todo-btn:hover, #saveSettingsBtn:hover {
     background: #5650e6;
 }
 .clear-todos-btn {
@@ -130,6 +136,12 @@ button:disabled {
     align-items: center;
     z-index: 1000;
     backdrop-filter: blur(8px);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+.modal.visible {
+    display: flex;
+    opacity: 1;
 }
 .modal-content {
     background: var(--card-dark);
@@ -144,9 +156,11 @@ button:disabled {
     overflow-y: auto;
     box-shadow: 0 10px 30px rgba(0,0,0,0.7);
     border: 1px solid var(--border-color);
-    background-size: cover;
-    background-position: center;
-    transition: background-image 0.5s ease;
+    transform: scale(0.95);
+    transition: transform 0.3s ease;
+}
+.modal.visible .modal-content {
+    transform: scale(1);
 }
 .close-btn {
     position: absolute;
@@ -260,6 +274,7 @@ button:disabled {
     justify-content: center;
     margin-bottom: 20px;
     border-bottom: 2px solid var(--border-color);
+    flex-wrap: wrap;
 }
 .tab {
     padding: 10px 20px;
@@ -287,8 +302,8 @@ button:disabled {
     animation: fadeIn 0.5s ease-in-out;
 }
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 .tab-content.active {
     display: block;
@@ -317,10 +332,10 @@ button:disabled {
     max-width: 500px;
     margin: 20px auto;
     padding: 25px;
-    background-color: var(--card-dark);
+    background-color: transparent;
     border-radius: 15px;
-    box-shadow: 0 6px 12px rgba(0,0,0,0.5);
-    border: 1px solid var(--border-color);
+    box-shadow: none;
+    border: none;
 }
 #todo-container h2 {
     margin-bottom: 15px;
@@ -357,15 +372,27 @@ button:disabled {
     padding: 12px;
     border-bottom: 1px solid #444;
     cursor: pointer;
-    transition: background 0.3s ease;
+    transition: background 0.3s ease, color 0.3s ease;
     font-size: 1.1rem;
 }
 .todo-item:hover {
     background: #2a2a2a;
 }
-.todo-item.completed {
+.todo-item.completed span {
     text-decoration: line-through;
     color: #888;
+}
+.todo-item .actions {
+    display: flex;
+    gap: 10px;
+}
+.todo-item .actions button {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 0.9em;
+    padding: 5px;
 }
 /* Ambient Effects */
 #ambient-container {
@@ -403,16 +430,12 @@ button:disabled {
     background-repeat: no-repeat;
 }
 @keyframes fall {
-    to {
-        transform: translateY(100vh);
-    }
+    to { transform: translateY(100vh); }
 }
 @keyframes spinFall {
-    to {
-        transform: translateY(100vh) rotate(720deg);
-    }
+    to { transform: translateY(100vh) rotate(720deg); }
 }
-/* Store and Profile Styles */
+/* Store, Profile, Settings Styles */
 .stats-actions {
     margin-top: 20px;
     display: flex;
@@ -423,18 +446,11 @@ button:disabled {
     padding: 10px 20px;
     font-size: 0.9rem;
 }
-#exportDataBtn {
-    background: var(--secondary-color);
-}
-#exportDataBtn:hover {
-    background: #5650e6;
-}
-#clearDataBtn {
-    background: #f44336;
-}
-#clearDataBtn:hover {
-    background: #d32f2f;
-}
+#exportDataBtn { background: var(--secondary-color); }
+#exportDataBtn:hover { background: #5650e6; }
+#clearDataBtn { background: #f44336; }
+#clearDataBtn:hover { background: #d32f2f; }
+
 .store-item {
     display: flex;
     justify-content: space-between;
@@ -457,11 +473,28 @@ button:disabled {
 .store-item button:hover {
     background: var(--hover-color);
 }
-.store-item button:disabled {
-    background: var(--disabled-color);
-    color: var(--text-color);
-    cursor: not-allowed;
+.settings-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 15px;
+    align-items: center;
+    max-width: 300px;
+    margin: 20px auto 30px auto;
+    text-align: right;
 }
+.settings-grid label {
+    font-weight: bold;
+}
+.settings-grid input {
+    width: 100%;
+    padding: 8px;
+    background-color: #2a2a2a;
+    border: 1px solid #444;
+    color: var(--text-color);
+    border-radius: 8px;
+    font-size: 1rem;
+}
+
 #video-background-container {
     position: fixed;
     top: 0;
@@ -475,7 +508,7 @@ button:disabled {
 #video-background-container iframe {
     width: 100vw;
     height: 100vh;
-    transform: scale(1.1);
+    transform: scale(1.2);
     pointer-events: none;
 }
 /* New main page styles for the YouTube feature */
@@ -484,6 +517,7 @@ button:disabled {
     display: flex;
     justify-content: center;
     gap: 15px;
+    flex-wrap: wrap;
 }
 .youtube-feature, .custom-bg-feature {
     display: flex;
@@ -492,7 +526,7 @@ button:disabled {
     gap: 10px;
     flex-wrap: wrap;
     flex: 1;
-    max-width: 600px;
+    min-width: 300px;
 }
 .youtube-feature span, .custom-bg-feature span {
     font-weight: bold;
@@ -539,7 +573,7 @@ body.focus-mode #focusModeUI {
 }
 
 #focusModeTimer {
-    font-size: 12rem; /* CORRECTED: Reduced from 15rem */
+    font-size: 12rem;
     font-weight: bold;
     color: #fff;
     text-shadow: 2px 2px 10px rgba(0,0,0,0.5);
@@ -594,4 +628,33 @@ body.focus-mode #focusModeUI {
 }
 #focusModeExitBtn .icon::before {
     content: '✕';
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    body {
+        padding: 10px;
+    }
+    main {
+        padding: 15px;
+    }
+    h1 {
+        font-size: 2rem;
+    }
+    #timer {
+        font-size: 4.5rem;
+    }
+    #focusModeTimer {
+        font-size: 8rem;
+    }
+    .timer-controls, .ambient-controls {
+        gap: 10px;
+    }
+    button {
+        padding: 10px 18px;
+        font-size: 1rem;
+    }
+    #cornerWidget {
+        display: none; /* Hide widget on small screens to save space */
+    }
 }
