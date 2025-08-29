@@ -73,7 +73,7 @@ button:disabled { background-color: var(--disabled-color); color: var(--text-col
 .chart-container { margin: 20px 0; background: var(--background-dark); padding: 20px; border-radius: 10px; box-shadow: var(--box-shadow); border: 1px solid var(--border-color); height: 350px; }
 
 #cornerWidget { position: fixed; bottom: 20px; right: 20px; background: var(--card-dark); padding: 15px; border-radius: 15px; width: 220px; font-size: 14px; text-align: left; box-shadow: var(--box-shadow); z-index: 500; border: 1px solid var(--border-color); color: var(--text-color); }
-.progress-label { display: flex; justify-content: space-between; margin: 8px 0 4px 0; }
+.progress-label { display: flex; justify-content: space-between; margin: 8px 0 4px 0; font-size: 0.9em; }
 .progress-bar-container { width: 100%; background: #333; border-radius: 5px; overflow: hidden; }
 .progress-bar { height: 10px; background: linear-gradient(to right, var(--secondary-color), var(--primary-color)); border-radius: 5px; transition: width 1s ease-out; }
 
