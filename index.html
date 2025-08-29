@@ -19,16 +19,20 @@
   <div class="timer-controls">
     <button id="startBtn">Start</button>
     <button id="pauseBtn" disabled>Pause</button>
-    <button onclick="resetTimer()">Reset</button>
+    <button id="resetBtn">Reset</button>
     <button id="endSessionBtn">End Session</button>
     <button id="focusModeBtn">Focus Mode</button>
   </div>
   <div class="ambient-controls">
-    <button id="noiseBtn" onclick="toggleWhiteNoise()">🎧 Play Noise</button>
-    <button onclick="startSnow()">❄️ Snowfall</button>
-    <button onclick="startRain()">🌧️ Rainfall</button>
-    <button onclick="startSakura()">🌸 Sakura</button>
-    <button onclick="stopAmbientEffects()">🚫 Stop</button>
+    <button id="noiseBtn">🎧 Play Noise</button>
+    <div class="ambience-dropdown">
+        <button id="ambienceBtn">✨ Ambience</button>
+        <div id="ambienceOptions" class="ambience-options">
+            <button id="snowBtn">❄️ Snow</button>
+            <button id="rainBtn">🌧️ Rain</button>
+            <button id="sakuraBtn">🌸 Sakura</button>
+        </div>
+    </div>
   </div>
 </section>
 <section>
