@@ -1,214 +1,151 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>YouFloww - Focus Timer & To-Do List</title>
-<link rel="stylesheet" href="style.css">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouFloww - Focus & Flow</title>
+    <!-- Google Fonts for a modern, clean typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <!-- Link to the external stylesheet -->
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<main>
-<section>
-  <h1 id="main-heading">Welcome to YouFloww ⏱️</h1>
-  <p>Stay focused. Stay consistent.</p>
-  <div id="status">Work Session</div>
-  <div id="timer">25:00</div>
-  <div class="timer-controls">
-    <button id="startBtn">Start</button>
-    <button id="pauseBtn" disabled>Pause</button>
-    <button id="resetBtn">Reset</button>
-    <button id="endSessionBtn">End Session</button>
-    <button id="focusModeBtn">Focus Mode</button>
-  </div>
-  <div class="ambient-controls">
-    <button id="noiseBtn">🎧 Play Noise</button>
-    <div class="ambience-dropdown">
-        <button id="ambienceBtn">✨ Ambience</button>
-        <div id="ambienceOptions" class="ambience-options">
-            <button id="snowBtn" class="btn-small">❄️ Snow</button>
-            <button id="rainBtn" class="btn-small">🌧️ Rain</button>
-            <button id="sakuraBtn" class="btn-small">🌸 Sakura</button>
-        </div>
-    </div>
-  </div>
-</section>
-<section>
-  <div id="todo-container">
-      <h2>🎯 To-Do List</h2>
-      <div id="todo-input-container">
-          <input type="text" id="todo-input" placeholder="Add a new task..." aria-label="Add a new task">
-          <button id="add-todo-btn">Add</button>
-      </div>
-      <ul id="todo-list"></ul>
-      <button class="clear-todos-btn">Clear All Tasks</button>
-  </div>
-</section>
-<section>
-    <div class="main-features-section">
-        <div class="youtube-feature">
-            <span>🎬 YouTube Background</span>
-            <input type="text" id="youtube-input" placeholder="Paste YouTube URL here...">
-            <button id="setYoutubeBtn">Set</button>
-            <button id="removeYoutubeBtn">Remove</button>
-        </div>
-        <div class="custom-bg-feature">
-            <span>🖼️ Custom Background</span>
-            <input type="file" id="custom-image-input" accept="image/*" style="flex:1">
-            <button id="removeCustomBgBtn">Remove</button>
-        </div>
-    </div>
-</section>
-</main>
-<div id="coinContainer">
-    <div>💰 Coins: <span id="coinCount">0</span></div>
-    <button onclick="openStats()">View Stats</button>
-</div>
-<div id="statsModal" class="modal">
-  <div id="statsContent" class="modal-content">
-    <span class="close-btn" onclick="closeStats()">&times;</span>
-    <h2>Your Progress 📈</h2>
-    <p id="streak">🔥 Streak: 0 days</p>
-    <p id="sessionsToday">📊 Sessions today: 0</p>
-    <p id="weeklyFocus">⏳ Focused this week: 0h 0m</p>
-    <div class="tabs">
-        <div class="tab active" onclick="switchTab('stats')">📈 Stats</div>
-        <div class="tab" onclick="switchTab('history')">📜 History</div>
-        <div class="tab" onclick="switchTab('profile')">👤 Profile</div>
-        <div class="tab" onclick="switchTab('store')">🛒 Store</div>
-        <div class="tab" onclick="switchTab('settings')">⚙️ Settings</div>
-    </div>
-    <div id="statsContainer" class="tab-content active">
-        <div id="barChartContainer" class="chart-container">
-            <div class="chart-title">Daily Focus (hours)</div>
-            <canvas id="barChart"></canvas>
-        </div>
-        <div id="pieChartContainer" class="chart-container">
-            <div class="chart-title">Session Types</div>
-            <canvas id="pieChart"></canvas>
-        </div>
-    </div>
-    <div id="historyContainer" class="tab-content">
-        <div class="chart-container">
-            <div class="chart-title">Weekly History</div>
-            <table class="stats-table">
-                <thead>
-                    <tr>
-                        <th>Week Starting</th>
-                        <th>Total Focus</th>
-                        <th>Sessions</th>
-                        <th>Days Active</th>
-                    </tr>
-                </thead>
-                <tbody id="historyTableBody"></tbody>
-            </table>
-        </div>
-    </div>
-    <div id="profileContainer" class="tab-content">
-        <div class="chart-container">
-            <div class="chart-title">Your Profile</div>
-            <p>Name: <span id="profileName">Floww User</span></p>
-            <p>Total Focus Time: <span id="totalFocusTime">0h 0m</span></p>
-            <p>Total Sessions: <span id="totalSessions">0</span></p>
-            <p>Total Coins Earned: <span id="totalCoinsEarned">0</span></p>
-            <div class="stats-actions">
-                <button onclick="changeProfileName()">Change Name</button>
+    
+    <!-- Background Layers -->
+    <div id="ambient-container"></div>
+    <div id="video-background-container"></div>
+
+    <div id="app-container">
+        <main>
+            <div id="status">Work Session</div>
+            <div id="timer">25:00</div>
+
+            <div class="timer-controls">
+                <button class="icon-button" id="resetBtn" aria-label="Reset Timer">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                </button>
+                <button class="icon-button" id="toggleTimerBtn" aria-label="Start Timer">
+                    <!-- SVG icon will be dynamically inserted here by JS -->
+                </button>
+                <button class="icon-button" id="endSessionBtn" aria-label="End Session Early">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>
+                </button>
             </div>
-        </div>
-    </div>
-    <div id="storeContainer" class="tab-content">
-        <div class="chart-container">
-            <div class="chart-title">Customize Your Experience</div>
-            <p>Select a theme or a live wallpaper for your session.</p>
-            <div id="storeItems">
-                <div class="store-item" data-type="image" data-path="https://images.unsplash.com/photo-1542831371-d648083a23de?q=80&w=2070&auto=format&fit=crop">
-                    <span>🌆 Cosmic Background</span>
-                    <button>Set</button>
+
+            <div id="todo-container">
+                <h2>🎯 To-Do List</h2>
+                <div id="todo-input-container">
+                    <input type="text" id="todo-input" placeholder="Add a new task..." aria-label="Add a new task">
+                    <button id="add-todo-btn">Add</button>
                 </div>
-                <div class="store-item" data-type="youtube" data-id="4wJRkS-M-3s">
-                    <span>🎬 Lofi Study Cafe</span>
-                    <button>Set</button>
-                </div>
-                <div class="store-item" data-type="youtube" data-id="NJuSStkIZBg">
-                    <span>🌧️ Cozy Rainy Night</span>
-                    <button>Set</button>
-                </div>
-                <div class="store-item" data-type="youtube" data-id="Dx5qFachdxc">
-                    <span>🚀 Space Journey</span>
-                    <button>Set</button>
-                </div>
+                <ul id="todo-list"></ul>
             </div>
-        </div>
+        </main>
     </div>
-    <div id="settingsContainer" class="tab-content">
-        <div class="chart-container">
-            <div class="chart-title">Timer Settings</div>
-            <p>Set your preferred Pomodoro durations (in minutes).</p>
-            <div class="settings-grid">
-                <label for="work-duration">Work Session:</label>
-                <input type="number" id="work-duration" min="1">
-                <label for="short-break-duration">Short Break:</label>
-                <input type="number" id="short-break-duration" min="1">
-                <label for="long-break-duration">Long Break:</label>
-                <input type="number" id="long-break-duration" min="1">
-            </div>
-            <button id="saveSettingsBtn">Save Settings</button>
-        </div>
-    </div>
-    <div class="stats-actions">
-        <button id="exportDataBtn" onclick="exportData()">Export Data</button>
-        <button id="clearDataBtn" onclick="clearAllData()">Clear All Data</button>
-    </div>
-  </div>
-</div>
 
-<audio id="whiteNoise" loop><source src="whitenoise.mp3" type="audio/mpeg"></audio>
-<audio id="pauseAlertSound"><source src="https://actions.google.com/sounds/v1/ui/close_button_pressed.ogg" type="audio/ogg"></audio>
-<audio id="resumeAlertSound"><source src="https://actions.google.com/sounds/v1/ui/button_press.ogg" type="audio/ogg"></audio>
-
-<audio class="start-sound" src="start-sound1.mp3"></audio>
-<audio class="start-sound" src="start-sound2.mp3"></audio>
-<audio class="start-sound" src="start-sound3.mp3"></audio>
-<audio class="start-sound" src="start-sound4.mp3"></audio>
-
-<audio class="good-meme" src="good-meme1.mp3"></audio>
-<audio class="good-meme" src="good-meme2.mp3"></audio>
-<audio class="good-meme" src="good-meme3.mp3"></audio>
-<audio class="good-meme" src="good-meme4.mp3"></audio>
-
-<audio class="bad-meme" src="bad-meme1.mp3"></audio>
-<audio class="bad-meme" src="bad-meme2.mp3"></audio>
-<audio class="bad-meme" src="bad-meme3.mp3"></audio>
-<audio class="bad-meme" src="bad-meme4.mp3"></audio>
-
-<aside>
-<div id="cornerWidget">
-  <div class="progress-label"><span>Day Progress</span><span id="dayProgressPercent"></span></div>
-  <div class="progress-bar-container"><div id="dayProgressBar" class="progress-bar"></div></div>
-  <div class="progress-label"><span>Month Progress</span><span id="monthProgressPercent"></span></div>
-  <div class="progress-bar-container"><div id="monthProgressBar" class="progress-bar"></div></div>
-  <div class="progress-label"><span>Year Progress</span><span id="yearProgressPercent"></span></div>
-  <div class="progress-bar-container"><div id="yearProgressBar" class="progress-bar"></div></div>
-</div>
-</aside>
-<div id="ambient-container"></div>
-<div id="video-background-container"></div>
-
-<div id="focusModeUI">
-    <div id="focusModeTimer"></div>
-    <div id="focusModeProgressBarContainer">
-        <div id="focusModeProgressBar"></div>
-    </div>
-    <div id="focusModeControls">
-        <button id="focusModePlayPauseBtn" aria-label="Play/Pause">
-            <span class="icon"></span>
+    <!-- Floating Action Buttons -->
+    <div class="fab-container" id="fabContainer">
+         <button class="fab secondary" id="focusModeBtn" aria-label="Toggle Focus Mode">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
         </button>
-        <button id="focusModeExitBtn" aria-label="Exit Focus Mode">
-            <span class="icon"></span>
+         <button class="fab secondary" id="noiseBtn" aria-label="Toggle Noise">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon></svg>
+        </button>
+        <button class="fab primary" id="dashboardBtn" aria-label="Open Dashboard">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line></svg>
         </button>
     </div>
-</div>
+    
+    <!-- Dashboard Modal -->
+    <div id="dashboardModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="tabs">
+                    <button class="tab active" data-tab="stats">📈 Stats</button>
+                    <button class="tab" data-tab="profile">👤 Profile</button>
+                    <button class="tab" data-tab="store">🎨 Customize</button>
+                    <button class="tab" data-tab="settings">⚙️ Settings</button>
+                </div>
+                <button class="close-btn" id="closeDashboardBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Stats Tab -->
+                <div id="statsContainer" class="tab-content active">
+                    <div class="charts-grid">
+                        <div class="chart-container">
+                            <div class="chart-title">Daily Focus (last 7 days)</div>
+                            <canvas id="barChart"></canvas>
+                        </div>
+                        <div class="chart-container">
+                            <div class="chart-title">Session Distribution</div>
+                            <canvas id="pieChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <!-- Profile Tab -->
+                <div id="profileContainer" class="tab-content">
+                    <h2>Your Profile</h2>
+                    <p>Name: <span id="profileName">Floww User</span> <button onclick="changeProfileName()">Edit</button></p>
+                    <p>Total Focus Time: <span id="totalFocusTime">0h 0m</span></p>
+                    <p>Total Sessions Completed: <span id="totalSessions">0</span></p>
+                     <button id="exportDataBtn">Export Data</button>
+                     <button id="clearDataBtn">Clear All Data</button>
+                </div>
+                <!-- Store/Customize Tab -->
+                <div id="storeContainer" class="tab-content">
+                    <h2>Customize Your Experience</h2>
+                    <p>Set a custom background to match your mood.</p>
+                    <div class="settings-grid">
+                        <label for="youtube-input">YouTube URL:</label>
+                        <input type="text" id="youtube-input" placeholder="Paste video URL...">
+                        <label for="custom-image-input">Image:</label>
+                        <input type="file" id="custom-image-input" accept="image/*">
+                    </div>
+                    <h3>Or pick from our gallery:</h3>
+                    <div id="storeItems">
+                        <!-- Store items will be dynamically populated by JS -->
+                    </div>
+                </div>
+                <!-- Settings Tab -->
+                <div id="settingsContainer" class="tab-content">
+                     <h2>Timer Settings</h2>
+                    <p>Set your preferred Pomodoro durations (in minutes).</p>
+                    <div class="settings-grid">
+                        <label for="work-duration">Work Session:</label>
+                        <input type="number" id="work-duration" min="1">
+                        <label for="short-break-duration">Short Break:</label>
+                        <input type="number" id="short-break-duration" min="1">
+                        <label for="long-break-duration">Long Break:</label>
+                        <input type="number" id="long-break-duration" min="1">
+                    </div>
+                    <button id="saveSettingsBtn">Save Settings</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
-<script src="script.js"></script>
+    <!-- Fullscreen Focus Mode UI -->
+    <div id="focusModeUI">
+        <div id="focusModeTimer">25:00</div>
+        <div id="focusModeControls">
+            <button class="icon-button" id="focusModeToggleBtn" aria-label="Play/Pause">
+                <!-- SVG icon will be dynamically inserted here by JS -->
+            </button>
+        </div>
+    </div>
+    
+    <!-- Audio Elements (hidden from view) -->
+    <audio id="whiteNoise" loop><source src="https://github.com/YouFloww/YouFloww/raw/main/whitenoise.mp3" type="audio/mpeg"></audio>
+    <audio id="alertSound"><source src="https://actions.google.com/sounds/v1/ui/button_press.ogg" type="audio/ogg"></audio>
+    <audio class="start-sound" src="https://github.com/YouFloww/YouFloww/raw/main/start-sound1.mp3"></audio>
+    <audio class="good-meme" src="https://github.com/YouFloww/YouFloww/raw/main/good-meme1.mp3"></audio>
+    <audio class="bad-meme" src="https://github.com/YouFloww/YouFloww/raw/main/bad-meme1.mp3"></audio>
+
+    <!-- External Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Link to the external JavaScript file -->
+    <script src="script.js"></script>
 </body>
 </html>
