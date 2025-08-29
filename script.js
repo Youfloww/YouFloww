@@ -17,6 +17,7 @@ let profileName = localStorage.getItem("profileName") || "Floww User";
 // ---- DOM Elements and Sounds ----
 const startSound = document.getElementById("startSound");
 const endSound = document.getElementById("endSound");
+const coinSound = document.getElementById("coinSound");
 const whiteNoise = document.getElementById("whiteNoise");
 const ambientContainer = document.getElementById('ambient-container');
 
@@ -96,7 +97,6 @@ function endSession() {
 }
 
 function handleSessionCompletion() {
-    // Session completion logic (e.g., stats update) can go here
     if (isWorkSession) {
         sessionCount++;
         isWorkSession = false;
@@ -221,11 +221,18 @@ function handleVisibilityChange() {
 
 function openStats() {
     document.getElementById("statsModal").classList.add('visible');
+    updateStatsModal();
     renderCharts();
 }
 
 function closeStats() {
     document.getElementById("statsModal").classList.remove('visible');
+}
+
+function updateStatsModal() {
+    // This is a placeholder. You can expand it with more stats.
+    document.getElementById("streak").textContent = `🔥 Streak: ${streak} days`;
+    document.getElementById("sessionsToday").textContent = `📊 Sessions today: ${sessionsToday}`;
 }
 
 function switchTab(tabName) {
@@ -241,35 +248,22 @@ function renderCharts() {
 }
 
 function renderBarChart() {
-    const weeklyData = JSON.parse(localStorage.getItem("weeklyFocus") || "{}");
-    const today = new Date();
-    const labels = Array.from({ length: 7 }, (_, i) => {
-        const d = new Date(today);
-        d.setDate(today.getDate() - i);
-        return d.toLocaleDateString('en-US', { weekday: 'short' });
-    }).reverse();
-
-    const data = labels.map((_, i) => {
-        const d = new Date(today);
-        d.setDate(today.getDate() - (6 - i));
-        const key = d.toISOString().slice(0, 10);
-        return (weeklyData[key] || 0) / 60;
-    });
-
-    const canvas = document.getElementById('barChart');
-    const ctx = canvas.getContext('2d');
+    const ctx = document.getElementById('barChart').getContext('2d');
     if (window.myBarChart) window.myBarChart.destroy();
-    window.myBarChart = new Chart(ctx, { type: 'bar', data: { labels, datasets: [{ label: 'Daily Focus (hours)', data, backgroundColor: '#f7a047' }] } });
+    window.myBarChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: ['M', 'T', 'W', 'T', 'F', 'S', 'S'], datasets: [{ label: 'Hours', data: [1,2,3,2,4,3,1], backgroundColor: '#f7a047' }] }
+    });
 }
 
 function renderPieChart() {
-    // Pie chart logic remains the same...
-    const canvas = document.getElementById('pieChart');
-    const ctx = canvas.getContext('2d');
-    if(window.myPieChart) window.myPieChart.destroy();
-    window.myPieChart = new Chart(ctx, {type: 'pie', data: { labels: ['Work', 'Break'], datasets: [{ data: [totalFocusMinutes, totalSessions * 5], backgroundColor: ['#f7a047', '#6c63ff'] }]}});
+    const ctx = document.getElementById('pieChart').getContext('2d');
+    if (window.myPieChart) window.myPieChart.destroy();
+    window.myPieChart = new Chart(ctx, {
+        type: 'pie',
+        data: { labels: ['Work', 'Break'], datasets: [{ data: [totalFocusMinutes, totalSessions * 5], backgroundColor: ['#f7a047', '#6c63ff'] }] }
+    });
 }
-
 
 // ===================================================================================
 // TO-DO LIST
@@ -282,7 +276,6 @@ function loadTodos() {
     todos.forEach((todo, index) => {
         const li = document.createElement('li');
         li.className = `todo-item ${todo.completed ? 'completed' : ''}`;
-        li.dataset.index = index;
         const textSpan = document.createElement('span');
         textSpan.textContent = todo.text;
         textSpan.onclick = () => toggleTodo(index);
@@ -312,18 +305,22 @@ function addTodo() {
 
 function toggleTodo(index) {
     let todos = JSON.parse(localStorage.getItem('todos')) || [];
-    todos[index].completed = !todos[index].completed;
-    localStorage.setItem('todos', JSON.stringify(todos));
-    loadTodos();
+    if (todos[index]) {
+        todos[index].completed = !todos[index].completed;
+        localStorage.setItem('todos', JSON.stringify(todos));
+        loadTodos();
+    }
 }
 
 function editTodo(index) {
     let todos = JSON.parse(localStorage.getItem('todos')) || [];
-    const newText = prompt("Edit your task:", todos[index].text);
-    if (newText && newText.trim() !== "") {
-        todos[index].text = newText.trim();
-        localStorage.setItem('todos', JSON.stringify(todos));
-        loadTodos();
+    if (todos[index]) {
+        const newText = prompt("Edit your task:", todos[index].text);
+        if (newText && newText.trim() !== "") {
+            todos[index].text = newText.trim();
+            localStorage.setItem('todos', JSON.stringify(todos));
+            loadTodos();
+        }
     }
 }
 
@@ -335,8 +332,81 @@ function clearTodos() {
 }
 
 // ===================================================================================
-// INITIALIZATION
+// BACKGROUNDS AND STORE
 // ===================================================================================
+
+function applyStoreItem(element) {
+    const item = element.closest('.store-item');
+    const type = item.dataset.type;
+    if (type === 'image') {
+        applyBackgroundTheme(item.dataset.path);
+    } else if (type === 'youtube') {
+        const videoUrl = `https://www.youtube.com/watch?v=${item.dataset.id}`;
+        document.getElementById('youtube-input').value = videoUrl;
+        setYoutubeBackground();
+    }
+    closeStats();
+}
+
+function applyBackgroundTheme(path) {
+    document.body.style.backgroundImage = `url('${path}')`;
+    localStorage.setItem("currentBackgroundPath", path);
+    localStorage.removeItem('youtubeVideoId');
+    document.getElementById("video-background-container").innerHTML = '';
+}
+
+function getYoutubeVideoId(url) {
+    const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
+    return url.match(regex)?.[1] || null;
+}
+
+function setYoutubeBackground() {
+    const url = document.getElementById("youtube-input").value;
+    const videoId = getYoutubeVideoId(url);
+    if (videoId) {
+        document.getElementById("video-background-container").innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&modestbranding=1&rel=0" frameborder="0"></iframe>`;
+        localStorage.setItem('youtubeVideoId', videoId);
+        localStorage.removeItem("currentBackgroundPath");
+        document.body.style.backgroundImage = 'none';
+    } else if (url) {
+        alert("Please enter a valid YouTube URL.");
+    }
+}
+
+// ===================================================================================
+// OTHER HELPERS and INITIALIZATION
+// ===================================================================================
+function changeProfileName() {
+    const newName = prompt("Enter your new name:", profileName);
+    if(newName && newName.trim() !== "") {
+        profileName = newName.trim();
+        localStorage.setItem("profileName", profileName);
+        document.getElementById("profileName").textContent = profileName;
+    }
+}
+
+function clearAllData() {
+    if(confirm("Are you sure? This will clear all stats, settings, and tasks.")) {
+        localStorage.clear();
+        window.location.reload();
+    }
+}
+
+function exportData() {
+    // A simple export of all localStorage data
+    const data = JSON.stringify(localStorage);
+    const blob = new Blob([data], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `youfloww_backup_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function toggleFocusMode() {
+    document.body.classList.toggle('focus-mode');
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     // Initial Setup
@@ -378,6 +448,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Settings
     document.getElementById("saveSettingsBtn").addEventListener('click', saveSettings);
+
+    // Store Item Clicks
+    document.getElementById('storeItems').addEventListener('click', (e) => {
+        if (e.target.tagName === 'BUTTON') {
+            applyStoreItem(e.target);
+        }
+    });
     
     // Backgrounds
     document.getElementById("setYoutubeBtn").addEventListener('click', setYoutubeBackground);
