@@ -34,22 +34,18 @@ main {
     backdrop-filter: blur(10px);
 }
 section {
-    margin-bottom: 40px;
-    padding: 20px;
+    margin-bottom: 20px;
+    padding: 10px;
     background-color: transparent;
-    border-radius: 15px;
     border: none;
-    box-shadow: none;
-    z-index: 10;
-    position: relative;
 }
 h1 { font-size: 2.5rem; color: var(--primary-color); text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
 h2 { font-size: 1.8rem; color: var(--text-color); border-bottom: 2px solid var(--primary-color); display: inline-block; padding-bottom: 5px; }
 #timer { font-size: 6rem; font-weight: bold; margin: 20px 0; color: var(--primary-color); text-shadow: 2px 2px 10px rgba(247, 160, 71, 0.5); transition: color 0.5s ease; }
 #status { font-size: 1.5rem; margin-bottom: 20px; color: var(--text-color); }
 
-.timer-controls, .ambient-controls { display: flex; justify-content: center; gap: 15px; margin-top: 20px; flex-wrap: wrap; }
-button { padding: 12px 24px; font-size: 1.1rem; cursor: pointer; border: none; border-radius: var(--border-radius); background-color: var(--primary-color); color: var(--background-dark); transition: background 0.3s ease, transform 0.2s ease; text-transform: uppercase; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+.timer-controls, .ambient-controls { display: flex; justify-content: center; gap: 10px; margin-top: 20px; flex-wrap: wrap; align-items: center; }
+button { padding: 10px 20px; font-size: 1rem; cursor: pointer; border: none; border-radius: var(--border-radius); background-color: var(--primary-color); color: var(--background-dark); transition: background 0.3s ease, transform 0.2s ease; text-transform: uppercase; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
 button:hover { background-color: var(--hover-color); transform: translateY(-3px); box-shadow: 0 6px 10px rgba(0,0,0,0.3); }
 button:active { transform: translateY(-1px) scale(0.98); }
 button:disabled { background-color: var(--disabled-color); color: var(--text-color); cursor: not-allowed; transform: none; box-shadow: none; }
@@ -59,13 +55,14 @@ button:disabled { background-color: var(--disabled-color); color: var(--text-col
 #add-todo-btn:hover, #saveSettingsBtn:hover { background: #5650e6; }
 .clear-todos-btn { background: #f44336; }
 .clear-todos-btn:hover { background: #d32f2f; }
-#endSessionBtn, #noiseBtn, #ambienceBtn, #resetBtn { margin: 10px; background: #546E7A; }
+#endSessionBtn, #noiseBtn, #ambienceBtn, #resetBtn { margin: 5px; background: #546E7A; }
 #endSessionBtn:hover, #noiseBtn:hover, #ambienceBtn:hover, #resetBtn:hover { background: #455a64; }
+.btn-small { padding: 8px 16px; font-size: 0.9rem; }
 
 .ambience-dropdown { position: relative; display: inline-block; }
 .ambience-options { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background-color: var(--card-dark); border: 1px solid var(--border-color); border-radius: var(--border-radius); padding: 10px; margin-bottom: 10px; z-index: 20; display: flex; gap: 10px; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; }
 .ambience-dropdown.active .ambience-options { opacity: 1; visibility: visible; }
-.ambience-options button { background-color: #455a64; min-width: 100px; }
+.ambience-options button { background-color: #455a64; min-width: 90px; }
 .ambience-options button.active { background-color: var(--secondary-color); color: var(--background-dark); }
 
 .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(8px); opacity: 0; transition: opacity 0.3s ease; }
@@ -73,12 +70,10 @@ button:disabled { background-color: var(--disabled-color); color: var(--text-col
 .modal-content { background: var(--card-dark); border-radius: 20px; padding: 30px; width: 90%; max-width: 900px; text-align: center; position: relative; color: var(--text-color); max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.7); border: 1px solid var(--border-color); transform: scale(0.95); transition: transform 0.3s ease; }
 .modal.visible .modal-content { transform: scale(1); }
 .close-btn { position: absolute; top: 15px; right: 20px; font-size: 2.5rem; cursor: pointer; color: var(--text-color); transition: color 0.2s; }
-.close-btn:hover { color: var(--primary-color); }
 .chart-container { margin: 20px 0; background: var(--background-dark); padding: 20px; border-radius: 10px; box-shadow: var(--box-shadow); border: 1px solid var(--border-color); height: 350px; }
-.chart-title { font-weight: bold; margin-bottom: 15px; font-size: 1.2rem; color: var(--primary-color); }
 
 #cornerWidget { position: fixed; bottom: 20px; right: 20px; background: var(--card-dark); padding: 15px; border-radius: 15px; width: 220px; font-size: 14px; text-align: left; box-shadow: var(--box-shadow); z-index: 500; border: 1px solid var(--border-color); color: var(--text-color); }
-#cornerWidget div { margin: 8px 0; }
+.progress-label { display: flex; justify-content: space-between; margin: 8px 0 4px 0; }
 .progress-bar-container { width: 100%; background: #333; border-radius: 5px; overflow: hidden; }
 .progress-bar { height: 10px; background: linear-gradient(to right, var(--secondary-color), var(--primary-color)); border-radius: 5px; transition: width 1s ease-out; }
 
@@ -93,7 +88,6 @@ button:disabled { background-color: var(--disabled-color); color: var(--text-col
 #todo-container { max-width: 500px; margin: 20px auto; padding: 25px; background-color: transparent; border-radius: 15px; box-shadow: none; border: none; }
 #todo-input-container { display: flex; gap: 10px; margin-bottom: 15px; }
 #todo-input { flex: 1; padding: 12px; border: 1px solid #444; border-radius: 8px; font-size: 1rem; transition: border-color 0.3s; background-color: #2a2a2a; color: var(--text-color); }
-#todo-input:focus { outline: none; border-color: var(--secondary-color); }
 #todo-list { list-style: none; padding: 0; text-align: left; }
 .todo-item { display: flex; justify-content: flex-start; align-items: center; padding: 12px; border-bottom: 1px solid #444; font-size: 1.1rem; gap: 15px; }
 .todo-item .actions { margin-left: auto; }
@@ -104,7 +98,6 @@ button:disabled { background-color: var(--disabled-color); color: var(--text-col
 .todo-item input[type="checkbox"]:checked + label::before { background: var(--secondary-color); border-color: var(--secondary-color); }
 .todo-item input[type="checkbox"]:checked + label::after { content: '✔'; position: absolute; left: 4px; top: 0px; color: white; font-size: 16px; }
 .todo-item input[type="checkbox"]:checked + label { text-decoration: line-through; color: #888; }
-
 
 #ambient-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: -1; overflow: hidden; }
 .ambient-effect { position: absolute; border-radius: 50%; }
@@ -127,6 +120,7 @@ body.focus-mode #focusModeUI { display: flex; }
 #focusModeProgressBarContainer { width: 350px; height: 8px; background: rgba(255, 255, 255, 0.3); border-radius: 4px; margin-top: 20px; overflow: hidden; }
 #focusModeProgressBar { height: 100%; width: 0%; background: linear-gradient(to right, var(--primary-color), var(--hover-color)); transition: width 0.5s ease; }
 #focusModeControls { position: absolute; bottom: 50px; display: flex; gap: 20px; z-index: 10; }
+#focusModeControls button { width: 60px; height: 60px; border-radius: 50%; font-size: 1.5rem; display: flex; justify-content: center; align-items: center; background-color: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.4); backdrop-filter: blur(5px); transition: background-color 0.3s; color: white; }
 
 @media (max-width: 768px) {
     body { padding: 10px; }
