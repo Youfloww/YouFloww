@@ -56,7 +56,7 @@ function startTimer() {
     if (isRunning) return;
     
     if (isWorkSession) {
-        if (timeLeft === workDuration) {
+        if (timeLeft >= workDuration) {
             playRandomSound(startSounds);
         } else {
             resumeAlertSound.play();
@@ -146,8 +146,7 @@ function handleEndOfWorkSession(minutesFocused) {
 }
 
 // ===================================================================================
-// SETTINGS, AMBIENCE, MODALS, and OTHER FEATURES...
-// All functions from the previous complete script are included below.
+// SETTINGS
 // ===================================================================================
 
 function loadSettings() {
@@ -176,6 +175,10 @@ function saveSettings() {
     }
 }
 
+// ===================================================================================
+// AMBIENT EFFECTS
+// ===================================================================================
+
 function createAmbientElement(className) { const el = document.createElement('div'); el.className = `ambient-effect ${className}`; el.style.left = `${Math.random() * 100}vw`; ambientContainer.appendChild(el); el.addEventListener('animationend', () => el.remove()); return el; }
 function animateAmbientElement(el, min, max, name) { const duration = Math.random() * (max - min) + min; el.style.animation = `${name} ${duration}ms linear forwards`; }
 function startSnowInterval() { if (snowInterval || document.hidden) return; snowInterval = setInterval(() => animateAmbientElement(createAmbientElement('snowflake'), 8000, 15000, 'fall'), 200); }
@@ -186,11 +189,19 @@ function toggleRain() { isRainActive = !isRainActive; document.getElementById('r
 function toggleSakura() { isSakuraActive = !isSakuraActive; document.getElementById('sakuraBtn').classList.toggle('active', isSakuraActive); if (isSakuraActive) startSakuraInterval(); else { clearInterval(sakuraInterval); sakuraInterval = null; } }
 function handleVisibilityChange() { if (document.hidden) { clearInterval(snowInterval); snowInterval = null; clearInterval(rainInterval); rainInterval = null; clearInterval(sakuraInterval); sakuraInterval = null; ambientContainer.innerHTML = ''; } else { if (isSnowActive) startSnowInterval(); if (isRainActive) startRainInterval(); if (isSakuraActive) startSakuraInterval(); } }
 
-function openStats() { document.getElementById("statsModal").classList.add('visible'); renderCharts(); /* You can add other stats updates here */ }
+// ===================================================================================
+// STATS, CHARTS, AND MODALS
+// ===================================================================================
+
+function openStats() { document.getElementById("statsModal").classList.add('visible'); renderCharts(); }
 function closeStats() { document.getElementById("statsModal").classList.remove('visible'); }
 function switchTab(tabName) { document.querySelectorAll('.tab').forEach(t => t.classList.remove('active')); document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active')); document.querySelector(`.tab[onclick*="'${tabName}'"]`).classList.add('active'); document.getElementById(`${tabName}Container`).classList.add('active'); }
 
-function renderCharts() { renderBarChart(); renderPieChart(); }
+function renderCharts() {
+    renderBarChart();
+    renderPieChart();
+}
+
 function renderBarChart() {
     const weeklyData = JSON.parse(localStorage.getItem("weeklyFocus") || "{}");
     const today = new Date();
@@ -200,7 +211,19 @@ function renderBarChart() {
     if (window.myBarChart) window.myBarChart.destroy();
     window.myBarChart = new Chart(ctx, { type: 'bar', data: { labels, datasets: [{ label: 'Daily Focus (hours)', data, backgroundColor: '#f7a047' }] } });
 }
-function renderPieChart() { const totalBreakMinutes = totalSessions * (shortBreakDuration / 60); const ctx = document.getElementById('pieChart').getContext('2d'); if(window.myPieChart) window.myPieChart.destroy(); window.myPieChart = new Chart(ctx, {type: 'pie', data: { labels: ['Work', 'Break'], datasets: [{ data: [totalFocusMinutes, totalBreakMinutes], backgroundColor: ['#f7a047', '#6c63ff'] }]}}); }
+
+function renderPieChart() {
+    const currentTotalFocus = parseInt(localStorage.getItem("totalFocusMinutes")) || 0;
+    const currentTotalSessions = parseInt(localStorage.getItem("totalSessions")) || 0;
+    const totalBreakMinutes = currentTotalSessions * (shortBreakDuration / 60);
+    const ctx = document.getElementById('pieChart').getContext('2d');
+    if(window.myPieChart) window.myPieChart.destroy();
+    window.myPieChart = new Chart(ctx, {type: 'pie', data: { labels: ['Work', 'Break'], datasets: [{ data: [currentTotalFocus, totalBreakMinutes], backgroundColor: ['#f7a047', '#6c63ff'] }]}});
+}
+
+// ===================================================================================
+// TO-DO LIST
+// ===================================================================================
 
 function loadTodos() { const todos = JSON.parse(localStorage.getItem('todos')) || []; const todoList = document.getElementById('todo-list'); todoList.innerHTML = ''; todos.forEach((todo, index) => { const li = document.createElement('li'); li.className = 'todo-item'; const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.id = `todo-${index}`; checkbox.checked = todo.completed; checkbox.onchange = () => toggleTodo(index); const label = document.createElement('label'); label.htmlFor = `todo-${index}`; label.textContent = todo.text; const actionsDiv = document.createElement('div'); actionsDiv.className = 'actions'; const editBtn = document.createElement('button'); editBtn.textContent = '✏️'; editBtn.onclick = () => editTodo(index); actionsDiv.appendChild(editBtn); li.appendChild(checkbox); li.appendChild(label); li.appendChild(actionsDiv); todoList.appendChild(li); }); }
 function addTodo() { const todoInput = document.getElementById('todo-input'); const text = todoInput.value.trim(); if (text) { let todos = JSON.parse(localStorage.getItem('todos')) || []; todos.push({ text, completed: false }); localStorage.setItem('todos', JSON.stringify(todos)); todoInput.value = ''; loadTodos(); } }
@@ -208,14 +231,42 @@ function toggleTodo(index) { let todos = JSON.parse(localStorage.getItem('todos'
 function editTodo(index) { let todos = JSON.parse(localStorage.getItem('todos')) || []; if (todos[index]) { const newText = prompt("Edit your task:", todos[index].text); if (newText && newText.trim()) { todos[index].text = newText.trim(); localStorage.setItem('todos', JSON.stringify(todos)); loadTodos(); } } }
 function clearTodos() { if (confirm("Clear all tasks?")) { localStorage.removeItem('todos'); loadTodos(); } }
 
-function updateCornerWidget(){ const now = new Date(); const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()); const dayProgress = ((now - startOfDay) / 86400000) * 100; document.getElementById("dayProgressBar").style.width = `${dayProgress}%`; document.getElementById("dayProgressPercent").textContent = `${Math.floor(dayProgress)}%`; const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1); const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0); const monthProgress = ((now - startOfMonth) / (endOfMonth - startOfMonth)) * 100; document.getElementById("monthProgressBar").style.width = `${monthProgress}%`; document.getElementById("monthProgressPercent").textContent = `${Math.floor(monthProgress)}%`; const startOfYear = new Date(now.getFullYear(), 0, 1); const endOfYear = new Date(now.getFullYear(), 11, 31); const yearProgress = ((now - startOfYear) / (endOfYear - startOfYear)) * 100; document.getElementById("yearProgressBar").style.width = `${yearProgress}%`; document.getElementById("yearProgressPercent").textContent = `${Math.floor(yearProgress)}%`; }
+// ===================================================================================
+// CORNER WIDGET AND OTHER HELPERS
+// ===================================================================================
+
+function updateCornerWidget(){
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dayProgress = ((now - startOfDay) / 86400000) * 100;
+    document.getElementById("dayProgressBar").style.width = `${dayProgress}%`;
+    document.getElementById("dayProgressPercent").textContent = `${Math.floor(dayProgress)}%`;
+
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const monthProgress = ((now - startOfMonth) / (endOfMonth - startOfMonth)) * 100;
+    document.getElementById("monthProgressBar").style.width = `${monthProgress}%`;
+    document.getElementById("monthProgressPercent").textContent = `${Math.floor(monthProgress)}%`;
+
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const endOfYear = new Date(now.getFullYear() + 1, 0, 1);
+    const yearProgress = ((now - startOfYear) / (endOfYear - startOfYear)) * 100;
+    document.getElementById("yearProgressBar").style.width = `${yearProgress}%`;
+    document.getElementById("yearProgressPercent").textContent = `${Math.floor(yearProgress)}%`;
+}
+
 function toggleFocusMode() { document.body.classList.toggle('focus-mode'); }
-function changeProfileName() { const newName = prompt("Enter new name:", profileName); if (newName && newName.trim()) { profileName = newName.trim(); localStorage.setItem("profileName", profileName); /* Update UI if needed */ } }
+function changeProfileName() { const newName = prompt("Enter new name:", profileName); if (newName && newName.trim()) { profileName = newName.trim(); localStorage.setItem("profileName", profileName); document.getElementById("profileName").textContent = profileName; } }
 function clearAllData() { if (confirm("Are you sure? This will clear all data.")) { localStorage.clear(); window.location.reload(); } }
 function exportData() { const data = JSON.stringify(localStorage); const blob = new Blob([data], {type: "application/json"}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `youfloww_backup.json`; a.click(); URL.revokeObjectURL(url); }
 function getYoutubeVideoId(url) { return url.match(/(?:[?&]v=|\/embed\/|youtu\.be\/)([^"&?/\s]{11})/) ?.[1] || null; }
-function setYoutubeBackground() { /* Your existing YouTube logic */ }
-function applyStoreItem(element) { /* Your existing store logic */ }
+function setYoutubeBackground() { const url = document.getElementById("youtube-input").value; const videoId = getYoutubeVideoId(url); if (videoId) { document.getElementById("video-background-container").innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&modestbranding=1&rel=0" frameborder="0"></iframe>`; localStorage.setItem('youtubeVideoId', videoId); localStorage.removeItem("currentBackgroundPath"); document.body.style.backgroundImage = 'none'; } else if (url) { alert("Please enter a valid YouTube URL."); } }
+function applyBackgroundTheme(path) { document.body.style.backgroundImage = `url('${path}')`; localStorage.setItem("currentBackgroundPath", path); localStorage.removeItem('youtubeVideoId'); document.getElementById("video-background-container").innerHTML = ''; }
+function applyStoreItem(element) { const item = element.closest('.store-item'); const type = item.dataset.type; if (type === 'image') { applyBackgroundTheme(item.dataset.path); } else if (type === 'youtube') { const videoUrl = `https://www.youtube.com/watch?v=${item.dataset.id}`; document.getElementById('youtube-input').value = videoUrl; setYoutubeBackground(); } closeStats(); }
+
+// ===================================================================================
+// INITIALIZATION
+// ===================================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
     loadSettings();
@@ -224,8 +275,9 @@ document.addEventListener('DOMContentLoaded', () => {
     setButtonState(false);
     loadTodos();
     updateCornerWidget();
-    setInterval(updateCornerWidget, 5000); // Update widget less frequently to save resources
+    setInterval(updateCornerWidget, 5000);
 
+    // Event Listeners
     document.getElementById("startBtn").addEventListener('click', startTimer);
     document.getElementById("pauseBtn").addEventListener('click', pauseTimer);
     document.getElementById("resetBtn").addEventListener('click', resetTimer);
@@ -243,6 +295,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelector('.clear-todos-btn').addEventListener('click', clearTodos);
     document.getElementById('todo-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') addTodo(); });
     document.getElementById("saveSettingsBtn").addEventListener('click', saveSettings);
+    document.getElementById('storeItems').addEventListener('click', (e) => { if (e.target.tagName === 'BUTTON') applyStoreItem(e.target); });
+    document.getElementById("setYoutubeBtn").addEventListener('click', setYoutubeBackground);
     
     window.addEventListener('click', () => ambienceDropdown.classList.remove('active'));
     document.addEventListener('visibilitychange', handleVisibilityChange);
