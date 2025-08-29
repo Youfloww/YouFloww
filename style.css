@@ -103,7 +103,6 @@ button:disabled {
     transform: none;
     box-shadow: none;
 }
-/* NEW: Utility class to hide buttons */
 .hidden {
     display: none !important;
 }
@@ -129,15 +128,13 @@ button:disabled {
     background: #455a64;
 }
 
-/* NEW: Styles for the Ambience dropdown */
 .ambience-dropdown {
     position: relative;
     display: inline-block;
 }
 .ambience-options {
-    display: none;
     position: absolute;
-    bottom: 100%; /* Position above the main button */
+    bottom: 100%;
     left: 50%;
     transform: translateX(-50%);
     background-color: var(--card-dark);
@@ -153,7 +150,6 @@ button:disabled {
     transition: opacity 0.3s, visibility 0.3s;
 }
 .ambience-dropdown.active .ambience-options {
-    display: flex;
     opacity: 1;
     visibility: visible;
 }
@@ -465,7 +461,6 @@ button:disabled {
     transform: rotate(15deg);
     border-radius: 0;
 }
-/* CORRECTED: Fixed the sakura petal SVG */
 .sakura {
     width: 15px;
     height: 15px;
@@ -474,10 +469,12 @@ button:disabled {
     background-repeat: no-repeat;
 }
 @keyframes fall {
-    to { transform: translateY(100vh); }
+    from { transform: translateY(-10vh); }
+    to { transform: translateY(110vh); }
 }
 @keyframes spinFall {
-    to { transform: translateY(100vh) rotate(720deg); }
+    from { transform: translateY(-10vh) rotate(0deg); }
+    to { transform: translateY(110vh) rotate(720deg); }
 }
 /* Store, Profile, Settings Styles */
 .stats-actions {
@@ -699,6 +696,6 @@ body.focus-mode #focusModeUI {
         font-size: 1rem;
     }
     #cornerWidget {
-        display: none; /* Hide widget on small screens to save space */
+        display: none;
     }
 }
