@@ -103,6 +103,11 @@ button:disabled {
     transform: none;
     box-shadow: none;
 }
+/* NEW: Utility class to hide buttons */
+.hidden {
+    display: none !important;
+}
+
 #add-todo-btn, #saveSettingsBtn {
     background: var(--secondary-color);
     color: var(--background-dark);
@@ -116,13 +121,51 @@ button:disabled {
 .clear-todos-btn:hover {
     background: #d32f2f;
 }
-#endSessionBtn, #noiseBtn {
+#endSessionBtn, #noiseBtn, #ambienceBtn {
     margin: 10px;
     background: #546E7A;
 }
-#endSessionBtn:hover, #noiseBtn:hover {
+#endSessionBtn:hover, #noiseBtn:hover, #ambienceBtn:hover {
     background: #455a64;
 }
+
+/* NEW: Styles for the Ambience dropdown */
+.ambience-dropdown {
+    position: relative;
+    display: inline-block;
+}
+.ambience-options {
+    display: none;
+    position: absolute;
+    bottom: 100%; /* Position above the main button */
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--card-dark);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 10px;
+    margin-bottom: 10px;
+    z-index: 20;
+    display: flex;
+    gap: 10px;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s, visibility 0.3s;
+}
+.ambience-dropdown.active .ambience-options {
+    display: flex;
+    opacity: 1;
+    visibility: visible;
+}
+.ambience-options button {
+    background-color: #455a64;
+    min-width: 100px;
+}
+.ambience-options button.active {
+    background-color: var(--secondary-color);
+    color: var(--background-dark);
+}
+
 /* Modal Styles */
 .modal {
     display: none;
@@ -422,10 +465,11 @@ button:disabled {
     transform: rotate(15deg);
     border-radius: 0;
 }
+/* CORRECTED: Fixed the sakura petal SVG */
 .sakura {
     width: 15px;
     height: 15px;
-    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path fill="%23FFC0CB" d="M50,95c-22,0-40-18-40-40c0-10,4-19,10-26C25,22,37,13,50,5c13,8,25,17,30,24c6,7,10,16,10,26C90,77,72,95,50,95zM50,5L50,5z"/></svg>');
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50"><path fill="%23FFC0CB" d="M25 38.2c-1-5.1-4.7-9.3-9.5-12.2 4.9-2.9 8.6-7.1 9.5-12.2 1 5.1 4.7 9.3 9.5 12.2-4.9 2.9-8.6 7.1-9.5 12.2z"/></svg>');
     background-size: contain;
     background-repeat: no-repeat;
 }
