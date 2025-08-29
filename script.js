@@ -1,28 +1,24 @@
-// ---- Timer Variables ----
+// ---- Global Variables ----
 let timer, isRunning = false, isWorkSession = true, sessionCount = 0;
 let endTime = 0;
-let timeLeft; // Will be set by settings
-
-// ---- Settings Variables ----
+let timeLeft;
 let workDuration, shortBreakDuration, longBreakDuration;
-
-// ---- Ambient Effect State ----
 let snowInterval, rainInterval, sakuraInterval;
 let isSnowActive = false, isRainActive = false, isSakuraActive = false;
-
-// ---- Stats, Coins, Profile ----
 let sessionsToday = parseInt(localStorage.getItem("sessionsToday")) || 0;
 let totalFocusMinutes = parseInt(localStorage.getItem("totalFocusMinutes")) || 0;
+let totalSessions = parseInt(localStorage.getItem("totalSessions")) || 0;
+let totalCoinsEarned = parseInt(localStorage.getItem("totalCoinsEarned")) || 0;
 let streak = parseInt(localStorage.getItem("streak")) || 0;
 let lastActiveDate = localStorage.getItem("lastActiveDate") || null;
 let coins = parseInt(localStorage.getItem("coins")) || 0;
 let profileName = localStorage.getItem("profileName") || "Floww User";
 
-// ---- Sound Elements ----
+// ---- DOM Elements and Sounds ----
 const startSound = document.getElementById("startSound");
 const endSound = document.getElementById("endSound");
-const coinSound = document.getElementById("coinSound");
 const whiteNoise = document.getElementById("whiteNoise");
+const ambientContainer = document.getElementById('ambient-container');
 
 // ===================================================================================
 // CORE TIMER LOGIC
@@ -40,11 +36,7 @@ function updateTimerDisplay() {
     const progress = timeLeft > 0 ? ((currentDuration - timeLeft) / currentDuration) * 100 : 0;
     document.getElementById("focusModeProgressBar").style.width = `${progress}%`;
 
-    if (isRunning) {
-        document.title = `${timeString} - ${isWorkSession ? 'Work' : 'Break'} | YouFloww`;
-    } else {
-        document.title = 'YouFloww - Focus Timer & To-Do List';
-    }
+    document.title = isRunning ? `${timeString} - ${isWorkSession ? 'Work' : 'Break'} | YouFloww` : 'YouFloww - Focus Timer & To-Do List';
 }
 
 function updateStatus() {
@@ -65,11 +57,9 @@ function startTimer() {
     setButtonState(true);
     document.getElementById("focusModePlayPauseBtn").classList.remove('paused');
     startSound.play();
-
     timer = setInterval(() => {
         const remaining = endTime - Date.now();
         timeLeft = Math.round(remaining / 1000);
-
         if (timeLeft <= 0) {
             clearInterval(timer);
             timeLeft = 0;
@@ -102,11 +92,11 @@ function resetTimer() {
 }
 
 function endSession() {
-    // Logic for saving partial session can be added here if needed.
     resetTimer();
 }
 
 function handleSessionCompletion() {
+    // Session completion logic (e.g., stats update) can go here
     if (isWorkSession) {
         sessionCount++;
         isWorkSession = false;
@@ -117,11 +107,8 @@ function handleSessionCompletion() {
     }
     updateTimerDisplay();
     updateStatus();
-    // Reset buttons and prepare for the next manual start
     setButtonState(false);
-    // You could auto-start the next session by calling startTimer() here.
 }
-
 
 // ===================================================================================
 // SETTINGS
@@ -131,8 +118,9 @@ function loadSettings() {
     workDuration = parseInt(localStorage.getItem("workDuration"), 10) || 25 * 60;
     shortBreakDuration = parseInt(localStorage.getItem("shortBreakDuration"), 10) || 5 * 60;
     longBreakDuration = parseInt(localStorage.getItem("longBreakDuration"), 10) || 15 * 60;
-    timeLeft = workDuration;
-
+    if (!isRunning) {
+        timeLeft = workDuration;
+    }
     document.getElementById('work-duration').value = workDuration / 60;
     document.getElementById('short-break-duration').value = shortBreakDuration / 60;
     document.getElementById('long-break-duration').value = longBreakDuration / 60;
@@ -142,7 +130,6 @@ function saveSettings() {
     const newWork = parseInt(document.getElementById('work-duration').value, 10) * 60;
     const newShort = parseInt(document.getElementById('short-break-duration').value, 10) * 60;
     const newLong = parseInt(document.getElementById('long-break-duration').value, 10) * 60;
-
     if (newWork && newShort && newLong) {
         localStorage.setItem("workDuration", newWork);
         localStorage.setItem("shortBreakDuration", newShort);
@@ -155,24 +142,16 @@ function saveSettings() {
     }
 }
 
-
 // ===================================================================================
-// AMBIENT EFFECTS (Refactored to toggle and handle background tabs)
+// AMBIENT EFFECTS (with Visibility Fix)
 // ===================================================================================
-
-const ambientContainer = document.getElementById('ambient-container');
 
 function createAmbientElement(className) {
     const el = document.createElement('div');
     el.className = `ambient-effect ${className}`;
     el.style.left = `${Math.random() * 100}vw`;
     ambientContainer.appendChild(el);
-    
-    // Use animationend event to remove the element, preventing buildup
-    el.addEventListener('animationend', () => {
-        el.remove();
-    });
-
+    el.addEventListener('animationend', () => el.remove());
     return el;
 }
 
@@ -182,69 +161,53 @@ function animateAmbientElement(el, minDuration, maxDuration, animationName) {
 }
 
 function startSnowInterval() {
-    if (snowInterval) return;
+    if (snowInterval || document.hidden) return;
     snowInterval = setInterval(() => {
-        const snowflake = createAmbientElement('snowflake');
-        animateAmbientElement(snowflake, 8000, 15000, 'fall');
+        animateAmbientElement(createAmbientElement('snowflake'), 8000, 15000, 'fall');
     }, 200);
 }
 
 function startRainInterval() {
-    if (rainInterval) return;
+    if (rainInterval || document.hidden) return;
     rainInterval = setInterval(() => {
-        const raindrop = createAmbientElement('raindrop');
-        animateAmbientElement(raindrop, 400, 800, 'fall');
+        animateAmbientElement(createAmbientElement('raindrop'), 400, 800, 'fall');
     }, 50);
 }
 
 function startSakuraInterval() {
-    if (sakuraInterval) return;
+    if (sakuraInterval || document.hidden) return;
     sakuraInterval = setInterval(() => {
-        const petal = createAmbientElement('sakura');
-        animateAmbientElement(petal, 15000, 25000, 'spinFall');
+        animateAmbientElement(createAmbientElement('sakura'), 15000, 25000, 'spinFall');
     }, 500);
 }
 
 function toggleSnow() {
     isSnowActive = !isSnowActive;
     document.getElementById('snowBtn').classList.toggle('active', isSnowActive);
-    if (isSnowActive && !document.hidden) {
-        startSnowInterval();
-    } else {
-        clearInterval(snowInterval);
-        snowInterval = null;
-    }
+    if (isSnowActive) startSnowInterval();
+    else { clearInterval(snowInterval); snowInterval = null; }
 }
 
 function toggleRain() {
     isRainActive = !isRainActive;
     document.getElementById('rainBtn').classList.toggle('active', isRainActive);
-    if (isRainActive && !document.hidden) {
-        startRainInterval();
-    } else {
-        clearInterval(rainInterval);
-        rainInterval = null;
-    }
+    if (isRainActive) startRainInterval();
+    else { clearInterval(rainInterval); rainInterval = null; }
 }
 
 function toggleSakura() {
     isSakuraActive = !isSakuraActive;
     document.getElementById('sakuraBtn').classList.toggle('active', isSakuraActive);
-    if (isSakuraActive && !document.hidden) {
-        startSakuraInterval();
-    } else {
-        clearInterval(sakuraInterval);
-        sakuraInterval = null;
-    }
+    if (isSakuraActive) startSakuraInterval();
+    else { clearInterval(sakuraInterval); sakuraInterval = null; }
 }
 
-// FIX: Handle page visibility to prevent element accumulation
 function handleVisibilityChange() {
     if (document.hidden) {
         clearInterval(snowInterval); snowInterval = null;
         clearInterval(rainInterval); rainInterval = null;
         clearInterval(sakuraInterval); sakuraInterval = null;
-        ambientContainer.innerHTML = ''; // Clear existing elements
+        ambientContainer.innerHTML = '';
     } else {
         if (isSnowActive) startSnowInterval();
         if (isRainActive) startRainInterval();
@@ -253,12 +216,12 @@ function handleVisibilityChange() {
 }
 
 // ===================================================================================
-// MODALS, UI, and OTHER HELPERS (Many are unchanged but included for completeness)
+// STATS, CHARTS, and MODALS
 // ===================================================================================
 
 function openStats() {
     document.getElementById("statsModal").classList.add('visible');
-    // The rest of your stats functions (renderCharts etc.) go here
+    renderCharts();
 }
 
 function closeStats() {
@@ -272,33 +235,107 @@ function switchTab(tabName) {
     document.getElementById(`${tabName}Container`).classList.add('active');
 }
 
-function toggleFocusMode() {
-    document.body.classList.toggle('focus-mode');
+function renderCharts() {
+    renderBarChart();
+    renderPieChart();
 }
 
-function getYoutubeVideoId(url) {
-    const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
-    return url.match(regex)?.[1] || null;
+function renderBarChart() {
+    const weeklyData = JSON.parse(localStorage.getItem("weeklyFocus") || "{}");
+    const today = new Date();
+    const labels = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(today);
+        d.setDate(today.getDate() - i);
+        return d.toLocaleDateString('en-US', { weekday: 'short' });
+    }).reverse();
+
+    const data = labels.map((_, i) => {
+        const d = new Date(today);
+        d.setDate(today.getDate() - (6 - i));
+        const key = d.toISOString().slice(0, 10);
+        return (weeklyData[key] || 0) / 60;
+    });
+
+    const canvas = document.getElementById('barChart');
+    const ctx = canvas.getContext('2d');
+    if (window.myBarChart) window.myBarChart.destroy();
+    window.myBarChart = new Chart(ctx, { type: 'bar', data: { labels, datasets: [{ label: 'Daily Focus (hours)', data, backgroundColor: '#f7a047' }] } });
 }
 
-function setYoutubeBackground() {
-    const url = document.getElementById("youtube-input").value;
-    const videoId = getYoutubeVideoId(url);
-    if (videoId) {
-        document.getElementById("video-background-container").innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&modestbranding=1&rel=0" frameborder="0"></iframe>`;
-        localStorage.setItem('youtubeVideoId', videoId);
-        document.body.style.backgroundImage = 'none';
-    } else {
-        alert("Please enter a valid YouTube URL.");
-    }
+function renderPieChart() {
+    // Pie chart logic remains the same...
+    const canvas = document.getElementById('pieChart');
+    const ctx = canvas.getContext('2d');
+    if(window.myPieChart) window.myPieChart.destroy();
+    window.myPieChart = new Chart(ctx, {type: 'pie', data: { labels: ['Work', 'Break'], datasets: [{ data: [totalFocusMinutes, totalSessions * 5], backgroundColor: ['#f7a047', '#6c63ff'] }]}});
 }
-
-// ... your other functions like loadTodos, addTodo, applyStoreItem, charts, etc. would go here ...
-// They are omitted for brevity but are needed for the app to be fully functional.
 
 
 // ===================================================================================
-// INITIALIZATION and EVENT LISTENERS
+// TO-DO LIST
+// ===================================================================================
+
+function loadTodos() {
+    const todos = JSON.parse(localStorage.getItem('todos')) || [];
+    const todoList = document.getElementById('todo-list');
+    todoList.innerHTML = '';
+    todos.forEach((todo, index) => {
+        const li = document.createElement('li');
+        li.className = `todo-item ${todo.completed ? 'completed' : ''}`;
+        li.dataset.index = index;
+        const textSpan = document.createElement('span');
+        textSpan.textContent = todo.text;
+        textSpan.onclick = () => toggleTodo(index);
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'actions';
+        const editBtn = document.createElement('button');
+        editBtn.textContent = '✏️';
+        editBtn.onclick = (e) => { e.stopPropagation(); editTodo(index); };
+        actionsDiv.appendChild(editBtn);
+        li.appendChild(textSpan);
+        li.appendChild(actionsDiv);
+        todoList.appendChild(li);
+    });
+}
+
+function addTodo() {
+    const todoInput = document.getElementById('todo-input');
+    const text = todoInput.value.trim();
+    if (text) {
+        let todos = JSON.parse(localStorage.getItem('todos')) || [];
+        todos.push({ text, completed: false });
+        localStorage.setItem('todos', JSON.stringify(todos));
+        todoInput.value = '';
+        loadTodos();
+    }
+}
+
+function toggleTodo(index) {
+    let todos = JSON.parse(localStorage.getItem('todos')) || [];
+    todos[index].completed = !todos[index].completed;
+    localStorage.setItem('todos', JSON.stringify(todos));
+    loadTodos();
+}
+
+function editTodo(index) {
+    let todos = JSON.parse(localStorage.getItem('todos')) || [];
+    const newText = prompt("Edit your task:", todos[index].text);
+    if (newText && newText.trim() !== "") {
+        todos[index].text = newText.trim();
+        localStorage.setItem('todos', JSON.stringify(todos));
+        loadTodos();
+    }
+}
+
+function clearTodos() {
+    if (confirm("Are you sure you want to clear all tasks?")) {
+        localStorage.removeItem('todos');
+        loadTodos();
+    }
+}
+
+// ===================================================================================
+// INITIALIZATION
 // ===================================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -306,10 +343,8 @@ document.addEventListener('DOMContentLoaded', () => {
     loadSettings();
     updateStatus();
     updateTimerDisplay();
-    setButtonState(false); // Hide reset/end buttons initially
-    // loadTodos(); // Assume you have this function
-    // updateCornerWidget(); // Assume you have this function
-    // setInterval(updateCornerWidget, 1000);
+    setButtonState(false);
+    loadTodos();
 
     // Main Controls
     document.getElementById("startBtn").addEventListener('click', startTimer);
@@ -319,15 +354,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Ambient Controls
     document.getElementById("noiseBtn").addEventListener('click', () => {
-        if (whiteNoise.paused) {
-            whiteNoise.play();
-            document.getElementById("noiseBtn").textContent = "🎧 Stop Noise";
-        } else {
-            whiteNoise.pause();
-            document.getElementById("noiseBtn").textContent = "🎧 Play Noise";
-        }
+        whiteNoise.paused ? whiteNoise.play() : whiteNoise.pause();
+        document.getElementById("noiseBtn").textContent = whiteNoise.paused ? "🎧 Play Noise" : "🎧 Stop Noise";
     });
-
     const ambienceDropdown = document.querySelector('.ambience-dropdown');
     document.getElementById("ambienceBtn").addEventListener('click', (e) => {
         e.stopPropagation();
@@ -342,6 +371,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById("focusModePlayPauseBtn").addEventListener('click', () => isRunning ? pauseTimer() : startTimer());
     document.getElementById("focusModeExitBtn").addEventListener('click', toggleFocusMode);
 
+    // To-Do
+    document.getElementById("add-todo-btn").addEventListener('click', addTodo);
+    document.querySelector('.clear-todos-btn').addEventListener('click', clearTodos);
+    document.getElementById('todo-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') addTodo(); });
+
     // Settings
     document.getElementById("saveSettingsBtn").addEventListener('click', saveSettings);
     
@@ -354,7 +388,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('keydown', (e) => {
-        if (e.code === 'Space' && document.activeElement.tagName !== 'INPUT') {
+        if (e.code === 'Space' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
             e.preventDefault();
             isRunning ? pauseTimer() : startTimer();
         }
