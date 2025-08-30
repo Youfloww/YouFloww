@@ -7,16 +7,17 @@ import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/fireb
 // FIREBASE INITIALIZATION
 // ===================================================================================
 
-
+// Vercel Environment Variables will be automatically available here
+// This is the secure, professional way to handle your config keys.
 const firebaseConfig = {
-    apiKey: "AIzaSyDG1vbcNcWrgFJmYfjpXTBiLQyurT0dbmw",
-    authDomain: "youfloww.firebaseapp.com",
-    projectId: "youfloww",
-    storageBucket: "youfloww.firebasestorage.app",
-    messagingSenderId: "905093243857",
-    appId: "1:905093243857:web:0419862992ab35d26ab6f0",
-    measurementId: "G-V3CLSWYVTF"
+  apiKey: import.meta.env.VITE_API_KEY,
+  authDomain: import.meta.env.VITE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_APP_ID
 };
+
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -370,7 +371,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ===================================================================================
     // INITIALIZATION & MAIN APP LOGIC
-    
     // ===================================================================================
 
     // This function runs once the user is logged in and their data is loaded
@@ -510,3 +510,4 @@ document.addEventListener('DOMContentLoaded', () => {
         setInterval(updateCornerWidget, 30000);
     }
 });
+
