@@ -7,15 +7,15 @@ import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/fireb
 // FIREBASE INITIALIZATION
 // ===================================================================================
 
-// Vercel Environment Variables will be automatically available here
-// This is the secure, professional way to handle your config keys.
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_API_KEY,
-  authDomain: import.meta.env.VITE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_APP_ID
+    apiKey: "AIzaSyDG1vbcNcWrgFJmYfjpXTBiLQyurT0dbmw",
+    authDomain: "youfloww.firebaseapp.com",
+    projectId: "youfloww",
+    storageBucket: "youfloww.firebasestorage.app",
+    messagingSenderId: "905093243857",
+    appId: "1:905093243857:web:0419862992ab35d26ab6f0",
+    measurementId: "G-V3CLSWYVTF"
 };
 
 
@@ -495,8 +495,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('todo-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') addTodo(); });
         document.getElementById('storeItems').addEventListener('click', (e) => { if (e.target.tagName === 'BUTTON') applyStoreItem(e.target); });
         document.getElementById("setYoutubeBtn").addEventListener('click', setYoutubeBackground);
-        document.getElementById("exportDataBtn").addEventListener('click', exportData); // This would now export local (not synced) data
-        document.getElementById("clearDataBtn").addEventListener('click', clearAllData); // This would need to be re-thought for Firestore
+        // document.getElementById("exportDataBtn").addEventListener('click', exportData); // This would now export local (not synced) data
+        // document.getElementById("clearDataBtn").addEventListener('click', clearAllData); // This would need to be re-thought for Firestore
         
         window.addEventListener('keydown', (e) => { if (e.code === 'Space' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) { e.preventDefault(); isRunning ? pauseTimer() : startTimer(); } });
         window.addEventListener('beforeunload', (e) => {
@@ -508,6 +508,25 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         setInterval(updateCornerWidget, 30000);
+    }
+    
+    // Helper functions that were missing from the provided script but are in the HTML
+    function updateCornerWidget() { /* Placeholder - this logic should be added back if needed */ }
+    function toggleFocusMode() { document.body.classList.toggle('focus-mode'); }
+    function toggleSnow() { isSnowActive = !isSnowActive; document.getElementById('snowBtn').classList.toggle('active', isSnowActive); }
+    function toggleRain() { isRainActive = !isRainActive; document.getElementById('rainBtn').classList.toggle('active', isRainActive); }
+    function toggleSakura() { isSakuraActive = !isSakuraActive; document.getElementById('sakuraBtn').classList.toggle('active', isSakuraActive); }
+    function setYoutubeBackground() { /* Placeholder */ }
+    function applyStoreItem() { /* Placeholder */ }
+    function exportData() { /* Placeholder */ }
+    function clearAllData() { /* Placeholder */ }
+    function renderCharts() { /* Placeholder */ }
+    function updateStatsDisplay() { /* Placeholder */ }
+    function switchTab(tabName) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add('active');
+        document.getElementById(`${tabName}Container`).classList.add('active');
     }
 });
 
