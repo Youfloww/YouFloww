@@ -6,7 +6,6 @@ import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/fireb
 // ===================================================================================
 // FIREBASE INITIALIZATION
 // ===================================================================================
-// Your provided Firebase configuration
 const firebaseConfig = {
     apiKey: "AIzaSyDG1vbcNcWrgFJmYfjpXTBiLQyurT0dbmw",
     authDomain: "youfloww.firebaseapp.com",
@@ -35,8 +34,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let timerInterval, isRunning = false, isWorkSession = true, sessionCount = 0;
     let endTime = 0, timeLeft;
     let workDuration, shortBreakDuration, longBreakDuration;
-    let snowInterval, rainInterval, sakuraInterval;
+    
+    // AMBIENCE STATE
+    let animationFrameId = null;
     let isSnowActive = false, isRainActive = false, isSakuraActive = false;
+    let lastSnowSpawn = 0, lastRainSpawn = 0, lastSakuraSpawn = 0;
+    const SNOW_INTERVAL = 200; // ms
+    const RAIN_INTERVAL = 50;  // ms
+    const SAKURA_INTERVAL = 500; // ms
 
     // ===================================================================================
     // DOM ELEMENTS CACHE
@@ -52,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
         appContainer: document.getElementById("app-container"),
         authModal: document.getElementById("authModal"),
         authError: document.getElementById("auth-error"),
+        ambientContainer: document.getElementById("ambient-container"),
         focusMode: {
             ui: document.getElementById("focusModeUI"),
             timer: document.getElementById("focusModeTimer"),
@@ -258,15 +264,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
-        // Meme sound logic
         if (minutesFocused >= 20) {
             playRandomSound(DOMElements.sounds.goodMeme);
-        } else {
-            // Only play bad meme if they focused for at least a short time
-            if(minutesFocused > 0) playRandomSound(DOMElements.sounds.badMeme);
+        } else if(minutesFocused > 0) {
+            playRandomSound(DOMElements.sounds.badMeme);
         }
 
-        saveUserData(); // Save all changes at the end
+        saveUserData();
     }
 
     // ===================================================================================
@@ -351,33 +355,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     // --- Auth Event Listeners ---
-    document.getElementById('signup-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        DOMElements.authError.textContent = ''; // Clear previous errors
-        const email = document.getElementById('signup-email').value;
-        const password = document.getElementById('signup-password').value;
-        try { 
-            await createUserWithEmailAndPassword(auth, email, password); 
-        } catch (error) { 
-            DOMElements.authError.textContent = error.message; 
-        }
-    });
-
-    document.getElementById('login-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        DOMElements.authError.textContent = ''; // Clear previous errors
-        const email = document.getElementById('login-email').value;
-        const password = document.getElementById('login-password').value;
-        try { 
-            await signInWithEmailAndPassword(auth, email, password); 
-        } catch (error) { 
-            DOMElements.authError.textContent = error.message; 
-        }
-    });
-    
+    document.getElementById('signup-form').addEventListener('submit', async (e) => { e.preventDefault(); DOMElements.authError.textContent = ''; const email = document.getElementById('signup-email').value; const password = document.getElementById('signup-password').value; try { await createUserWithEmailAndPassword(auth, email, password); } catch (error) { DOMElements.authError.textContent = error.message; } });
+    document.getElementById('login-form').addEventListener('submit', async (e) => { e.preventDefault(); DOMElements.authError.textContent = ''; const email = document.getElementById('login-email').value; const password = document.getElementById('login-password').value; try { await signInWithEmailAndPassword(auth, email, password); } catch (error) { DOMElements.authError.textContent = error.message; } });
     document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth));
-
-    // --- Form switching ---
     document.getElementById('show-login').addEventListener('click', (e) => { e.preventDefault(); document.getElementById('login-form').classList.remove('hidden'); document.getElementById('signup-form').classList.add('hidden'); DOMElements.authError.textContent = ''; });
     document.getElementById('show-signup').addEventListener('click', (e) => { e.preventDefault(); document.getElementById('signup-form').classList.remove('hidden'); document.getElementById('login-form').classList.add('hidden'); DOMElements.authError.textContent = ''; });
     
@@ -435,16 +415,59 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function toggleFocusMode() { document.body.classList.toggle('focus-mode'); }
-    const ambientContainer = document.getElementById('ambient-container');
-    function createAmbientElement(className) { const el = document.createElement('div'); el.className = `ambient-effect ${className}`; el.style.left = `${Math.random() * 100}vw`; ambientContainer.appendChild(el); el.addEventListener('animationend', () => el.remove()); return el; }
-    function animateAmbientElement(el, min, max, name) { el.style.animation = `${name} ${Math.random() * (max - min) + min}s linear infinite`; }
-    function startSnow() { if (!snowInterval) snowInterval = setInterval(() => animateAmbientElement(createAmbientElement('snowflake'), 8, 15, 'fall'), 200); }
-    function startRain() { if (!rainInterval) rainInterval = setInterval(() => animateAmbientElement(createAmbientElement('raindrop'), 0.4, 0.8, 'fall'), 50); }
-    function startSakura() { if (!sakuraInterval) sakuraInterval = setInterval(() => animateAmbientElement(createAmbientElement('sakura'), 15, 25, 'spinFall'), 500); }
-    function toggleSnow() { isSnowActive = !isSnowActive; document.getElementById('snowBtn').classList.toggle('active', isSnowActive); isSnowActive ? startSnow() : clearInterval(snowInterval, snowInterval = null); }
-    function toggleRain() { isRainActive = !isRainActive; document.getElementById('rainBtn').classList.toggle('active', isRainActive); isRainActive ? startRain() : clearInterval(rainInterval, rainInterval = null); }
-    function toggleSakura() { isSakuraActive = !isSakuraActive; document.getElementById('sakuraBtn').classList.toggle('active', isSakuraActive); isSakuraActive ? startSakura() : clearInterval(sakuraInterval, sakuraInterval = null); }
     
+    // --- NEW AMBIENCE LOGIC ---
+    function ambientLoop(timestamp) {
+        if (isSnowActive && timestamp - lastSnowSpawn > SNOW_INTERVAL) {
+            lastSnowSpawn = timestamp;
+            createAndAnimateElement('snowflake', 8, 15, 'fall');
+        }
+        if (isRainActive && timestamp - lastRainSpawn > RAIN_INTERVAL) {
+            lastRainSpawn = timestamp;
+            createAndAnimateElement('raindrop', 0.4, 0.8, 'fall');
+        }
+        if (isSakuraActive && timestamp - lastSakuraSpawn > SAKURA_INTERVAL) {
+            lastSakuraSpawn = timestamp;
+            createAndAnimateElement('sakura', 15, 25, 'spinFall');
+        }
+
+        if (isSnowActive || isRainActive || isSakuraActive) {
+            animationFrameId = requestAnimationFrame(ambientLoop);
+        } else {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+    }
+
+    function createAndAnimateElement(className, minDuration, maxDuration, animationName) {
+        const el = document.createElement('div');
+        el.className = `ambient-effect ${className}`;
+        el.style.left = `${Math.random() * 100}vw`;
+        el.style.animation = `${animationName} ${Math.random() * (maxDuration - minDuration) + minDuration}s linear forwards`;
+        DOMElements.ambientContainer.appendChild(el);
+        el.addEventListener('animationend', () => el.remove());
+    }
+
+    function toggleAmbience(type) {
+        if (type === 'snow') isSnowActive = !isSnowActive;
+        if (type === 'rain') isRainActive = !isRainActive;
+        if (type === 'sakura') isSakuraActive = !isSakuraActive;
+
+        document.getElementById(`${type}Btn`).classList.toggle('active');
+
+        if (!animationFrameId && (isSnowActive || isRainActive || isSakuraActive)) {
+            animationFrameId = requestAnimationFrame(ambientLoop);
+        }
+    }
+
+    function handleVisibilityChange() {
+        if (document.hidden) {
+            DOMElements.ambientContainer.innerHTML = ''; // Clear particles to prevent buildup
+        }
+    }
+
+    // --- END NEW AMBIENCE LOGIC ---
+
     function getYoutubeVideoId(url) { return url.match(/(?:[?&]v=|\/embed\/|youtu\.be\/)([^"&?/\s]{11})/) ?.[1] || null; }
     function setYoutubeBackground(videoId) { document.getElementById("video-background-container").innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3" frameborder="0" allow="autoplay"></iframe>`; document.body.style.backgroundImage = 'none'; }
     function applyBackgroundTheme(path) { document.body.style.backgroundImage = `url('${path}')`; document.getElementById("video-background-container").innerHTML = ''; }
@@ -460,9 +483,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('closeCompletionModalBtn').addEventListener('click', () => DOMElements.modals.completion.classList.remove('visible'));
         document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => switchTab(tab.dataset.tab)));
         document.getElementById("noiseBtn").addEventListener('click', (e) => { const noise = DOMElements.sounds.whiteNoise; noise.paused ? noise.play() : noise.pause(); e.target.textContent = noise.paused ? "🎧 Play Noise" : "🎧 Stop Noise"; });
-        document.getElementById("snowBtn").addEventListener('click', toggleSnow);
-        document.getElementById("rainBtn").addEventListener('click', toggleRain);
-        document.getElementById("sakuraBtn").addEventListener('click', toggleSakura);
+        
+        // AMBIENCE LISTENERS
+        document.getElementById("snowBtn").addEventListener('click', () => toggleAmbience('snow'));
+        document.getElementById("rainBtn").addEventListener('click', () => toggleAmbience('rain'));
+        document.getElementById("sakuraBtn").addEventListener('click', () => toggleAmbience('sakura'));
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
         document.getElementById("focusModeBtn").addEventListener('click', toggleFocusMode);
         DOMElements.focusMode.playPauseBtn.addEventListener('click', () => isRunning ? pauseTimer() : startTimer());
         DOMElements.focusMode.exitBtn.addEventListener('click', toggleFocusMode);
@@ -473,7 +500,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('storeItems').addEventListener('click', (e) => { 
             if (e.target.tagName !== 'BUTTON') return;
             const item = e.target.closest('.store-item'); 
-            currentUserData.theme = {}; // Reset theme
+            currentUserData.theme = {}; 
             if (item.dataset.type === 'image') {
                 currentUserData.theme.backgroundPath = item.dataset.path;
                 applyBackgroundTheme(item.dataset.path);
@@ -496,14 +523,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         document.getElementById("clearDataBtn").addEventListener('click', async () => { if (confirm("DANGER: This will reset ALL your stats and settings permanently.")) { 
-            // Reset to default state and save
             currentUserData = {
                 profileName: "Floww User", totalFocusMinutes: 0, totalSessions: 0, streakCount: 0, lastStreakDate: null, weeklyFocus: {}, todos: [],
                 settings: { workDuration: 25 * 60, shortBreakDuration: 5 * 60, longBreakDuration: 15 * 60, },
                 theme: { backgroundPath: null, youtubeVideoId: null, }
             };
             await saveUserData();
-            initializeAppState(); // Re-initialize UI with default data
+            initializeAppState();
         } });
         window.addEventListener('keydown', (e) => { if (e.code === 'Space' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) { e.preventDefault(); isRunning ? pauseTimer() : startTimer(); } });
         window.addEventListener('beforeunload', (e) => { if (isRunning) { e.preventDefault(); e.returnValue = 'Timer is running!'; return e.returnValue; } });
