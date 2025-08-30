@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YouFloww - Focus Timer & To-Do List</title>
-    <!-- Using a professional font for a better look -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -12,68 +11,98 @@
 </head>
 <body>
 
-<header class="top-bar">
-    <div class="profile-greeting">
-        <span>Welcome, </span>
-        <span id="profileNameDisplay">Floww User</span>
-        <button id="changeNameBtn" class="btn-icon" aria-label="Change Name">✏️</button>
-    </div>
-    <div class="header-controls">
-        <!-- Added Feedback Link -->
-        <a href="https://docs.google.com/forms/d/e/1FAIpQLScLU0kaf55JTMKH2XaavMzygMUJQZGeZAqgKxrAC8PXrYtuQA/viewform?usp=header" target="_blank" id="feedback-link" class="header-btn">
-            Feedback 📝
-        </a>
-        <div id="streak-counter">
-            <span id="streak-emoji">🔥</span>
-            <span id="streak-count">0</span>
-        </div>
-        <button id="statsBtn" class="header-btn">View Stats 📈</button>
-    </div>
-</header>
+<!-- Firebase Auth Modal -->
+<div id="authModal" class="modal visible">
+    <div class="modal-content auth-container">
+        <div id="auth-form-container">
+            <!-- Sign Up Form -->
+            <form id="signup-form" class="auth-form">
+                <h2>Create an Account</h2>
+                <input type="email" id="signup-email" placeholder="Email" required>
+                <input type="password" id="signup-password" placeholder="Password" required>
+                <button type="submit">Sign Up</button>
+                <p class="auth-switch">Already have an account? <a href="#" id="show-login">Log In</a></p>
+            </form>
 
-<main>
-    <section id="timer-section">
-        <div id="status">Work Session</div>
-        <div id="timer">25:00</div>
-        <div class="timer-controls">
-            <button id="resetBtn" class="btn-icon" aria-label="Reset Timer" disabled>
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 6v3l4-4-4-4v3c-4.42 0-8 3.58-8 8 0 1.57.46 3.03 1.24 4.26L6.7 14.8c-.45-.83-.7-1.79-.7-2.8 0-3.31 2.69-6 6-6zm6.76 1.74L17.3 9.2c.44.84.7 1.79.7 2.8 0 3.31-2.69 6-6 6v-3l-4 4 4 4v-3c4.42 0 8-3.58 8-8 0-1.57-.46-3.03-1.24-4.26z"/></svg>
-            </button>
-            <button id="playPauseBtn" aria-label="Start Timer">
-                <svg id="playIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                <svg id="pauseIcon" class="hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-            </button>
-            <button id="endSessionBtn" class="btn-icon" aria-label="End Session" disabled>
-                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
-            </button>
+            <!-- Login Form -->
+            <form id="login-form" class="auth-form hidden">
+                <h2>Welcome Back!</h2>
+                <input type="email" id="login-email" placeholder="Email" required>
+                <input type="password" id="login-password" placeholder="Password" required>
+                <button type="submit">Log In</button>
+                <p class="auth-switch">Don't have an account? <a href="#" id="show-signup">Sign Up</a></p>
+            </form>
+            <p id="auth-error" class="error-message"></p>
         </div>
-    </section>
+    </div>
+</div>
 
-    <section id="features-section">
-        <div id="todo-container">
-            <h2>🎯 To-Do List</h2>
-            <div id="todo-input-container">
-                <input type="text" id="todo-input" placeholder="Add a new task..." aria-label="Add a new task">
-                <button id="add-todo-btn">Add</button>
-            </div>
-            <ul id="todo-list"></ul>
-            <button class="clear-todos-btn">Clear All Tasks</button>
+
+<!-- Main App Content (Initially Hidden) -->
+<div id="app-container" class="hidden">
+    <header class="top-bar">
+        <div class="profile-greeting">
+            <span>Welcome, </span>
+            <span id="profileNameDisplay">Floww User</span>
+            <button id="changeNameBtn" class="btn-icon" aria-label="Change Name">✏️</button>
         </div>
-        
-        <div class="controls-container">
-            <h2>✨ Ambience & Display</h2>
-            <div class="control-group">
-                <button id="focusModeBtn">Enter Focus Mode</button>
-                <button id="noiseBtn">🎧 Play Noise</button>
+        <div class="header-controls">
+            <a href="https://docs.google.com/forms/d/e/1FAIpQLScLU0kaf55JTMKH2XaavMzygMUJQZGeZAqgKxrAC8PXrYtuQA/viewform?usp=header" target="_blank" id="feedback-link" class="header-btn">
+                Feedback 📝
+            </a>
+            <div id="streak-counter">
+                <span id="streak-emoji">🔥</span>
+                <span id="streak-count">0</span>
             </div>
-            <div class="control-group">
-                 <button id="snowBtn" class="ambience-toggle-btn">❄️ Snow</button>
-                 <button id="rainBtn" class="ambience-toggle-btn">🌧️ Rain</button>
-                 <button id="sakuraBtn" class="ambience-toggle-btn">🌸 Sakura</button>
-            </div>
+            <button id="statsBtn" class="header-btn">View Stats 📈</button>
+            <button id="logoutBtn" class="header-btn btn-danger">Logout</button>
         </div>
-    </section>
-</main>
+    </header>
+
+    <main>
+        <section id="timer-section">
+            <div id="status">Work Session</div>
+            <div id="timer">25:00</div>
+            <div class="timer-controls">
+                <button id="resetBtn" class="btn-icon" aria-label="Reset Timer" disabled>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 6v3l4-4-4-4v3c-4.42 0-8 3.58-8 8 0 1.57.46 3.03 1.24 4.26L6.7 14.8c-.45-.83-.7-1.79-.7-2.8 0-3.31 2.69-6 6-6zm6.76 1.74L17.3 9.2c.44.84.7 1.79.7 2.8 0 3.31-2.69 6-6 6v-3l-4 4 4 4v-3c4.42 0 8-3.58 8-8 0-1.57-.46-3.03-1.24-4.26z"/></svg>
+                </button>
+                <button id="playPauseBtn" aria-label="Start Timer">
+                    <svg id="playIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    <svg id="pauseIcon" class="hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                </button>
+                <button id="endSessionBtn" class="btn-icon" aria-label="End Session" disabled>
+                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
+                </button>
+            </div>
+        </section>
+
+        <section id="features-section">
+            <div id="todo-container">
+                <h2>🎯 To-Do List</h2>
+                <div id="todo-input-container">
+                    <input type="text" id="todo-input" placeholder="Add a new task..." aria-label="Add a new task">
+                    <button id="add-todo-btn">Add</button>
+                </div>
+                <ul id="todo-list"></ul>
+                <button class="clear-todos-btn">Clear All Tasks</button>
+            </div>
+            
+            <div class="controls-container">
+                <h2>✨ Ambience & Display</h2>
+                <div class="control-group">
+                    <button id="focusModeBtn">Enter Focus Mode</button>
+                    <button id="noiseBtn">🎧 Play Noise</button>
+                </div>
+                <div class="control-group">
+                     <button id="snowBtn" class="ambience-toggle-btn">❄️ Snow</button>
+                     <button id="rainBtn" class="ambience-toggle-btn">🌧️ Rain</button>
+                     <button id="sakuraBtn" class="ambience-toggle-btn">🌸 Sakura</button>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
 
 <div id="statsModal" class="modal">
     <div class="modal-content">
@@ -104,7 +133,7 @@
             </div>
             <h3>Or Select a Theme</h3>
             <div id="storeItems">
-                 <div class="store-item" data-type="image" data-path="https://images.unsplash.com/photo-1542831371-d648083a23de?q=80&w=2070&auto=format&fit=crop">
+                 <div class="store-item" data-type="image" data-path="https://images.unsplash.com/photo-1542831371-d648083a23de?q=80&w=2070&auto-format&fit=crop">
                     <span>🌆 Cosmic Code</span><button>Apply</button>
                 </div>
                 <div class="store-item" data-type="youtube" data-id="4wJRkS-M-3s">
@@ -177,27 +206,31 @@
     </div>
 </div>
 
-<!-- Audio Elements (You must provide the mp3 files in the same folder) -->
+<!-- Audio Elements -->
 <audio id="whiteNoise" loop><source src="whitenoise.mp3" type="audio/mpeg"></audio>
 <audio id="pauseAlertSound"><source src="https://actions.google.com/sounds/v1/ui/close_button_pressed.ogg" type="audio/ogg"></audio>
 <audio id="resumeAlertSound"><source src="https://actions.google.com/sounds/v1/ui/button_press.ogg" type="audio/ogg"></audio>
-
 <audio class="start-sound" src="start-sound1.mp3"></audio>
 <audio class="start-sound" src="start-sound2.mp3"></audio>
 <audio class="start-sound" src="start-sound3.mp3"></audio>
 <audio class="start-sound" src="start-sound4.mp3"></audio>
-
 <audio class="good-meme" src="good-meme1.mp3"></audio>
 <audio class="good-meme" src="good-meme2.mp3"></audio>
 <audio class="good-meme" src="good-meme3.mp3"></audio>
 <audio class="good-meme" src="good-meme4.mp3"></audio>
-
 <audio class="bad-meme" src="bad-meme1.mp3"></audio>
 <audio class="bad-meme" src="bad-meme2.mp3"></audio>
 <audio class="bad-meme" src="bad-meme3.mp3"></audio>
 <audio class="bad-meme" src="bad-meme4.mp3"></audio>
 
+
+<!-- FIREBASE SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js" type="module"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js" type="module"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js" type="module"></script>
+
+<!-- Libraries and Main Script -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
-<script src="script.js" defer></script>
+<script src="script.js" type="module"></script>
 </body>
 </html>
