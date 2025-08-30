@@ -417,7 +417,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function toggleFocusMode() { document.body.classList.toggle('focus-mode'); }
     
-    // --- NEW AMBIENCE LOGIC ---
     function ambientLoop(timestamp) {
         if (isSnowActive && timestamp - lastSnowSpawn > SNOW_INTERVAL) {
             lastSnowSpawn = timestamp;
@@ -431,7 +430,6 @@ document.addEventListener('DOMContentLoaded', () => {
             lastSakuraSpawn = timestamp;
             createAndAnimateElement('sakura', 15, 25, 'spinFall');
         }
-
         if (isSnowActive || isRainActive || isSakuraActive) {
             animationFrameId = requestAnimationFrame(ambientLoop);
         } else {
@@ -439,7 +437,6 @@ document.addEventListener('DOMContentLoaded', () => {
             animationFrameId = null;
         }
     }
-
     function createAndAnimateElement(className, minDuration, maxDuration, animationName) {
         const el = document.createElement('div');
         el.className = `ambient-effect ${className}`;
@@ -448,31 +445,55 @@ document.addEventListener('DOMContentLoaded', () => {
         DOMElements.ambientContainer.appendChild(el);
         el.addEventListener('animationend', () => el.remove());
     }
-
     function toggleAmbience(type) {
         if (type === 'snow') isSnowActive = !isSnowActive;
         if (type === 'rain') isRainActive = !isRainActive;
         if (type === 'sakura') isSakuraActive = !isSakuraActive;
-
         document.getElementById(`${type}Btn`).classList.toggle('active');
-
         if (!animationFrameId && (isSnowActive || isRainActive || isSakuraActive)) {
             animationFrameId = requestAnimationFrame(ambientLoop);
         }
     }
-
     function handleVisibilityChange() {
         if (document.hidden) {
-            DOMElements.ambientContainer.innerHTML = ''; // Clear particles to prevent buildup
+            DOMElements.ambientContainer.innerHTML = '';
         }
     }
-
-    // --- END NEW AMBIENCE LOGIC ---
 
     function getYoutubeVideoId(url) { return url.match(/(?:[?&]v=|\/embed\/|youtu\.be\/)([^"&?/\s]{11})/) ?.[1] || null; }
     function setYoutubeBackground(videoId) { document.getElementById("video-background-container").innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3" frameborder="0" allow="autoplay"></iframe>`; document.body.style.backgroundImage = 'none'; }
     function applyBackgroundTheme(path) { document.body.style.backgroundImage = `url('${path}')`; document.getElementById("video-background-container").innerHTML = ''; }
     function loadTheme() { if (currentUserData.theme?.backgroundPath) applyBackgroundTheme(currentUserData.theme.backgroundPath); if (currentUserData.theme?.youtubeVideoId) setYoutubeBackground(currentUserData.theme.youtubeVideoId); }
+    
+    // --- Floating Player Logic ---
+    const pipPlayer = document.getElementById('pip-player-container');
+    const pipHeader = document.getElementById('pip-player-header');
+    const pipContent = document.getElementById('pip-player-content');
+    const pipInput = document.getElementById('pip-youtube-input');
+    let isDragging = false, offsetX, offsetY;
+
+    function showPipPlayer() {
+        pipPlayer.classList.remove('hidden');
+        if (!pipContent.querySelector('iframe')) {
+            const defaultPlaylistId = "PLBgJjIxp0WaVX6LSodfsQ9pBfHWObvkfX";
+            loadPipVideo(defaultPlaylistId, true);
+        }
+    }
+    function hidePipPlayer() {
+        pipPlayer.classList.add('hidden');
+        pipContent.innerHTML = ''; 
+    }
+    function loadPipVideo(id, isPlaylist = false) {
+        let embedUrl = isPlaylist ? `https://www.youtube.com/embed/videoseries?list=${id}&autoplay=1` : `https://www.youtube.com/embed/${id}?autoplay=1`;
+        pipContent.innerHTML = `<iframe src="${embedUrl}&enablejsapi=1&modestbranding=1&rel=0" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
+    }
+    function getYoutubeIdAndType(url) {
+        const videoIdMatch = url.match(/(?:[?&]v=|\/embed\/|youtu\.be\/)([^"&?/\s]{11})/);
+        const playlistIdMatch = url.match(/[?&]list=([^"&?/\s]+)/);
+        if (playlistIdMatch) return { id: playlistIdMatch[1], isPlaylist: true };
+        if (videoIdMatch) return { id: videoIdMatch[1], isPlaylist: false };
+        return null;
+    }
     
     function attachMainAppEventListeners() {
         DOMElements.playPauseBtn.addEventListener('click', () => isRunning ? pauseTimer() : startTimer());
@@ -484,13 +505,10 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('closeCompletionModalBtn').addEventListener('click', () => DOMElements.modals.completion.classList.remove('visible'));
         document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => switchTab(tab.dataset.tab)));
         document.getElementById("noiseBtn").addEventListener('click', (e) => { const noise = DOMElements.sounds.whiteNoise; noise.paused ? noise.play() : noise.pause(); e.target.textContent = noise.paused ? "🎧 Play Noise" : "🎧 Stop Noise"; });
-        
-        // AMBIENCE LISTENERS
         document.getElementById("snowBtn").addEventListener('click', () => toggleAmbience('snow'));
         document.getElementById("rainBtn").addEventListener('click', () => toggleAmbience('rain'));
         document.getElementById("sakuraBtn").addEventListener('click', () => toggleAmbience('sakura'));
         document.addEventListener('visibilitychange', handleVisibilityChange);
-
         document.getElementById("focusModeBtn").addEventListener('click', toggleFocusMode);
         DOMElements.focusMode.playPauseBtn.addEventListener('click', () => isRunning ? pauseTimer() : startTimer());
         DOMElements.focusMode.exitBtn.addEventListener('click', toggleFocusMode);
@@ -532,6 +550,15 @@ document.addEventListener('DOMContentLoaded', () => {
             await saveUserData();
             initializeAppState();
         } });
+        // Floating Player Listeners
+        document.getElementById('pipYoutubeBtn').addEventListener('click', showPipPlayer);
+        document.getElementById('pip-close-btn').addEventListener('click', hidePipPlayer);
+        document.getElementById('pip-set-btn').addEventListener('click', () => { const result = getYoutubeIdAndType(pipInput.value); if (result) { loadPipVideo(result.id, result.isPlaylist); pipInput.value = ''; } else { alert("Please enter a valid YouTube video or playlist URL."); } });
+        pipInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('pip-set-btn').click(); });
+        pipHeader.addEventListener('mousedown', (e) => { isDragging = true; offsetX = e.clientX - pipPlayer.offsetLeft; offsetY = e.clientY - pipPlayer.offsetTop; pipPlayer.style.cursor = 'grabbing'; document.body.style.userSelect = 'none'; });
+        document.addEventListener('mousemove', (e) => { if (isDragging) { let newX = e.clientX - offsetX; let newY = e.clientY - offsetY; const maxX = window.innerWidth - pipPlayer.offsetWidth; const maxY = window.innerHeight - pipPlayer.offsetHeight; pipPlayer.style.left = `${Math.max(0, Math.min(newX, maxX))}px`; pipPlayer.style.top = `${Math.max(0, Math.min(newY, maxY))}px`; pipPlayer.style.bottom = 'auto'; pipPlayer.style.right = 'auto'; } });
+        document.addEventListener('mouseup', () => { isDragging = false; pipPlayer.style.cursor = 'default'; document.body.style.userSelect = 'auto'; });
+        // Global listeners
         window.addEventListener('keydown', (e) => { if (e.code === 'Space' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) { e.preventDefault(); isRunning ? pauseTimer() : startTimer(); } });
         window.addEventListener('beforeunload', (e) => { if (isRunning) { e.preventDefault(); e.returnValue = 'Timer is running!'; return e.returnValue; } });
         setInterval(updateCornerWidget, 30000);
