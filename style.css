@@ -228,4 +228,3 @@ body.focus-mode #focusModeUI { display: flex; }
     #features-section { grid-template-columns: 1fr; }
     .top-bar { flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; }
 }
-
