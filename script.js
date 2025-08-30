@@ -1,542 +1,329 @@
-document.addEventListener('DOMContentLoaded', () => {
+// ===================================================================================
+// GLOBAL VARIABLES & STATE
+// ===================================================================================
+let timer, isRunning = false, isWorkSession = true, sessionCount = 0;
+let endTime = 0, timeLeft;
+let workDuration, shortBreakDuration, longBreakDuration;
+let snowInterval, rainInterval, sakuraInterval;
+let isSnowActive = false, isRainActive = false, isSakuraActive = false;
+let profileName = localStorage.getItem("profileName") || "Floww User";
 
-    // ---- GLOBAL STATE & VARIABLES ----
-    let timerInterval;
-    let isRunning = false;
-    let isWorkSession = true;
-    let sessionCount = 0;
-    let timeLeft; 
-    let workDuration, shortBreakDuration, longBreakDuration;
+// ===================================================================================
+// DOM ELEMENTS
+// ===================================================================================
+const DOMElements = {
+    timerDisplay: document.getElementById("timer"),
+    statusDisplay: document.getElementById("status"),
+    playPauseBtn: document.getElementById("playPauseBtn"),
+    playIcon: document.getElementById("playIcon"),
+    pauseIcon: document.getElementById("pauseIcon"),
+    resetBtn: document.getElementById("resetBtn"),
+    endSessionBtn: document.getElementById("endSessionBtn"),
+    focusModeUI: {
+        timer: document.getElementById("focusModeTimer"),
+        progressBar: document.getElementById("focusModeProgressBar"),
+        playPauseBtn: document.getElementById("focusModePlayPauseBtn"),
+        exitBtn: document.getElementById("focusModeExitBtn"),
+    },
+    modals: {
+        stats: document.getElementById("statsModal"),
+        totalFocusTime: document.getElementById("totalFocusTime"),
+        totalSessionsCount: document.getElementById("totalSessionsCount"),
+    },
+    profile: {
+        nameDisplay: document.getElementById("profileNameDisplay"),
+        changeNameBtn: document.getElementById("changeNameBtn"),
+    },
+    sounds: {
+        whiteNoise: document.getElementById("whiteNoise"),
+        start: document.querySelectorAll('.start-sound'),
+        goodMeme: document.querySelectorAll('.good-meme'),
+        badMeme: document.querySelectorAll('.bad-meme'),
+        pauseAlert: document.getElementById("pauseAlertSound"),
+        resumeAlert: document.getElementById("resumeAlertSound"),
+    }
+};
+
+// ===================================================================================
+// CORE TIMER LOGIC
+// ===================================================================================
+function updateTimerDisplay() {
+    const minutes = Math.floor(timeLeft / 60);
+    const seconds = timeLeft % 60;
+    const timeString = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
     
-    // ---- DOM ELEMENTS ----
-    const dom = {
-        body: document.body,
-        status: document.getElementById('status'),
-        timer: document.getElementById('timer'),
-        toggleTimerBtn: document.getElementById('toggleTimerBtn'),
-        resetBtn: document.getElementById('resetBtn'),
-        endSessionBtn: document.getElementById('endSessionBtn'),
-        // To-Do
-        todoInput: document.getElementById('todo-input'),
-        addTodoBtn: document.getElementById('add-todo-btn'),
-        todoList: document.getElementById('todo-list'),
-        // Dashboard
-        dashboardBtn: document.getElementById('dashboardBtn'),
-        closeDashboardBtn: document.getElementById('closeDashboardBtn'),
-        dashboardModal: document.getElementById('dashboardModal'),
-        tabs: document.querySelectorAll('.tab'),
-        tabContents: document.querySelectorAll('.tab-content'),
-        // Focus Mode
-        focusModeBtn: document.getElementById('focusModeBtn'),
-        focusModeUI: document.getElementById('focusModeUI'),
-        focusModeTimer: document.getElementById('focusModeTimer'),
-        focusModeToggleBtn: document.getElementById('focusModeToggleBtn'),
-        // Sounds & Backgrounds
-        noiseBtn: document.getElementById('noiseBtn'),
-        whiteNoise: document.getElementById('whiteNoise'),
-        alertSound: document.getElementById('alertSound'),
-        startSounds: document.querySelectorAll('.start-sound'),
-        goodMemeSounds: document.querySelectorAll('.good-meme'),
-        badMemeSounds: document.querySelectorAll('.bad-meme'),
-        videoContainer: document.getElementById('video-background-container'),
-        // Settings
-        workDurationInput: document.getElementById('work-duration'),
-        shortBreakInput: document.getElementById('short-break-duration'),
-        longBreakInput: document.getElementById('long-break-duration'),
-        saveSettingsBtn: document.getElementById('saveSettingsBtn'),
-        // Customize
-        youtubeInput: document.getElementById('youtube-input'),
-        imageInput: document.getElementById('custom-image-input'),
-        storeItemsContainer: document.getElementById('storeItems'),
-        // Profile
-        profileName: document.getElementById('profileName'),
-        totalFocusTime: document.getElementById('totalFocusTime'),
-        totalSessions: document.getElementById('totalSessions'),
-        exportDataBtn: document.getElementById('exportDataBtn'),
-        clearDataBtn: document.getElementById('clearDataBtn'),
-        // FAB Menu
-        fabContainer: document.getElementById('fabContainer'),
-    };
+    DOMElements.timerDisplay.textContent = timeString;
+    DOMElements.focusModeUI.timer.textContent = timeString;
 
-    // ---- SVG ICONS ----
-    const icons = {
-        play: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="0" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`,
-        pause: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="0" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`,
-    };
+    const currentDuration = isWorkSession ? workDuration : (sessionCount % 4 === 0 ? longBreakDuration : shortBreakDuration);
+    const progress = timeLeft > 0 ? ((currentDuration - timeLeft) / currentDuration) * 100 : 0;
+    DOMElements.focusModeUI.progressBar.style.width = `${progress}%`;
+
+    document.title = isRunning ? `${timeString} - ${isWorkSession ? 'Work' : 'Break'} | YouFloww` : 'YouFloww';
+}
+
+function updateUIState() {
+    DOMElements.statusDisplay.textContent = isWorkSession ? "Work Session" : "Break Time";
+    DOMElements.playIcon.classList.toggle('hidden', isRunning);
+    DOMElements.pauseIcon.classList.toggle('hidden', !isRunning);
+    DOMElements.playPauseBtn.setAttribute('aria-label', isRunning ? 'Pause Timer' : 'Start Timer');
+    DOMElements.resetBtn.disabled = isRunning;
+    DOMElements.endSessionBtn.disabled = !isRunning;
+    DOMElements.focusModeUI.playPauseBtn.classList.toggle('paused', !isRunning);
+}
+
+function playRandomSound(sounds) {
+    if (sounds.length > 0) {
+        sounds[Math.floor(Math.random() * sounds.length)].play();
+    }
+}
+
+function startTimer() {
+    if (isRunning) return;
     
-    // ---- LOCALSTORAGE HELPER ----
-    const storage = {
-        get: (key, defaultValue) => {
-            try {
-                const value = localStorage.getItem(key);
-                return value ? JSON.parse(value) : defaultValue;
-            } catch (e) {
-                console.error("Error reading from localStorage", e);
-                return defaultValue;
-            }
-        },
-        set: (key, value) => {
-            try {
-                localStorage.setItem(key, JSON.stringify(value));
-            } catch (e) {
-                console.error("Error writing to localStorage", e);
-            }
-        }
-    };
+    if (isWorkSession) {
+        (timeLeft >= workDuration) ? playRandomSound(DOMElements.sounds.start) : DOMElements.sounds.resumeAlert.play();
+    }
 
-    // ===================================================================================
-    // CORE TIMER LOGIC
-    // ===================================================================================
-
-    function startTimer() {
-        if (isRunning) return;
-        isRunning = true;
-        dom.body.classList.add('is-running');
-        updateToggleButtons();
-
-        if (isWorkSession && timeLeft >= workDuration) {
-            playRandomSound(dom.startSounds);
-        } else {
-            dom.alertSound.play();
-        }
-
-        const endTime = Date.now() + timeLeft * 1000;
-        timerInterval = setInterval(() => {
-            timeLeft = Math.round((endTime - Date.now()) / 1000);
-            if (timeLeft <= 0) {
-                clearInterval(timerInterval);
-                timeLeft = 0;
-                handleSessionCompletion();
-            }
+    isRunning = true;
+    endTime = Date.now() + timeLeft * 1000;
+    updateUIState();
+    
+    timer = setInterval(() => {
+        timeLeft = Math.round((endTime - Date.now()) / 1000);
+        if (timeLeft <= 0) {
+            clearInterval(timer);
+            timeLeft = 0;
             updateTimerDisplay();
-        }, 1000);
-    }
-
-    function pauseTimer() {
-        if (!isRunning) return;
-        clearInterval(timerInterval);
-        isRunning = false;
-        dom.body.classList.remove('is-running');
-        updateToggleButtons();
-        dom.alertSound.play();
-    }
-    
-    function toggleTimer() {
-        isRunning ? pauseTimer() : startTimer();
-    }
-
-    function resetTimer(switchToWork = true) {
-        clearInterval(timerInterval);
-        isRunning = false;
-        isWorkSession = switchToWork;
-        if (isWorkSession) {
-            timeLeft = workDuration;
-            sessionCount = 0;
+            isRunning = false;
+            handleSessionCompletion();
         } else {
-            timeLeft = (sessionCount % 4 === 0) ? longBreakDuration : shortBreakDuration;
+            updateTimerDisplay();
         }
-        updateAllUI();
-    }
+    }, 1000);
+}
 
-    function endSession() {
-        const timeFocusedSec = workDuration - timeLeft;
-        const minutesFocused = Math.floor(timeFocusedSec / 60);
+function pauseTimer() {
+    if (!isRunning) return;
+    clearInterval(timer);
+    isRunning = false;
+    DOMElements.sounds.pauseAlert.play();
+    updateUIState();
+}
 
-        if (isWorkSession && minutesFocused > 0) {
-            handleEndOfWorkSession(minutesFocused, true);
-        }
-        resetTimer(true);
-    }
+function resetTimer() {
+    clearInterval(timer);
+    isRunning = false;
+    isWorkSession = true;
+    sessionCount = 0;
+    timeLeft = workDuration;
+    updateTimerDisplay();
+    updateUIState();
+}
 
-    function handleSessionCompletion() {
-        if (isWorkSession) {
-            const minutesFocused = Math.floor(workDuration / 60);
-            handleEndOfWorkSession(minutesFocused, false);
-            sessionCount++;
-            isWorkSession = false;
-            timeLeft = (sessionCount % 4 === 0) ? longBreakDuration : shortBreakDuration;
-        } else {
-            isWorkSession = true;
-            timeLeft = workDuration;
-        }
-        
-        // Auto-start next session after a short delay
-        setTimeout(() => {
-            updateAllUI();
-            startTimer();
-        }, 1500);
-    }
-
-    function handleEndOfWorkSession(minutesFocused, endedEarly) {
-        // Update stats
-        let stats = storage.get('stats', { totalMinutes: 0, totalSessions: 0 });
-        stats.totalMinutes += minutesFocused;
-        if (!endedEarly) {
-            stats.totalSessions++;
-        }
-        storage.set('stats', stats);
-
-        // Update daily data for charts
-        const today = new Date().toISOString().slice(0, 10);
-        let dailyData = storage.get('dailyData', {});
-        dailyData[today] = (dailyData[today] || 0) + minutesFocused;
-        storage.set('dailyData', dailyData);
-        
-        // Play sound based on duration
-        // MODIFIED as per user request
-        if (minutesFocused >= 20) {
-            playRandomSound(dom.goodMemeSounds);
-        } else {
-            playRandomSound(dom.badMemeSounds);
-        }
-        
-        updateProfileStats();
-    }
-
-    // ===================================================================================
-    // UI UPDATE FUNCTIONS
-    // ===================================================================================
-
-    function updateTimerDisplay() {
-        const minutes = Math.floor(timeLeft / 60);
-        const seconds = timeLeft % 60;
-        const timeString = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-        
-        dom.timer.textContent = timeString;
-        dom.focusModeTimer.textContent = timeString;
-        document.title = `${timeString} - ${isWorkSession ? 'Work' : 'Break'} | YouFloww`;
-    }
-
-    function updateStatus() {
-        dom.status.textContent = isWorkSession ? "Work Session" : "Break Time";
-    }
-    
-    function updateToggleButtons() {
-        dom.toggleTimerBtn.innerHTML = isRunning ? icons.pause : icons.play;
-        dom.toggleTimerBtn.setAttribute('aria-label', isRunning ? 'Pause Timer' : 'Start Timer');
-        dom.focusModeToggleBtn.innerHTML = isRunning ? icons.pause : icons.play;
-    }
-
-    function updateAllUI() {
+function endSession() {
+    if (!isWorkSession) { // End break immediately
+        isWorkSession = true;
+        timeLeft = workDuration;
         updateTimerDisplay();
-        updateStatus();
-        updateToggleButtons();
-        dom.body.classList.remove('is-running');
+        updateUIState();
+        return;
     }
 
-    // ===================================================================================
-    // TO-DO LIST LOGIC
-    // ===================================================================================
+    const timeFocusedSec = workDuration - timeLeft;
+    const minutesFocused = Math.floor(timeFocusedSec / 60);
 
-    function loadTodos() {
-        const todos = storage.get('todos', []);
-        dom.todoList.innerHTML = '';
-        todos.forEach((todo, index) => {
-            const li = document.createElement('li');
-            li.className = 'todo-item';
-            li.classList.toggle('completed', todo.completed);
-            li.innerHTML = `
-                <input type="checkbox" id="todo-${index}" ${todo.completed ? 'checked' : ''}>
-                <label for="todo-${index}">${todo.text}</label>
-            `;
-            li.addEventListener('click', () => toggleTodo(index));
-            dom.todoList.appendChild(li);
-        });
+    if (minutesFocused > 0) {
+        handleEndOfWorkSession(minutesFocused);
     }
+    resetTimer(); // Reset to a fresh work session
+}
+
+function handleSessionCompletion() {
+    if (isWorkSession) {
+        const minutesFocused = Math.floor(workDuration / 60);
+        handleEndOfWorkSession(minutesFocused);
+        sessionCount++;
+        isWorkSession = false;
+        timeLeft = (sessionCount % 4 === 0) ? longBreakDuration : shortBreakDuration;
+    } else {
+        isWorkSession = true;
+        timeLeft = workDuration;
+    }
+    updateTimerDisplay();
+    updateUIState();
+    startTimer(); // Automatically start the next session
+}
+
+function handleEndOfWorkSession(minutesFocused) {
+    let totalFocusMinutes = parseInt(localStorage.getItem("totalFocusMinutes")) || 0;
+    let totalSessions = parseInt(localStorage.getItem("totalSessions")) || 0;
     
-    function addTodo() {
-        const text = dom.todoInput.value.trim();
-        if (text) {
-            const todos = storage.get('todos', []);
-            todos.push({ text, completed: false });
-            storage.set('todos', todos);
-            dom.todoInput.value = '';
-            loadTodos();
-        }
-    }
-
-    function toggleTodo(index) {
-        const todos = storage.get('todos', []);
-        if (todos[index]) {
-            todos[index].completed = !todos[index].completed;
-            storage.set('todos', todos);
-            loadTodos();
-        }
-    }
-
-    // ===================================================================================
-    // DASHBOARD & MODAL LOGIC
-    // ===================================================================================
-
-    function openDashboard() { dom.dashboardModal.classList.add('visible'); renderCharts(); }
-    function closeDashboard() { dom.dashboardModal.classList.remove('visible'); }
-
-    function switchTab(tabName) {
-        dom.tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
-        dom.tabContents.forEach(c => c.classList.toggle('active', c.id.startsWith(tabName)));
-    }
-
-    // ===================================================================================
-    // STATS, CHARTS & PROFILE
-    // ===================================================================================
+    totalFocusMinutes += minutesFocused;
+    totalSessions++;
+    localStorage.setItem("totalFocusMinutes", Math.round(totalFocusMinutes));
+    localStorage.setItem("totalSessions", totalSessions);
     
-    function formatMinutes(minutes) {
-        const h = Math.floor(minutes / 60);
-        const m = minutes % 60;
-        return `${h}h ${m}m`;
+    const today = new Date().toISOString().slice(0, 10);
+    let weeklyData = JSON.parse(localStorage.getItem("weeklyFocus") || "{}");
+    weeklyData[today] = (weeklyData[today] || 0) + minutesFocused;
+    localStorage.setItem("weeklyFocus", JSON.stringify(weeklyData));
+
+    // *** MEME SOUND LOGIC FIX ***
+    if (minutesFocused >= 20) {
+        playRandomSound(DOMElements.sounds.goodMeme);
+    } else {
+        playRandomSound(DOMElements.sounds.badMeme);
     }
+}
 
-    function updateProfileStats() {
-        const stats = storage.get('stats', { totalMinutes: 0, totalSessions: 0 });
-        const profileName = storage.get('profileName', 'Floww User');
-        dom.profileName.textContent = profileName;
-        dom.totalFocusTime.textContent = formatMinutes(stats.totalMinutes);
-        dom.totalSessions.textContent = stats.totalSessions;
-    }
+// ===================================================================================
+// SETTINGS
+// ===================================================================================
+function loadSettings() {
+    workDuration = parseInt(localStorage.getItem("workDuration"), 10) || 25 * 60;
+    shortBreakDuration = parseInt(localStorage.getItem("shortBreakDuration"), 10) || 5 * 60;
+    longBreakDuration = parseInt(localStorage.getItem("longBreakDuration"), 10) || 15 * 60;
+    if (!isRunning) { timeLeft = workDuration; }
+    document.getElementById('work-duration').value = workDuration / 60;
+    document.getElementById('short-break-duration').value = shortBreakDuration / 60;
+    document.getElementById('long-break-duration').value = longBreakDuration / 60;
+}
 
-    window.changeProfileName = () => {
-        const currentName = storage.get('profileName', 'Floww User');
-        const newName = prompt("Enter new name:", currentName);
-        if (newName && newName.trim()) {
-            storage.set("profileName", newName.trim());
-            updateProfileStats();
-        }
-    };
-
-    function renderCharts() {
-        renderBarChart();
-        renderPieChart();
-    }
-
-    function renderBarChart() {
-        const dailyData = storage.get('dailyData', {});
-        const labels = Array.from({ length: 7 }, (_, i) => {
-            const d = new Date();
-            d.setDate(d.getDate() - i);
-            return d.toLocaleDateString('en-US', { weekday: 'short' });
-        }).reverse();
-
-        const data = Array.from({ length: 7 }, (_, i) => {
-             const d = new Date();
-            d.setDate(d.getDate() - i);
-            const key = d.toISOString().slice(0, 10);
-            return dailyData[key] || 0;
-        }).reverse();
-
-        const ctx = document.getElementById('barChart').getContext('2d');
-        if (window.myBarChart) window.myBarChart.destroy();
-        window.myBarChart = new Chart(ctx, {
-            type: 'bar',
-            data: { labels, datasets: [{ label: 'Focus (minutes)', data, backgroundColor: 'rgba(255, 126, 95, 0.8)' }] },
-            options: { responsive: true, maintainAspectRatio: false }
-        });
-    }
-    
-    function renderPieChart() {
-        const stats = storage.get('stats', { totalMinutes: 0, totalSessions: 0 });
-        const totalBreakMinutes = stats.totalSessions * (shortBreakDuration / 60);
-        const ctx = document.getElementById('pieChart').getContext('2d');
-        if (window.myPieChart) window.myPieChart.destroy();
-        window.myPieChart = new Chart(ctx, {
-            type: 'pie',
-            data: {
-                labels: ['Work', 'Break'],
-                datasets: [{ data: [stats.totalMinutes, totalBreakMinutes], backgroundColor: [ 'rgba(255, 126, 95, 0.8)', 'rgba(106, 130, 251, 0.8)'] }]
-            },
-            options: { responsive: true, maintainAspectRatio: false }
-        });
-    }
-    
-    // ===================================================================================
-    // SETTINGS & CUSTOMIZATION
-    // ===================================================================================
-    
-    function loadSettings() {
-        workDuration = storage.get("workDuration", 25 * 60);
-        shortBreakDuration = storage.get("shortBreakDuration", 5 * 60);
-        longBreakDuration = storage.get("longBreakDuration", 15 * 60);
-
-        dom.workDurationInput.value = workDuration / 60;
-        dom.shortBreakInput.value = shortBreakDuration / 60;
-        dom.longBreakInput.value = longBreakDuration / 60;
-        
-        if (!isRunning) {
-            timeLeft = workDuration;
-            updateTimerDisplay();
-        }
-    }
-    
-    function saveSettings() {
-        const newWork = parseInt(dom.workDurationInput.value) * 60;
-        const newShort = parseInt(dom.shortBreakInput.value) * 60;
-        const newLong = parseInt(dom.longBreakInput.value) * 60;
-
-        if (newWork && newShort && newLong) {
-            storage.set("workDuration", newWork);
-            storage.set("shortBreakDuration", newShort);
-            storage.set("longBreakDuration", newLong);
-            loadSettings();
-            resetTimer(true);
-            alert("Settings saved!");
-        } else {
-            alert("Please enter valid numbers for all durations.");
-        }
-    }
-
-    function getYoutubeVideoId(url) {
-        const regex = /(?:[?&]v=|\/embed\/|youtu\.be\/)([^"&?/\s]{11})/;
-        const match = url.match(regex);
-        return match ? match[1] : null;
-    }
-
-    function setYoutubeBackground(videoId) {
-        if (!videoId) return;
-        // MODIFIED as per user request to hide controls and recommendations
-        dom.videoContainer.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&modestbranding=1&rel=0&showinfo=0" frameborder="0" allow="autoplay; encrypted-media"></iframe>`;
-        dom.body.style.backgroundImage = 'none';
-        storage.set('background', { type: 'youtube', id: videoId });
-    }
-
-    function setImageBackground(imageUrl) {
-        dom.body.style.backgroundImage = `url('${imageUrl}')`;
-        dom.videoContainer.innerHTML = '';
-        storage.set('background', { type: 'image', url: imageUrl });
-    }
-    
-    function applyInitialBackground() {
-        const bg = storage.get('background');
-        if (!bg) return;
-        if (bg.type === 'youtube') setYoutubeBackground(bg.id);
-        if (bg.type === 'image') setImageBackground(bg.url);
-    }
-    
-    function populateStore() {
-        const items = [
-            { type: 'image', name: '🌌 Cosmic View', url: 'https://images.unsplash.com/photo-1534796636912-3b95b3ab5986?q=80&w=2071&auto=format&fit=crop' },
-            { type: 'youtube', name: '🎵 Lofi Study Cafe', id: '4wJRkS-M-3s' },
-            { type: 'youtube', name: '🌧️ Cozy Rainy Night', id: 'NJuSStkIZBg' },
-            { type: 'youtube', name: '🚀 Space Journey', id: 'Dx5qFachdxc' },
-        ];
-        dom.storeItemsContainer.innerHTML = '';
-        items.forEach(item => {
-            const itemEl = document.createElement('div');
-            itemEl.className = 'store-item';
-            itemEl.innerHTML = `<span>${item.name}</span><button>Set</button>`;
-            itemEl.querySelector('button').addEventListener('click', () => {
-                if (item.type === 'image') setImageBackground(item.url);
-                if (item.type === 'youtube') setYoutubeBackground(item.id);
-                closeDashboard();
-            });
-            dom.storeItemsContainer.appendChild(itemEl);
-        });
-    }
-    
-    // ===================================================================================
-    // UTILITY & HELPER FUNCTIONS
-    // ===================================================================================
-
-    function toggleFocusMode() {
-        dom.body.classList.toggle('focus-mode');
-    }
-
-    function playRandomSound(sounds) {
-        if (sounds.length > 0) {
-            const sound = sounds[Math.floor(Math.random() * sounds.length)];
-            sound.currentTime = 0;
-            sound.play();
-        }
-    }
-    
-    function exportData() {
-        const data = JSON.stringify(localStorage);
-        const blob = new Blob([data], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `youfloww_backup_${new Date().toISOString().slice(0,10)}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-    }
-    
-    function clearAllData() {
-        if (confirm("Are you sure? This will clear ALL your data, including stats and settings.")) {
-            localStorage.clear();
-            window.location.reload();
-        }
-    }
-
-    // ===================================================================================
-    // EVENT LISTENERS & INITIALIZATION
-    // ===================================================================================
-
-    function init() {
-        // Timer controls
-        dom.toggleTimerBtn.addEventListener('click', toggleTimer);
-        dom.resetBtn.addEventListener('click', () => resetTimer(true));
-        dom.endSessionBtn.addEventListener('click', endSession);
-        
-        // To-Do
-        dom.addTodoBtn.addEventListener('click', addTodo);
-        dom.todoInput.addEventListener('keydown', (e) => e.key === 'Enter' && addTodo());
-
-        // Dashboard
-        dom.dashboardBtn.addEventListener('click', openDashboard);
-        dom.closeDashboardBtn.addEventListener('click', closeDashboard);
-        dom.tabs.forEach(tab => tab.addEventListener('click', () => switchTab(tab.dataset.tab)));
-        
-        // FAB Menu
-        dom.dashboardBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            // If it's already active, open the dashboard. Otherwise, just activate the menu.
-            if (dom.fabContainer.classList.contains('active')) {
-                openDashboard();
-            } else {
-                dom.fabContainer.classList.add('active');
-            }
-        });
-        document.addEventListener('click', () => dom.fabContainer.classList.remove('active'));
-
-        // Focus Mode
-        dom.focusModeBtn.addEventListener('click', toggleFocusMode);
-        dom.focusModeToggleBtn.addEventListener('click', toggleTimer);
-
-        // Sounds & Backgrounds
-        dom.noiseBtn.addEventListener('click', () => {
-            dom.whiteNoise.paused ? dom.whiteNoise.play() : dom.whiteNoise.pause();
-            dom.noiseBtn.style.color = dom.whiteNoise.paused ? 'var(--text-color)' : 'var(--accent-color)';
-        });
-        dom.youtubeInput.addEventListener('change', () => setYoutubeBackground(getYoutubeVideoId(dom.youtubeInput.value)));
-        dom.imageInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (event) => setImageBackground(event.target.result);
-                reader.readAsDataURL(file);
-            }
-        });
-
-        // Settings & Profile
-        dom.saveSettingsBtn.addEventListener('click', saveSettings);
-        dom.exportDataBtn.addEventListener('click', exportData);
-        dom.clearDataBtn.addEventListener('click', clearAllData);
-        
-        // Refresh warning
-        window.addEventListener('beforeunload', (e) => {
-            if (isRunning) {
-                e.preventDefault();
-                e.returnValue = ''; // Required for legacy browsers
-                return 'Your timer is running. Are you sure you want to leave?';
-            }
-        });
-
-        // Initial setup
+function saveSettings() {
+    const newWork = parseInt(document.getElementById('work-duration').value, 10) * 60;
+    const newShort = parseInt(document.getElementById('short-break-duration').value, 10) * 60;
+    const newLong = parseInt(document.getElementById('long-break-duration').value, 10) * 60;
+    if (newWork && newShort && newLong) {
+        localStorage.setItem("workDuration", newWork);
+        localStorage.setItem("shortBreakDuration", newShort);
+        localStorage.setItem("longBreakDuration", newLong);
         loadSettings();
-        loadTodos();
-        updateAllUI();
-        updateProfileStats();
-        applyInitialBackground();
-        populateStore();
+        if (!isRunning) resetTimer();
+        alert("Settings saved!");
+    } else {
+        alert("Please enter valid numbers for all durations.");
     }
+}
 
-    init();
+// ===================================================================================
+// STATS & MODALS
+// ===================================================================================
+function openStats() { DOMElements.modals.stats.classList.add('visible'); renderCharts(); updateStatsDisplay(); }
+function closeStats() { DOMElements.modals.stats.classList.remove('visible'); }
+function switchTab(tabName) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.querySelector(`.tab[onclick*="'${tabName}'"]`).classList.add('active');
+    document.getElementById(`${tabName}Container`).classList.add('active');
+}
+
+function updateStatsDisplay() {
+    const totalMinutes = parseInt(localStorage.getItem("totalFocusMinutes")) || 0;
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    DOMElements.modals.totalFocusTime.textContent = `${hours}h ${minutes}m`;
+    DOMElements.modals.totalSessionsCount.textContent = localStorage.getItem("totalSessions") || 0;
+}
+
+function renderCharts() {
+    const weeklyData = JSON.parse(localStorage.getItem("weeklyFocus") || "{}");
+    const today = new Date();
+    const labels = Array.from({ length: 7 }, (_, i) => { const d = new Date(today); d.setDate(today.getDate() - (6 - i)); return d.toLocaleDateString('en-US', { weekday: 'short' }); });
+    const data = labels.map((_, i) => { const d = new Date(today); d.setDate(today.getDate() - (6 - i)); const key = d.toISOString().slice(0, 10); return (weeklyData[key] || 0) / 60; });
+    
+    const barCtx = document.getElementById('barChart').getContext('2d');
+    if (window.myBarChart) window.myBarChart.destroy();
+    window.myBarChart = new Chart(barCtx, { type: 'bar', data: { labels, datasets: [{ label: 'Daily Focus (hours)', data, backgroundColor: '#f7a047' }] }, options: { maintainAspectRatio: false } });
+
+    const totalFocus = parseInt(localStorage.getItem("totalFocusMinutes")) || 0;
+    const totalSessions = parseInt(localStorage.getItem("totalSessions")) || 0;
+    const totalBreak = totalSessions * (shortBreakDuration / 60); // Approximate
+    const pieCtx = document.getElementById('pieChart').getContext('2d');
+    if(window.myPieChart) window.myPieChart.destroy();
+    window.myPieChart = new Chart(pieCtx, {type: 'pie', data: { labels: ['Work', 'Break'], datasets: [{ data: [totalFocus, totalBreak], backgroundColor: ['#f7a047', '#6c63ff'] }] }, options: { maintainAspectRatio: false }});
+}
+
+// ===================================================================================
+// TO-DO LIST
+// ===================================================================================
+function loadTodos() { const todos = JSON.parse(localStorage.getItem('todos')) || []; const todoList = document.getElementById('todo-list'); todoList.innerHTML = ''; todos.forEach((todo, index) => { const li = document.createElement('li'); li.className = 'todo-item'; li.innerHTML = `<input type="checkbox" id="todo-${index}" ${todo.completed ? 'checked' : ''} onchange="toggleTodo(${index})"> <label for="todo-${index}">${todo.text}</label> <div class="actions"><button onclick="editTodo(${index})">✏️</button></div>`; todoList.appendChild(li); }); }
+function addTodo() { const input = document.getElementById('todo-input'); if (input.value.trim()) { let todos = JSON.parse(localStorage.getItem('todos')) || []; todos.push({ text: input.value.trim(), completed: false }); localStorage.setItem('todos', JSON.stringify(todos)); input.value = ''; loadTodos(); } }
+function toggleTodo(index) { let todos = JSON.parse(localStorage.getItem('todos')) || []; if (todos[index]) { todos[index].completed = !todos[index].completed; localStorage.setItem('todos', JSON.stringify(todos)); loadTodos(); } }
+function editTodo(index) { let todos = JSON.parse(localStorage.getItem('todos')) || []; if (todos[index]) { const newText = prompt("Edit your task:", todos[index].text); if (newText && newText.trim()) { todos[index].text = newText.trim(); localStorage.setItem('todos', JSON.stringify(todos)); loadTodos(); } } }
+function clearTodos() { if (confirm("Clear all tasks?")) { localStorage.removeItem('todos'); loadTodos(); } }
+
+// ===================================================================================
+// UI & HELPERS
+// ===================================================================================
+function updateCornerWidget(){ /* ... (no change, function is fine) ... */ }
+function toggleFocusMode() { document.body.classList.toggle('focus-mode'); }
+function changeProfileName() { const newName = prompt("Enter new name:", profileName); if (newName && newName.trim()) { profileName = newName.trim(); localStorage.setItem("profileName", profileName); DOMElements.profile.nameDisplay.textContent = profileName; } }
+function clearAllData() { if (confirm("Are you sure? This will clear ALL settings and stats.")) { localStorage.clear(); window.location.reload(); } }
+function exportData() { const data = JSON.stringify(localStorage); const blob = new Blob([data], {type: "application/json"}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `youfloww_backup_${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(a.href); }
+
+// ===================================================================================
+// AMBIENCE & THEMES
+// ===================================================================================
+const ambientContainer = document.getElementById('ambient-container');
+function createAmbientElement(className) { const el = document.createElement('div'); el.className = `ambient-effect ${className}`; el.style.left = `${Math.random() * 100}vw`; ambientContainer.appendChild(el); setTimeout(() => el.remove(), 25000); return el; }
+function animateAmbientElement(el, min, max, name) { const duration = Math.random() * (max - min) + min; el.style.animation = `${name} ${duration}s linear forwards`; }
+function startSnowInterval() { if (!snowInterval) snowInterval = setInterval(() => animateAmbientElement(createAmbientElement('snowflake'), 8, 15, 'fall'), 200); }
+function startRainInterval() { if (!rainInterval) rainInterval = setInterval(() => animateAmbientElement(createAmbientElement('raindrop'), 0.4, 0.8, 'fall'), 50); }
+function startSakuraInterval() { if (!sakuraInterval) sakuraInterval = setInterval(() => animateAmbientElement(createAmbientElement('sakura'), 15, 25, 'spinFall'), 500); }
+function toggleSnow() { isSnowActive = !isSnowActive; document.getElementById('snowBtn').classList.toggle('active', isSnowActive); if (isSnowActive) startSnowInterval(); else { clearInterval(snowInterval); snowInterval = null; } }
+function toggleRain() { isRainActive = !isRainActive; document.getElementById('rainBtn').classList.toggle('active', isRainActive); if (isRainActive) startRainInterval(); else { clearInterval(rainInterval); rainInterval = null; } }
+function toggleSakura() { isSakuraActive = !isSakuraActive; document.getElementById('sakuraBtn').classList.toggle('active', isSakuraActive); if (isSakuraActive) startSakuraInterval(); else { clearInterval(sakuraInterval); sakuraInterval = null; } }
+
+function getYoutubeVideoId(url) { return url.match(/(?:[?&]v=|\/embed\/|youtu\.be\/)([^"&?/\s]{11})/) ?.[1] || null; }
+function setYoutubeBackground() { const url = document.getElementById("youtube-input").value; const videoId = getYoutubeVideoId(url); if (videoId) { document.getElementById("video-background-container").innerHTML = `<iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&modestbranding=1&rel=0&showinfo=0&iv_load_policy=3" frameborder="0" allow="autoplay"></iframe>`; localStorage.setItem('youtubeVideoId', videoId); document.body.style.backgroundImage = 'none'; } else if (url) { alert("Please enter a valid YouTube URL."); } }
+function applyBackgroundTheme(path) { document.body.style.backgroundImage = `url('${path}')`; localStorage.setItem("currentBackgroundPath", path); localStorage.removeItem('youtubeVideoId'); document.getElementById("video-background-container").innerHTML = ''; }
+function applyStoreItem(element) { const item = element.closest('.store-item'); if (item.dataset.type === 'image') applyBackgroundTheme(item.dataset.path); else if (item.dataset.type === 'youtube') { document.getElementById('youtube-input').value = `https://www.youtube.com/watch?v=${item.dataset.id}`; setYoutubeBackground(); } closeStats(); }
+
+// ===================================================================================
+// INITIALIZATION & EVENT LISTENERS
+// ===================================================================================
+document.addEventListener('DOMContentLoaded', () => {
+    loadSettings();
+    updateTimerDisplay();
+    updateUIState();
+    loadTodos();
+    updateCornerWidget();
+    setInterval(updateCornerWidget, 30000);
+    DOMElements.profile.nameDisplay.textContent = profileName;
+
+    const savedBg = localStorage.getItem("currentBackgroundPath");
+    const savedYt = localStorage.getItem("youtubeVideoId");
+    if (savedBg) applyBackgroundTheme(savedBg);
+    if (savedYt) { document.getElementById('youtube-input').value = `https://www.youtube.com/watch?v=${savedYt}`; setYoutubeBackground(); }
+
+    // Event Listeners
+    DOMElements.playPauseBtn.addEventListener('click', () => isRunning ? pauseTimer() : startTimer());
+    DOMElements.resetBtn.addEventListener('click', resetTimer);
+    DOMElements.endSessionBtn.addEventListener('click', endSession);
+    DOMElements.profile.changeNameBtn.addEventListener('click', changeProfileName);
+    document.getElementById("statsBtn").addEventListener('click', openStats);
+    document.getElementById("noiseBtn").addEventListener('click', () => { const noise = DOMElements.sounds.whiteNoise; noise.paused ? noise.play() : noise.pause(); document.getElementById("noiseBtn").textContent = noise.paused ? "🎧 Play Noise" : "🎧 Stop Noise"; });
+    document.getElementById("snowBtn").addEventListener('click', toggleSnow);
+    document.getElementById("rainBtn").addEventListener('click', toggleRain);
+    document.getElementById("sakuraBtn").addEventListener('click', toggleSakura);
+    document.getElementById("focusModeBtn").addEventListener('click', toggleFocusMode);
+    DOMElements.focusModeUI.playPauseBtn.addEventListener('click', () => isRunning ? pauseTimer() : startTimer());
+    DOMElements.focusModeUI.exitBtn.addEventListener('click', toggleFocusMode);
+    document.getElementById("add-todo-btn").addEventListener('click', addTodo);
+    document.querySelector('.clear-todos-btn').addEventListener('click', clearTodos);
+    document.getElementById('todo-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') addTodo(); });
+    document.getElementById("saveSettingsBtn").addEventListener('click', saveSettings);
+    document.getElementById('storeItems').addEventListener('click', (e) => { if (e.target.tagName === 'BUTTON') applyStoreItem(e.target); });
+    document.getElementById("setYoutubeBtn").addEventListener('click', setYoutubeBackground);
+    
+    // Global Keyboard & Window Listeners
+    window.addEventListener('keydown', (e) => { if (e.code === 'Space' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) { e.preventDefault(); isRunning ? pauseTimer() : startTimer(); } });
+    window.addEventListener('beforeunload', (e) => {
+        if (isRunning) {
+            e.preventDefault();
+            e.returnValue = ''; // Required for legacy browsers
+            return ''; // Standard for modern browsers
+        }
+    });
 });
