@@ -4,232 +4,160 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YouFloww - Focus Timer & To-Do List</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 </head>
 <body>
-    <div id="refresh-warning">
-        <i class="fas fa-exclamation-triangle"></i> Warning: Refreshing will end your current session but your progress will be saved.
+
+<header class="top-bar">
+    <div class="profile-greeting">
+        <span>Welcome, </span>
+        <span id="profileNameDisplay">Floww User</span>
+        <button id="changeNameBtn" class="btn-icon" aria-label="Change Name">✏️</button>
     </div>
+    <button id="statsBtn" class="header-btn">View Stats 📈</button>
+</header>
 
-    <main>
-        <section>
-            <h1 id="main-heading">YouFloww ⏱️</h1>
-            <p>Enter your flow state. Stay focused. Build consistency.</p>
-            <div id="status">Work Session</div>
-            <div id="timer">25:00</div>
-            
-            <div class="controls-container">
-                <div class="control-group">
-                    <h3><i class="fas fa-clock"></i> Timer</h3>
-                    <div class="button-grid">
-                        <button id="startPauseBtn" class="btn-primary"><i class="fas fa-play"></i> Start</button>
-                        <button id="resetBtn" class="btn-neutral"><i class="fas fa-redo"></i> Reset</button>
-                        <button id="endSessionBtn" class="btn-danger"><i class="fas fa-stop"></i> End</button>
-                        <button id="focusModeBtn" class="btn-secondary"><i class="fas fa-expand"></i> Focus</button>
-                    </div>
-                </div>
-                
-                <div class="control-group">
-                    <h3><i class="fas fa-volume-up"></i> Sound</h3>
-                    <div class="control-toggles">
-                        <button id="noiseBtn" class="btn-neutral"><i class="fas fa-music"></i> Noise</button>
-                        <div class="dropdown">
-                            <button id="ambienceBtn" class="btn-neutral"><i class="fas fa-cloud"></i> Ambience</button>
-                            <div class="dropdown-content">
-                                <button id="snowBtn" class="btn-small"><i class="fas fa-snowflake"></i> Snow</button>
-                                <button id="rainBtn" class="btn-small"><i class="fas fa-cloud-rain"></i> Rain</button>
-                                <button id="sakuraBtn" class="btn-small"><i class="fas fa-leaf"></i> Sakura</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="control-group">
-                    <h3><i class="fas fa-tv"></i> Background</h3>
-                    <div style="display: flex; flex-direction: column; gap: 10px; width: 100%;">
-                        <input type="text" id="youtube-input" placeholder="YouTube URL" style="width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #444; background: #2a2a2a; color: white;">
-                        <div style="display: flex; gap: 5px;">
-                            <button id="setYoutubeBtn" class="btn-small"><i class="fas fa-check"></i> Set</button>
-                            <button id="removeYoutubeBtn" class="btn-small btn-danger"><i class="fas fa-times"></i> Remove</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section>
-            <div id="todo-container">
-                <h2><i class="fas fa-tasks"></i> To-Do List</h2>
-                <div id="todo-input-container">
-                    <input type="text" id="todo-input" placeholder="Add a new task..." aria-label="Add a new task">
-                    <button id="add-todo-btn" class="btn-secondary"><i class="fas fa-plus"></i> Add</button>
-                </div>
-                <ul id="todo-list"></ul>
-                <button class="clear-todos-btn btn-danger"><i class="fas fa-trash"></i> Clear All</button>
-            </div>
-        </section>
-    </main>
-
-    <div id="coinContainer">
-        <div><i class="fas fa-coins"></i> Coins: <span id="coinCount">0</span></div>
-        <button onclick="openStats()"><i class="fas fa-chart-line"></i> Stats</button>
-    </div>
-
-    <div id="statsModal" class="modal">
-        <div id="statsContent" class="modal-content">
-            <span class="close-btn" onclick="closeStats()">&times;</span>
-            <h2>Your Progress 📈</h2>
-            <p id="streak">🔥 Streak: 0 days</p>
-            <p id="sessionsToday">📊 Sessions today: 0</p>
-            <p id="weeklyFocus">⏳ Focused this week: 0h 0m</p>
-            
-            <div class="tabs">
-                <div class="tab active" onclick="switchTab('stats')"><i class="fas fa-chart-bar"></i> Stats</div>
-                <div class="tab" onclick="switchTab('history')"><i class="fas fa-history"></i> History</div>
-                <div class="tab" onclick="switchTab('profile')"><i class="fas fa-user"></i> Profile</div>
-                <div class="tab" onclick="switchTab('store')"><i class="fas fa-store"></i> Store</div>
-                <div class="tab" onclick="switchTab('settings')"><i class="fas fa-cog"></i> Settings</div>
-            </div>
-            
-            <div id="statsContainer" class="tab-content active">
-                <div id="barChartContainer" class="chart-container">
-                    <div class="chart-title">Daily Focus (hours)</div>
-                    <canvas id="barChart"></canvas>
-                </div>
-                <div id="pieChartContainer" class="chart-container">
-                    <div class="chart-title">Session Types</div>
-                    <canvas id="pieChart"></canvas>
-                </div>
-            </div>
-            
-            <div id="historyContainer" class="tab-content">
-                <div class="chart-container">
-                    <div class="chart-title">Weekly History</div>
-                    <table class="stats-table">
-                        <thead>
-                            <tr>
-                                <th>Week Starting</th>
-                                <th>Total Focus</th>
-                                <th>Sessions</th>
-                                <th>Days Active</th>
-                            </tr>
-                        </thead>
-                        <tbody id="historyTableBody"></tbody>
-                    </table>
-                </div>
-            </div>
-            
-            <div id="profileContainer" class="tab-content">
-                <div class="chart-container">
-                    <div class="chart-title">Your Profile</div>
-                    <p>Name: <span id="profileName">Floww User</span></p>
-                    <p>Total Focus Time: <span id="totalFocusTime">0h 0m</span></p>
-                    <p>Total Sessions: <span id="totalSessions">0</span></p>
-                    <p>Total Coins Earned: <span id="totalCoinsEarned">0</span></p>
-                    <div class="stats-actions">
-                        <button onclick="changeProfileName()"><i class="fas fa-edit"></i> Change Name</button>
-                    </div>
-                </div>
-            </div>
-            
-            <div id="storeContainer" class="tab-content">
-                <div class="chart-container">
-                    <div class="chart-title">Customize Your Experience</div>
-                    <p>Select a theme or a live wallpaper for your session.</p>
-                    <div id="storeItems">
-                        <div class="store-item" data-type="image" data-path="https://images.unsplash.com/photo-1542831371-d648083a23de?q=80&w=2070&auto=format&fit=crop">
-                            <span>🌆 Cosmic Background</span>
-                            <button>Set</button>
-                        </div>
-                        <div class="store-item" data-type="youtube" data-id="4wJRkS-M-3s">
-                            <span>🎬 Lofi Study Cafe</span>
-                            <button>Set</button>
-                        </div>
-                        <div class="store-item" data-type="youtube" data-id="NJuSStkIZBg">
-                            <span>🌧️ Cozy Rainy Night</span>
-                            <button>Set</button>
-                        </div>
-                        <div class="store-item" data-type="youtube" data-id="Dx5qFachdxc">
-                            <span>🚀 Space Journey</span>
-                            <button>Set</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div id="settingsContainer" class="tab-content">
-                <div class="chart-container">
-                    <div class="chart-title">Timer Settings</div>
-                    <p>Set your preferred Pomodoro durations (in minutes).</p>
-                    <div class="settings-grid">
-                        <label for="work-duration">Work Session:</label>
-                        <input type="number" id="work-duration" min="1">
-                        <label for="short-break-duration">Short Break:</label>
-                        <input type="number" id="short-break-duration" min="1">
-                        <label for="long-break-duration">Long Break:</label>
-                        <input type="number" id="long-break-duration" min="1">
-                    </div>
-                    <button id="saveSettingsBtn" class="btn-primary"><i class="fas fa-save"></i> Save Settings</button>
-                </div>
-            </div>
-            
-            <div class="stats-actions">
-                <button id="exportDataBtn" onclick="exportData()"><i class="fas fa-download"></i> Export Data</button>
-                <button id="clearDataBtn" onclick="clearAllData()" class="btn-danger"><i class="fas fa-trash"></i> Clear All Data</button>
-            </div>
-        </div>
-    </div>
-
-    <audio id="whiteNoise" loop><source src="whitenoise.mp3" type="audio/mpeg"></audio>
-    <audio id="pauseAlertSound"><source src="https://actions.google.com/sounds/v1/ui/close_button_pressed.ogg" type="audio/ogg"></audio>
-    <audio id="resumeAlertSound"><source src="https://actions.google.com/sounds/v1/ui/button_press.ogg" type="audio/ogg"></audio>
-
-    <audio class="start-sound" src="start-sound1.mp3"></audio>
-    <audio class="start-sound" src="start-sound2.mp3"></audio>
-    <audio class="start-sound" src="start-sound3.mp3"></audio>
-    <audio class="start-sound" src="start-sound4.mp3"></audio>
-
-    <audio class="good-meme" src="good-meme1.mp3"></audio>
-    <audio class="good-meme" src="good-meme2.mp3"></audio>
-    <audio class="good-meme" src="good-meme3.mp3"></audio>
-    <audio class="good-meme" src="good-meme4.mp3"></audio>
-
-    <audio class="bad-meme" src="bad-meme1.mp3"></audio>
-    <audio class="bad-meme" src="bad-meme2.mp3"></audio>
-    <audio class="bad-meme" src="bad-meme3.mp3"></audio>
-    <audio class="bad-meme" src="bad-meme4.mp3"></audio>
-
-    <aside>
-        <div id="cornerWidget">
-            <div class="progress-label"><span>Day Progress</span><span id="dayProgressPercent"></span></div>
-            <div class="progress-bar-container"><div id="dayProgressBar" class="progress-bar"></div></div>
-            <div class="progress-label"><span>Month Progress</span><span id="monthProgressPercent"></span></div>
-            <div class="progress-bar-container"><div id="monthProgressBar" class="progress-bar"></div></div>
-            <div class="progress-label"><span>Year Progress</span><span id="yearProgressPercent"></span></div>
-            <div class="progress-bar-container"><div id="yearProgressBar" class="progress-bar"></div></div>
-        </div>
-    </aside>
-
-    <div id="ambient-container"></div>
-    <div id="video-background-container"></div>
-
-    <div id="focusModeUI">
-        <div id="focusModeTimer"></div>
-        <div id="focusModeProgressBarContainer">
-            <div id="focusModeProgressBar"></div>
-        </div>
-        <div id="focusModeControls">
-            <button id="focusModePlayPauseBtn" aria-label="Play/Pause">
-                <span class="icon"></span>
+<main>
+    <section id="timer-section">
+        <div id="status">Work Session</div>
+        <div id="timer">25:00</div>
+        <div class="timer-controls">
+            <button id="resetBtn" class="btn-icon" aria-label="Reset Timer">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4C7.58 4 4 7.58 4 12s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6zm-1-8h2v5h-2zm0-2h2v2h-2z" transform="rotate(45 12 12)"/><path d="M12.5 8c-2.65 0-4.72.63-6.22 1.5.86-3.07 3.53-5.5 6.72-5.5 3.86 0 7 3.14 7 7 0 1.93-.78 3.68-2.03 4.93C19.29 13.54 16.5 8 12.5 8z"/></svg>
             </button>
-            <button id="focusModeExitBtn" aria-label="Exit Focus Mode">
-                <span class="icon"></span>
+            <button id="playPauseBtn" aria-label="Start Timer">
+                <svg id="playIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                <svg id="pauseIcon" class="hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+            </button>
+            <button id="endSessionBtn" class="btn-icon" aria-label="End Session">
+                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
             </button>
         </div>
-    </div>
+    </section>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="script.js"></script>
+    <section id="features-section">
+        <div id="todo-container">
+            <h2>🎯 To-Do List</h2>
+            <div id="todo-input-container">
+                <input type="text" id="todo-input" placeholder="Add a new task..." aria-label="Add a new task">
+                <button id="add-todo-btn">Add</button>
+            </div>
+            <ul id="todo-list"></ul>
+            <button class="clear-todos-btn">Clear All Tasks</button>
+        </div>
+        
+        <div class="controls-container">
+            <h2>✨ Ambience & Display</h2>
+            <div class="control-group">
+                <button id="focusModeBtn">Enter Focus Mode</button>
+                <button id="noiseBtn">🎧 Play Noise</button>
+            </div>
+            <div class="control-group">
+                 <button id="snowBtn" class="ambience-toggle-btn">❄️ Snow</button>
+                 <button id="rainBtn" class="ambience-toggle-btn">🌧️ Rain</button>
+                 <button id="sakuraBtn" class="ambience-toggle-btn">🌸 Sakura</button>
+            </div>
+        </div>
+    </section>
+</main>
+
+<div id="statsModal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn" onclick="closeStats()">&times;</span>
+        <h2>Your Progress 📈</h2>
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('stats')">📈 Stats</div>
+            <div class="tab" onclick="switchTab('store')">🛒 Themes</div>
+            <div class="tab" onclick="switchTab('settings')">⚙️ Settings</div>
+            <div class="tab" onclick="switchTab('profile')">👤 Profile</div>
+        </div>
+
+        <div id="statsContainer" class="tab-content active">
+             <p class="stats-summary">Total Focus: <strong id="totalFocusTime">0h 0m</strong> | Total Sessions: <strong id="totalSessionsCount">0</strong></p>
+            <div class="chart-group">
+                <div class="chart-container"><canvas id="barChart"></canvas></div>
+                <div class="chart-container"><canvas id="pieChart"></canvas></div>
+            </div>
+        </div>
+
+        <div id="storeContainer" class="tab-content">
+            <div class="settings-group">
+                <h3>🎬 YouTube Background</h3>
+                <div class="input-group">
+                    <input type="text" id="youtube-input" placeholder="Paste YouTube URL...">
+                    <button id="setYoutubeBtn">Set</button>
+                </div>
+            </div>
+            <h3>Or Select a Theme</h3>
+            <div id="storeItems">
+                 <div class="store-item" data-type="image" data-path="https://images.unsplash.com/photo-1542831371-d648083a23de?q=80&w=2070&auto=format&fit=crop">
+                    <span>🌆 Cosmic Code</span><button>Apply</button>
+                </div>
+                <div class="store-item" data-type="youtube" data-id="4wJRkS-M-3s">
+                    <span>🎵 Lofi Study Cafe</span><button>Apply</button>
+                </div>
+                <div class="store-item" data-type="youtube" data-id="NJuSStkIZBg">
+                    <span>🌧️ Cozy Rainy Night</span><button>Apply</button>
+                </div>
+                <div class="store-item" data-type="youtube" data-id="Dx5qFachdxc">
+                    <span>🚀 Space Journey</span><button>Apply</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="settingsContainer" class="tab-content">
+            <h3>⏱️ Timer Durations (minutes)</h3>
+            <div class="settings-grid">
+                <label for="work-duration">Work:</label>
+                <input type="number" id="work-duration" min="1">
+                <label for="short-break-duration">Short Break:</label>
+                <input type="number" id="short-break-duration" min="1">
+                <label for="long-break-duration">Long Break:</label>
+                <input type="number" id="long-break-duration" min="1">
+            </div>
+            <button id="saveSettingsBtn">Save Settings</button>
+        </div>
+        
+        <div id="profileContainer" class="tab-content">
+            <h3>⚠️ Danger Zone</h3>
+            <div class="danger-zone">
+                <p>Export all your data or clear everything permanently.</p>
+                <button id="exportDataBtn" onclick="exportData()">Export Data</button>
+                <button id="clearDataBtn" class="btn-danger" onclick="clearAllData()">Clear All Data</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<aside id="cornerWidget">
+    <div class="progress-label"><span>Day</span><span id="dayProgressPercent"></span></div>
+    <div class="progress-bar-container"><div id="dayProgressBar" class="progress-bar"></div></div>
+    <div class="progress-label"><span>Month</span><span id="monthProgressPercent"></span></div>
+    <div class="progress-bar-container"><div id="monthProgressBar" class="progress-bar"></div></div>
+    <div class="progress-label"><span>Year</span><span id="yearProgressPercent"></span></div>
+    <div class="progress-bar-container"><div id="yearProgressBar" class="progress-bar"></div></div>
+</aside>
+
+<div id="ambient-container"></div>
+<div id="video-background-container"></div>
+
+<div id="focusModeUI">
+    <div id="focusModeTimer"></div>
+    <div id="focusModeProgressBarContainer"><div id="focusModeProgressBar"></div></div>
+    <div id="focusModeControls">
+        <button id="focusModePlayPauseBtn" aria-label="Play/Pause"><span class="icon"></span></button>
+        <button id="focusModeExitBtn" aria-label="Exit Focus Mode"><span class="icon"></span></button>
+    </div>
+</div>
+
+<audio id="whiteNoise" loop><source src="whitenoise.mp3" type="audio/mpeg"></audio>
+<audio id="pauseAlertSound"><source src="https://actions.google.com/sounds/v1/ui/close_button_pressed.ogg" type="audio/ogg"></audio>
+<audio id="resumeAlertSound"><source src="https://actions.google.com/sounds/v1/ui/button_press.ogg" type="audio/ogg"></audio>
+<audio class="start-sound" src="start-sound1.mp3"></audio><audio class="start-sound" src="start-sound2.mp3"></audio>
+<audio class="good-meme" src="good-meme1.mp3"></audio><audio class="good-meme" src="good-meme2.mp3"></audio>
+<audio class="bad-meme" src="bad-meme1.mp3"></audio><audio class="bad-meme" src="bad-meme2.mp3"></audio>
+
+<script src="script.js" defer></script>
 </body>
 </html>
