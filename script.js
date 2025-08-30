@@ -77,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function playRandomSound(sounds) {
-        if (sounds.length > 0) {
+        if (sounds && sounds.length > 0) {
             const sound = sounds[Math.floor(Math.random() * sounds.length)];
             sound.currentTime = 0;
             sound.play().catch(e => console.error("Audio play failed:", e));
@@ -131,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const timeFocusedSec = workDuration - timeLeft;
         const minutesFocused = Math.floor(timeFocusedSec / 60);
 
-        if (timeFocusedSec > 0) handleEndOfWorkSession(minutesFocused, false);
+        handleEndOfWorkSession(minutesFocused, false);
         resetTimer();
     }
 
@@ -153,30 +153,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleEndOfWorkSession(minutesFocused, sessionCompleted) {
-        if (minutesFocused <= 0 && !sessionCompleted) return;
-
-        let totalFocusMinutes = parseInt(localStorage.getItem("totalFocusMinutes")) || 0;
-        let totalSessions = parseInt(localStorage.getItem("totalSessions")) || 0;
-        
-        totalFocusMinutes += minutesFocused;
-        totalSessions++;
-        localStorage.setItem("totalFocusMinutes", totalFocusMinutes.toString());
-        localStorage.setItem("totalSessions", totalSessions.toString());
-        
-        const today = new Date().toISOString().slice(0, 10);
-        let weeklyData = JSON.parse(localStorage.getItem("weeklyFocus") || "{}");
-        weeklyData[today] = (weeklyData[today] || 0) + minutesFocused;
-        localStorage.setItem("weeklyFocus", JSON.stringify(weeklyData));
-
-        if (minutesFocused >= 20) {
-            playRandomSound(DOMElements.sounds.goodMeme);
-        } else {
-            playRandomSound(DOMElements.sounds.badMeme);
+        // Only log stats if more than 0 minutes were focused
+        if (minutesFocused > 0) {
+            let totalFocusMinutes = parseInt(localStorage.getItem("totalFocusMinutes")) || 0;
+            let totalSessions = parseInt(localStorage.getItem("totalSessions")) || 0;
+            
+            totalFocusMinutes += minutesFocused;
+            totalSessions++;
+            localStorage.setItem("totalFocusMinutes", totalFocusMinutes.toString());
+            localStorage.setItem("totalSessions", totalSessions.toString());
+            
+            const today = new Date().toISOString().slice(0, 10);
+            let weeklyData = JSON.parse(localStorage.getItem("weeklyFocus") || "{}");
+            weeklyData[today] = (weeklyData[today] || 0) + minutesFocused;
+            localStorage.setItem("weeklyFocus", JSON.stringify(weeklyData));
         }
-
-        // Streak logic only triggers on completed sessions
-        if (sessionCompleted && minutesFocused >= 25) {
+        
+        // Streak logic only triggers on completed sessions that meet the criteria
+        if (sessionCompleted && workDuration / 60 >= 25) {
             updateStreak();
+        }
+        
+        // Sound logic runs for any session that has started
+        if (workDuration - timeLeft > 5) { // Check if at least 5 seconds have passed
+            if (minutesFocused >= 20) {
+                playRandomSound(DOMElements.sounds.goodMeme);
+            } else {
+                playRandomSound(DOMElements.sounds.badMeme);
+            }
         }
     }
 
@@ -202,11 +206,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateStreak() {
         const today = getFormattedDate(new Date());
-        const yesterday = getFormattedDate(new Date(Date.now() - 86400000));
         const lastStreakDate = localStorage.getItem('lastStreakDate');
         let streakCount = parseInt(localStorage.getItem('streakCount')) || 0;
 
         if (lastStreakDate !== today) { // Only update streak once per day
+            const yesterday = getFormattedDate(new Date(Date.now() - 86400000));
             if (lastStreakDate === yesterday) {
                 streakCount++; // Continue streak
             } else {
@@ -331,6 +335,35 @@ document.addEventListener('DOMContentLoaded', () => {
     function applyStoreItem(element) { const item = element.closest('.store-item'); if (item.dataset.type === 'image') applyBackgroundTheme(item.dataset.path); else if (item.dataset.type === 'youtube') { document.getElementById('youtube-input').value = `https://www.youtube.com/watch?v=${item.dataset.id}`; setYoutubeBackground(); } closeStats(); }
 
     // ===================================================================================
+    // SETTINGS
+    // ===================================================================================
+    function loadSettings() {
+        workDuration = parseInt(localStorage.getItem("workDuration"), 10) || 25 * 60;
+        shortBreakDuration = parseInt(localStorage.getItem("shortBreakDuration"), 10) || 5 * 60;
+        longBreakDuration = parseInt(localStorage.getItem("longBreakDuration"), 10) || 15 * 60;
+        if (!isRunning) { timeLeft = workDuration; }
+        document.getElementById('work-duration').value = workDuration / 60;
+        document.getElementById('short-break-duration').value = shortBreakDuration / 60;
+        document.getElementById('long-break-duration').value = longBreakDuration / 60;
+    }
+
+    function saveSettings() {
+        const newWork = parseInt(document.getElementById('work-duration').value, 10) * 60;
+        const newShort = parseInt(document.getElementById('short-break-duration').value, 10) * 60;
+        const newLong = parseInt(document.getElementById('long-break-duration').value, 10) * 60;
+        if (newWork && newShort && newLong) {
+            localStorage.setItem("workDuration", newWork);
+            localStorage.setItem("shortBreakDuration", newShort);
+            localStorage.setItem("longBreakDuration", newLong);
+            loadSettings();
+            if (!isRunning) resetTimer();
+            alert("Settings saved!");
+        } else {
+            alert("Please enter valid numbers for all durations.");
+        }
+    }
+
+    // ===================================================================================
     // INITIALIZATION & EVENT LISTENERS
     // ===================================================================================
     function init() {
@@ -394,4 +427,3 @@ document.addEventListener('DOMContentLoaded', () => {
 
     init();
 });
-
