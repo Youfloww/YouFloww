@@ -59,19 +59,62 @@ h3 { margin-bottom: 1rem; color: var(--primary-color); }
 .header-btn, #changeNameBtn { background: var(--card-dark); color: var(--text-color); border: 1px solid var(--border-color); }
 .header-btn:hover, #changeNameBtn:hover { background: #2a2a2a; }
 
-/* --- Timer --- */
-#timer { font-size: 7rem; font-weight: bold; margin: 1rem 0; color: var(--primary-color); text-shadow: 0 0 20px rgba(247, 160, 71, 0.5); }
+/* --- Timer Section --- */
+#timer { 
+    font-size: 7rem; 
+    font-weight: 900; 
+    margin: 1rem 0; 
+    text-shadow: 0 0 20px rgba(247, 160, 71, 0.5); 
+    position: relative;
+    overflow: hidden;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    background-image: linear-gradient(90deg, var(--primary-color), var(--hover-color));
+}
+
+#timer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -150px;
+    width: 100px;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    transform: skewX(-30deg);
+    animation: scan-glow 5s linear infinite;
+}
+
+@keyframes scan-glow {
+    0% { left: -150px; }
+    100% { left: 120%; }
+}
+
 #status { font-size: 1.5rem; margin-bottom: 1rem; color: var(--text-muted); font-weight: 500; }
 .timer-controls { display: flex; justify-content: center; align-items: center; gap: 1.5rem; margin-top: 1rem; }
 
-#playPauseBtn { width: 80px; height: 80px; border-radius: 50%; background: var(--primary-color); color: var(--background-dark); display: flex; justify-content: center; align-items: center; box-shadow: 0 5px 15px rgba(247, 160, 71, 0.3); transition: transform 0.2s ease, box-shadow 0.2s ease; }
+#playPauseBtn { width: 80px; height: 80px; border-radius: 50%; background: var(--primary-color); color: var(--background-dark); display: flex; justify-content: center; align-items: center; box-shadow: 0 5px 15px rgba(247, 160, 71, 0.3); transition: transform 0.2s ease, box-shadow 0.2s ease; border: none; cursor: pointer; }
 #playPauseBtn:hover { transform: scale(1.05); box-shadow: 0 8px 20px rgba(247, 160, 71, 0.4); }
 #playPauseBtn svg { width: 40px; height: 40px; }
-.btn-icon { width: 50px; height: 50px; border-radius: 50%; background: var(--card-dark); color: var(--text-color); display: flex; justify-content: center; align-items: center; border: 1px solid var(--border-color); }
-.btn-icon:hover { background: #2a2a2a; }
-.btn-icon svg { width: 24px; height: 24px; }
 
-/* --- Features Section --- */
+.btn-icon { 
+    width: 60px; /* Increased size */
+    height: 60px; /* Increased size */
+    border-radius: 50%; 
+    background: var(--card-dark); 
+    color: var(--text-color); 
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
+    border: 1px solid var(--border-color); 
+    cursor: pointer; 
+    transition: background-color 0.2s; 
+}
+.btn-icon:hover { background: #2a2a2a; }
+.btn-icon:disabled { background: var(--disabled-color); cursor: not-allowed; }
+.btn-icon svg { width: 28px; height: 28px; } /* Slightly larger icon */
+
+/* --- Features Section (To-Do and Controls) --- */
 #features-section { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: flex-start; margin-top: 3rem; text-align: left; }
 .controls-container { background: transparent; padding: 1.5rem; border-radius: var(--border-radius); border: 1px solid var(--border-color); }
 .controls-container h2 { text-align: center; }
@@ -87,15 +130,15 @@ h3 { margin-bottom: 1rem; color: var(--primary-color); }
 .todo-item { display: flex; align-items: center; padding: 12px 5px; border-bottom: 1px solid var(--border-color); gap: 15px; transition: opacity 0.3s, transform 0.3s; }
 .todo-item label { position: relative; padding-left: 35px; cursor: pointer; user-select: none; transition: color 0.3s; }
 .todo-item label::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; border: 2px solid #555; background: transparent; border-radius: 50%; transition: all 0.2s; }
+.todo-item input[type="checkbox"] { display: none; }
 .todo-item input[type="checkbox"]:checked + label { text-decoration: line-through; color: var(--text-muted); }
-.todo-item input[type="checkbox"]:checked + label::before { background: var(--secondary-color); border-color: var(--secondary-color); }
-.todo-item .actions { margin-left: auto; }
+.todo-item input[type="checkbox"]:checked + label::before { background: var(--secondary-color); border-color: var(--secondary-color); transform: translateY(-50%) scale(1.1); }
 
-/* --- Buttons --- */
+/* --- General Button Styles --- */
 button { padding: 10px 20px; font-size: 1rem; cursor: pointer; border: none; border-radius: var(--border-radius); background-color: var(--primary-color); color: var(--background-dark); transition: all 0.2s ease; font-weight: bold; }
 button:hover { filter: brightness(1.1); transform: translateY(-2px); }
 button:active { transform: translateY(0) scale(0.98); }
-button:disabled { background-color: var(--disabled-color); color: var(--text-color); cursor: not-allowed; transform: none; box-shadow: none; }
+button:disabled { background-color: var(--disabled-color) !important; color: var(--text-color) !important; cursor: not-allowed; transform: none; box-shadow: none; filter: none; }
 #add-todo-btn, #saveSettingsBtn { background: var(--secondary-color); }
 .clear-todos-btn, .btn-danger { background: var(--danger-color); color: white; }
 .clear-todos-btn:hover, .btn-danger:hover { background: var(--danger-hover-color); }
@@ -113,14 +156,14 @@ button:disabled { background-color: var(--disabled-color); color: var(--text-col
 .stats-summary { text-align: center; font-size: 1.1rem; margin-bottom: 1.5rem; color: var(--text-muted); }
 .stats-summary strong { color: var(--primary-color); }
 
-/* --- Tabs --- */
+/* --- Tabs in Modal --- */
 .tabs { display: flex; justify-content: center; margin-bottom: 2rem; border-bottom: 2px solid var(--border-color); }
 .tab { padding: 12px 24px; cursor: pointer; color: var(--text-muted); transition: all 0.3s; border-bottom: 3px solid transparent; }
 .tab.active { color: var(--primary-color); border-bottom-color: var(--primary-color); font-weight: bold; }
 .tab-content { display: none; animation: tabFadeIn 0.5s ease-in-out; }
 @keyframes tabFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .tab-content.active { display: block; }
-
+        
 /* --- Corner Widget --- */
 #cornerWidget { position: fixed; bottom: 20px; right: 20px; background: var(--card-dark); padding: 15px; border-radius: 15px; width: 220px; box-shadow: var(--box-shadow); z-index: 500; border: 1px solid var(--border-color); color: var(--text-color); }
 .progress-label { display: flex; justify-content: space-between; margin: 8px 0 4px 0; font-size: 0.9em; }
@@ -136,14 +179,14 @@ button:disabled { background-color: var(--disabled-color); color: var(--text-col
 .store-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; margin-bottom: 10px; background: #2a2a2a; border-radius: 10px; border: 1px solid #444; }
 .store-item button { background: var(--secondary-color); }
 
-/* --- Ambient & Backgrounds --- */
+/* --- Ambient Effects & Background Video --- */
 #ambient-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: -1; }
-.ambient-effect { position: absolute; }
+.ambient-effect { position: absolute; animation-timing-function: linear; animation-iteration-count: 1; }
 .snowflake { width: 10px; height: 10px; background-color: white; border-radius: 50%; opacity: 0.8; }
 .raindrop { width: 2px; height: 15px; background-color: #a6c0e8; }
 .sakura { width: 15px; height: 15px; background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50"><path fill="%23FFC0CB" d="M25 38.2c-1-5.1-4.7-9.3-9.5-12.2 4.9-2.9 8.6-7.1 9.5-12.2 1 5.1 4.7 9.3 9.5 12.2-4.9 2.9-8.6 7.1-9.5 12.2z"/></svg>') no-repeat; }
-@keyframes fall { to { transform: translateY(110vh); } }
-@keyframes spinFall { to { transform: translateY(110vh) rotate(720deg); } }
+@keyframes fall { from { transform: translateY(-10vh); } to { transform: translateY(110vh); } }
+@keyframes spinFall { from { transform: translateY(-10vh) rotate(0deg); } to { transform: translateY(110vh) rotate(720deg); } }
 
 #video-background-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -2; pointer-events: none; overflow: hidden; }
 #video-background-container iframe { width: 100vw; height: 56.25vw; min-height: 100vh; min-width: 177.77vh; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; }
@@ -152,7 +195,7 @@ button:disabled { background-color: var(--disabled-color); color: var(--text-col
 body.focus-mode main, body.focus-mode header, body.focus-mode #cornerWidget { display: none !important; }
 #focusModeUI { display: none; flex-direction: column; justify-content: center; align-items: center; position: fixed; inset: 0; background: transparent; z-index: 1001; }
 body.focus-mode #focusModeUI { display: flex; }
-#focusModeTimer { font-size: 12rem; font-weight: bold; color: #fff; text-shadow: 0 0 30px rgba(0,0,0,0.7); }
+#focusModeTimer { font-size: 12rem; font-weight: 900; color: #fff; text-shadow: 0 0 30px rgba(0,0,0,0.7); }
 #focusModeProgressBarContainer { width: 350px; height: 8px; background: rgba(255, 255, 255, 0.3); border-radius: 4px; margin-top: 20px; }
 #focusModeProgressBar { height: 100%; width: 0%; background: white; transition: width 0.5s ease; }
 #focusModeControls { position: absolute; bottom: 50px; display: flex; gap: 20px; z-index: 10; }
@@ -165,7 +208,6 @@ body.focus-mode #focusModeUI { display: flex; }
 @media (max-width: 768px) {
     body { padding: 10px; }
     main { padding: 1.5rem; margin-top: 1rem; }
-    h1 { font-size: 2rem; }
     #timer { font-size: 4.5rem; }
     #focusModeTimer { font-size: 8rem; }
     #cornerWidget { display: none; }
