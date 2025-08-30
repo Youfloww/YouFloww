@@ -18,7 +18,13 @@
         <span id="profileNameDisplay">Floww User</span>
         <button id="changeNameBtn" class="btn-icon" aria-label="Change Name">✏️</button>
     </div>
-    <button id="statsBtn" class="header-btn">View Stats 📈</button>
+    <div class="header-controls">
+        <div id="streak-counter">
+            <span id="streak-emoji">🔥</span>
+            <span id="streak-count">0</span>
+        </div>
+        <button id="statsBtn" class="header-btn">View Stats 📈</button>
+    </div>
 </header>
 
 <main>
@@ -123,8 +129,12 @@
         </div>
         
         <div id="profileContainer" class="tab-content">
-            <h3>⚠️ Danger Zone</h3>
+            <div class="info-zone">
+                <h3>🔥 Streak Info</h3>
+                <p>Complete at least one full work session of 25 minutes or more each day to build your streak. Keep the fire going!</p>
+            </div>
             <div class="danger-zone">
+                <h3>⚠️ Danger Zone</h3>
                 <p>Export all your data or clear everything permanently.</p>
                 <button id="exportDataBtn">Export Data</button>
                 <button id="clearDataBtn" class="btn-danger">Clear All Data</button>
@@ -154,13 +164,34 @@
     </div>
 </div>
 
+<div id="completionModal" class="modal">
+    <div class="completion-content">
+        <div class="completion-icon">🎉</div>
+        <h2 id="completion-title">Session Complete!</h2>
+        <p id="completion-message">Great work! Keep the momentum going.</p>
+        <button id="closeCompletionModalBtn">Awesome!</button>
+    </div>
+</div>
+
 <!-- Audio Elements (You must provide the mp3 files in the same folder) -->
 <audio id="whiteNoise" loop><source src="whitenoise.mp3" type="audio/mpeg"></audio>
 <audio id="pauseAlertSound"><source src="https://actions.google.com/sounds/v1/ui/close_button_pressed.ogg" type="audio/ogg"></audio>
 <audio id="resumeAlertSound"><source src="https://actions.google.com/sounds/v1/ui/button_press.ogg" type="audio/ogg"></audio>
+
 <audio class="start-sound" src="start-sound1.mp3"></audio>
+<audio class="start-sound" src="start-sound2.mp3"></audio>
+<audio class="start-sound" src="start-sound3.mp3"></audio>
+<audio class="start-sound" src="start-sound4.mp3"></audio>
+
 <audio class="good-meme" src="good-meme1.mp3"></audio>
+<audio class="good-meme" src="good-meme2.mp3"></audio>
+<audio class="good-meme" src="good-meme3.mp3"></audio>
+<audio class="good-meme" src="good-meme4.mp3"></audio>
+
 <audio class="bad-meme" src="bad-meme1.mp3"></audio>
+<audio class="bad-meme" src="bad-meme2.mp3"></audio>
+<audio class="bad-meme" src="bad-meme3.mp3"></audio>
+<audio class="bad-meme" src="bad-meme4.mp3"></audio>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 <script src="script.js" defer></script>
