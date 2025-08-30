@@ -93,6 +93,7 @@
                 <div class="control-group">
                     <button id="focusModeBtn">Enter Focus Mode</button>
                     <button id="noiseBtn">🎧 Play Noise</button>
+                    <button id="pipYoutubeBtn">🎬 Video Player</button>
                 </div>
                 <div class="control-group">
                      <button id="snowBtn" class="ambience-toggle-btn">❄️ Snow</button>
@@ -205,6 +206,22 @@
     </div>
 </div>
 
+<!-- New Floating Video Player Structure -->
+<div id="pip-player-container" class="hidden">
+    <div id="pip-player-header">
+        <span class="pip-title">YouTube Player</span>
+        <button id="pip-close-btn">&times;</button>
+    </div>
+    <div id="pip-player-content">
+        <!-- YouTube iframe will be injected here -->
+    </div>
+    <div class="pip-input-container">
+        <input type="text" id="pip-youtube-input" placeholder="Paste new YouTube URL here...">
+        <button id="pip-set-btn">Set</button>
+    </div>
+    <div id="pip-resize-handle"></div>
+</div>
+
 <!-- Audio Elements -->
 <audio id="whiteNoise" loop><source src="whitenoise.mp3" type="audio/mpeg"></audio>
 <audio id="pauseAlertSound"><source src="https://actions.google.com/sounds/v1/ui/close_button_pressed.ogg" type="audio/ogg"></audio>
@@ -228,6 +245,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js" type="module"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js" type="module"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-analytics.js" type="module"></script>
+
 <!-- Libraries and Main Script -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 <script src="script.js" type="module"></script>
