@@ -63,6 +63,15 @@ h3 { margin-bottom: 1rem; color: var(--primary-color); }
 .header-btn, #changeNameBtn { background: var(--card-dark); color: var(--text-color); border: 1px solid var(--border-color); }
 .header-btn:hover, #changeNameBtn:hover { background: #2a2a2a; }
 
+/* Added styles for the feedback link to make it look like a button */
+#feedback-link {
+    text-decoration: none;
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-size: 1rem;
+    font-weight: bold;
+}
+
 /* --- Timer Section --- */
 #timer { 
     font-size: 7rem; 
