@@ -37,6 +37,140 @@ document.addEventListener('DOMContentLoaded', () => {
     let workDuration, shortBreakDuration, longBreakDuration;
     
     // AMBIENCE STATE
+    // ...all your imports and firebase config as before...
+
+// ADD THIS just after ambience state in GLOBAL STATE & VARIABLES
+let presenceDetectionActive = false;
+let presenceDetectionRunning = false;
+let lastPresenceSeen = Date.now();
+let presencePauseBySystem = false;
+let presenceInterval = null;
+let stream = null;
+let faceApiLoaded = false;
+
+const presenceToggle = document.getElementById('presenceDetectToggle');
+const presenceIndicator = document.getElementById('presence-indicator');
+const presenceVideo = document.getElementById('presence-video');
+const presencePrivacyHint = document.getElementById('presence-privacy-hint');
+
+async function loadFaceApiModels() {
+    if (!faceApiLoaded) {
+        await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js/weights');
+        faceApiLoaded = true;
+    }
+}
+
+async function startPresenceDetection() {
+    if (presenceDetectionRunning || !presenceDetectionActive) return;
+    try {
+        await loadFaceApiModels();
+        stream = await navigator.mediaDevices.getUserMedia({ video: {facingMode: "user", width: 160, height: 120} });
+        presenceVideo.srcObject = stream;
+        presenceDetectionRunning = true;
+        presenceIndicator.classList.remove('inactive');
+        presenceIndicator.title = "Camera-based focus detection ON";
+        presencePrivacyHint.style.display = "block";
+        runPresenceLoop();
+    } catch (err) {
+        presenceDetectionActive = false;
+        presenceToggle.checked = false;
+        alert("Could not access camera for presence detection.");
+    }
+}
+
+function stopPresenceDetection() {
+    presenceDetectionRunning = false;
+    if (stream && stream.getTracks) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+    }
+    presenceVideo.srcObject = null;
+    if (presenceInterval) clearInterval(presenceInterval);
+    presenceIndicator.classList.add('inactive');
+    presenceIndicator.classList.remove('active', 'paused');
+    presenceIndicator.title = "Camera presence detection is OFF";
+    presencePrivacyHint.style.display = "none";
+}
+
+function runPresenceLoop() {
+    lastPresenceSeen = Date.now();
+    presencePauseBySystem = false;
+    presenceIndicator.classList.remove('paused');
+    presenceIndicator.classList.add('active');
+    presenceInterval = setInterval(async () => {
+        if (!presenceDetectionActive || !presenceDetectionRunning) return;
+        const result = await faceapi.detectSingleFace(presenceVideo, new faceapi.TinyFaceDetectorOptions());
+        const now = Date.now();
+        if (result) {
+            lastPresenceSeen = now;
+            presenceIndicator.classList.add('active');
+            presenceIndicator.classList.remove('paused');
+            if (presencePauseBySystem && !isRunning && isWorkSession && timeLeft > 0) {
+                startTimer();
+                presencePauseBySystem = false;
+            }
+        } else {
+            if (now - lastPresenceSeen > 15000 && isRunning) {
+                pauseTimer();
+                presencePauseBySystem = true;
+                presenceIndicator.classList.remove('active');
+                presenceIndicator.classList.add('paused');
+            }
+            if (now - lastPresenceSeen > 15000) {
+                presenceIndicator.classList.remove('active');
+                presenceIndicator.classList.add('paused');
+            }
+        }
+    }, 1200);
+}
+
+// Presence toggle events
+presenceToggle.addEventListener('change', function() {
+    presenceDetectionActive = presenceToggle.checked;
+    if (presenceDetectionActive && isWorkSession && !presenceDetectionRunning) {
+        startPresenceDetection();
+    } else if (!presenceDetectionActive) {
+        stopPresenceDetection();
+    }
+});
+
+// Show privacy hint on hover/focus
+presenceToggle.addEventListener('focus', () => presencePrivacyHint.style.display = "block");
+presenceToggle.addEventListener('blur', () => { if(!presenceDetectionActive) presencePrivacyHint.style.display = "none"; });
+presenceToggle.addEventListener('mouseenter', () => presencePrivacyHint.style.display = "block");
+presenceToggle.addEventListener('mouseleave', () => { if(!presenceDetectionActive) presencePrivacyHint.style.display = "none"; });
+
+// Patch timer functions to handle camera presence
+const _startTimerOrig = startTimer;
+startTimer = function() {
+    if (presenceDetectionActive && !presenceDetectionRunning && isWorkSession && timeLeft > 0) {
+        startPresenceDetection();
+    }
+    _startTimerOrig.apply(this, arguments);
+};
+const _pauseTimerOrig = pauseTimer;
+pauseTimer = function() {
+    _pauseTimerOrig.apply(this, arguments);
+    if (!isRunning && presenceDetectionRunning) {
+        if (!presencePauseBySystem) stopPresenceDetection();
+    }
+};
+const _resetTimerOrig = resetTimer;
+resetTimer = function() {
+    _resetTimerOrig.apply(this, arguments);
+    if (presenceDetectionRunning) stopPresenceDetection();
+};
+const _endSessionOrig = endSession;
+endSession = function() {
+    _endSessionOrig.apply(this, arguments);
+    if (presenceDetectionRunning) stopPresenceDetection();
+};
+window.addEventListener('beforeunload', () => {
+    if (presenceDetectionRunning) stopPresenceDetection();
+});
+
+// ...rest of your original script.js remains unchanged...
+    
     let animationFrameId = null;
     let isSnowActive = false, isRainActive = false, isSakuraActive = false;
     let lastSnowSpawn = 0, lastRainSpawn = 0, lastSakuraSpawn = 0;
