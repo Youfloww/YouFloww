@@ -13,6 +13,41 @@
     --border-radius: 12px;
     --box-shadow: 0 4px 20px rgba(0,0,0,0.4);
 }
+/* ...keep all your CSS, but add this near the top or after :root... */
+
+/* Camera presence indicator in header */
+#presence-indicator {
+    margin-left: 12px;
+    display: inline-flex;
+    align-items: center;
+    font-size: 1.2rem;
+    vertical-align: middle;
+}
+#presence-indicator .cam-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    margin-right: 5px;
+    background: #999;
+    box-shadow: 0 0 4px #0003;
+    transition: background 0.3s;
+}
+#presence-indicator.active .cam-dot { background: #53e253; }
+#presence-indicator.paused .cam-dot { background: #e25353; }
+#presence-indicator.inactive .cam-dot { background: #999; }
+#presence-indicator.inactive { opacity: 0.3; }
+#presence-indicator svg {
+    width: 18px; height: 18px;
+    vertical-align: middle;
+}
+#presence-video {
+    position: fixed;
+    right: 12px;
+    top: 55px;
+    width: 1px; height: 1px;
+    opacity: 0; pointer-events: none; z-index: -1;
+}
+
+/* ...rest of your CSS unchanged... */
 
 *, *::before, *::after { box-sizing: border-box; }
 
