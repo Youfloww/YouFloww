@@ -17,6 +17,8 @@
       gtag('js', new Date());
       gtag('config', 'G-V3CLSWYVTF');
     </script>
+    <!-- Face-API for camera presence detection -->
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
 </head>
 <body>
 
@@ -32,7 +34,6 @@
                 <button type="submit">Sign Up</button>
                 <p class="auth-switch">Already have an account? <a href="#" id="show-login">Log In</a></p>
             </form>
-
             <!-- Login Form -->
             <form id="login-form" class="auth-form hidden">
                 <h2>Welcome Back!</h2>
@@ -53,10 +54,12 @@
             <span>Welcome, </span>
             <span id="profileNameDisplay">Floww User</span>
             <button id="changeNameBtn" class="btn-icon" aria-label="Change Name">✏️</button>
+            <!-- Camera Presence Indicator -->
             <span id="presence-indicator" class="inactive" title="Camera Presence Detection">
                 <span class="cam-dot"></span>
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 7h14a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V9a2 2 0 012-2zm0 2v6h14V9H4zm16.293 3.707a1 1 0 000-1.414l-2-2A1 1 0 0017 8.586v6.828a1 1 0 00.707-.293l2-2z"/></svg>
             </span>
+            <video id="presence-video" autoplay muted playsinline></video>
         </div>
         <div class="header-controls">
             <a href="https://docs.google.com/forms/d/e/1FAIpQLScLU0kaf55JTMKH2XaavMzygMUJQZGeZAqgKxrAC8PXrYtuQA/viewform?usp=header" target="_blank" id="feedback-link" class="header-btn">
@@ -122,7 +125,6 @@
         <span class="close-btn">&times;</span>
         <h2>Your Progress 📈</h2>
 
-       <!-- This is the new code with the right margin -->
 <a href="https://www.buymeacoffee.com/YouFloww" target="_blank" style="margin-left: auto; margin-right: 20px;">
     <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 30px !important;width: 108px !important;" >
 </a>
@@ -266,9 +268,6 @@
 <audio class="bad-meme" src="bad-meme3.mp3"></audio>
 <audio class="bad-meme" src="bad-meme4.mp3"></audio>
 
-<!-- Hidden video element for presence detection -->
-<video id="presence-video" autoplay muted playsinline></video>
-
 <!-- FIREBASE SDKs -->
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js" type="module"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js" type="module"></script>
@@ -278,9 +277,6 @@
 <!-- Libraries and Main Script -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 <script src="script.js" type="module"></script>
-<!-- Face-api.js for camera presence detection -->
-<script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
-    <!-- Buy Me A Coffee Button - Fixed to Bottom Left -->
 <a href="https://www.buymeacoffee.com/YouFloww" target="_blank" style="position: fixed; bottom: 20px; left: 20px; z-index: 1000;">
     <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 30px !important;width: 108px !important;" >
 </a>
