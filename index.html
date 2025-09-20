@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouFloww: The Ultimate Pomodoro Timer for Deep Focus</title>
+    <meta name="description" content="Boost your productivity with YouFloww, the advanced Pomodoro timer with unique features to help you achieve a state of flow and eliminate distractions.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-V3CLSWYVTF"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-V3CLSWYVTF');
+    </script>
+</head>
+<body>
+<!-- YouTube Video Background - always at back -->
+<div id="video-background-container"></div>
+<video id="video" width="720" height="560" autoplay muted playsinline class="hidden"></video>
+<canvas id="pose-canvas" class="hidden"></canvas>
+<div id="face-detection-status" class="face-status-prompt hidden"></div>
+
+<!-- Firebase Auth Modal -->
+<div id="authModal" class="modal visible">
+    <div class="modal-content auth-container">
+        <div id="auth-form-container">
+            <!-- Sign Up Form -->
+            <form id="signup-form" class="auth-form">
+                <h2>Create Your YouFloww Account</h2>
+                <input type="email" id="signup-email" placeholder="Email Address" required>
+                <input type="password" id="signup-password" placeholder="Password (min. 6 characters)" required>
+                <select id="signup-location" class="auth-select" required>
+                    <option value="" disabled selected>Where are you from?</option>
+                    <option value="indian">India</option>
+                    <option value="non-indian">Outside India</option>
+                </select>
+                <button type="submit">Sign Up</button>
+                <p class="auth-switch">Already have an account? <a href="#" id="show-login">Log In</a></p>
+            </form>
+            <!-- Login Form -->
+            <form id="login-form" class="auth-form hidden">
+                <h2>Welcome Back!</h2>
+                <input type="email" id="login-email" placeholder="Email Address" required>
+                <input type="password" id="login-password" placeholder="Password" required>
+                <button type="submit">Log In</button>
+                <p class="auth-switch">Don't have an account? <a href="#" id="show-signup">Sign Up</a></p>
+            </form>
+            <!-- Guest Mode Button and Warning -->
+            <button id="continueWithoutSignupBtn" class="auth-btn-guest" type="button">
+                Continue without signing up
+            </button>
+            <p id="guestWarning" class="auth-warning hidden">
+                <strong>Warning:</strong> Your stats and tasks will NOT be saved after you close this tab.
+            </p>
+            <p id="auth-error" class="error-message"></p>
+        </div>
+    </div>
+</div>
+
+<!-- Main App Content (Initially Hidden) -->
+<div id="app-container" class="hidden">
+    <header class="top-bar">
+        <div class="profile-greeting">
+            <span>Welcome, </span>
+            <span id="profileNameDisplay">Floww User</span>
+            <button id="changeNameBtn" class="btn-icon" aria-label="Change Name">✏️</button>
+        </div>
+        <div class="header-controls">
+            <a href="https://docs.google.com/forms/d/e/1FAIpQLScLU0kaf55JTMKH2XaavMzygMUJQZGeZAqgKxrAC8PXrYtuQA/viewform?usp=header" target="_blank" id="feedback-link" class="header-btn">
+                Feedback 📝
+            </a>
+            <div id="streak-counter">
+                <span id="streak-emoji">🔥</span>
+                <span id="streak-count">0</span>
+            </div>
+            <button id="statsBtn" class="header-btn">Customize</button>
+            <button id="logoutBtn" class="header-btn btn-danger">Logout</button>
+        </div>
+    </header>
+    <main>
+        <section id="timer-section">
+            <div id="status">Work Session</div>
+            <div id="timer">25:00</div>
+            <div class="timer-controls">
+                <button id="resetBtn" class="btn-icon" aria-label="Reset Timer" disabled>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 6v3l4-4-4-4v3c-4.42 0-8 3.58-8 8 0 1.57.46 3.03 1.24 4.26L6.7 14.8c-.45-.83-.7-1.79-.7-2.8 0-3.31 2.69-6 6-6zm6.76 1.74L17.3 9.2c.44.84.7 1.79.7 2.8 0 3.31-2.69 6-6 6v-3l-4 4 4 4v-3c4.42 0 8-3.58 8-8 0-1.57-.46-3.03-1.24-4.26z"/></svg>
+                </button>
+                <button id="playPauseBtn" aria-label="Start Timer">
+                    <svg id="playIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    <svg id="pauseIcon" class="hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                </button>
+                <button id="endSessionBtn" class="btn-icon" aria-label="End Session" disabled>
+                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
+                </button>
+            </div>
+        </section>
+        <section id="features-section">
+            <div id="todo-container">
+                <div class="todo-animated-bg"></div>
+                <h2 class="todo-title">🎯 To-Do List</h2>
+                <div id="todo-input-container">
+                    <input type="text" id="todo-input" placeholder="Add a new task..." autocomplete="off" />
+                    <button id="add-todo-btn" aria-label="Add Task"><i class="fas fa-plus"></i></button>
+                </div>
+                <ul id="todo-list" class="sortable-list"></ul>
+                <button class="clear-todos-btn">Clear All Tasks</button>
+                <audio id="completeSound"><source src="complete.mp3" type="audio/mpeg"></audio>
+                <div id="confetti-canvas"></div>
+            </div>
+            <div class="controls-container">
+                <h2>✨ Ambience & Display</h2>
+                <div class="control-group">
+                    <button id="focusModeBtn">Enter Focus Mode</button>
+                    <button id="noiseBtn">🎧 Play Noise</button>
+                    <button id="pipYoutubeBtn">🎬 Video Player</button>
+                </div>
+                <div class="control-group">
+                     <button id="snowBtn" class="ambience-toggle-btn">❄️ Snow</button>
+                     <button id="rainBtn" class="ambience-toggle-btn">🌧️ Rain</button>
+                     <button id="sakuraBtn" class="ambience-toggle-btn">🌸 Sakura</button>
+                </div>
+            </div>
+        </section>
+        
+        <!-- New Journal Section -->
+        <section id="journal-section" class="hidden">
+            <div class="journal-header">
+                <h2><i class="fas fa-book-open"></i> Daily Journal</h2>
+                <div class="journal-date">
+                    <span id="journal-current-date"></span>
+                </div>
+            </div>
+            <div class="journal-layout">
+                <div class="journal-editor">
+                    <div class="journal-status">
+                        <span id="journal-char-count">0/1024</span> characters
+                        <span id="journal-save-status" class="journal-save-status"></span>
+                    </div>
+                    <textarea id="journal-entry" placeholder="Write about your day... (max 1024 characters)" maxlength="1024"></textarea>
+                    <div class="journal-controls">
+                        <button id="upload-image-btn" class="journal-btn">
+                            <i class="fas fa-image"></i> Add Image
+                        </button>
+                        <input type="file" id="journal-image-upload" accept="image/*" class="hidden">
+                        <button id="save-journal-btn" class="journal-btn primary">
+                            <i class="fas fa-save"></i> Save Entry
+                        </button>
+                    </div>
+                    <div id="journal-image-preview" class="journal-image-preview hidden"></div>
+                </div>
+                <div class="journal-history">
+                    <h3><i class="fas fa-history"></i> Previous Entries</h3>
+                    <div id="journal-entries-list" class="journal-entries-list"></div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- New Timetable Section -->
+        <section id="timetable-section" class="hidden">
+            <div class="timetable-header">
+                <h2><i class="fas fa-calendar-alt"></i> Personal Timetable</h2>
+                <div class="timetable-controls">
+                    <button id="add-timeslot-btn" class="timetable-btn primary">
+                        <i class="fas fa-plus"></i> Add Time Slot
+                    </button>
+                    <button id="clear-timetable-btn" class="timetable-btn danger">
+                        <i class="fas fa-trash"></i> Clear All
+                    </button>
+                </div>
+            </div>
+            
+            <div class="timetable-content">
+                <div class="days-selector">
+                    <div class="day-tab" data-day="monday">Monday</div>
+                    <div class="day-tab" data-day="tuesday">Tuesday</div>
+                    <div class="day-tab" data-day="wednesday">Wednesday</div>
+                    <div class="day-tab" data-day="thursday">Thursday</div>
+                    <div class="day-tab" data-day="friday">Friday</div>
+                    <div class="day-tab" data-day="saturday">Saturday</div>
+                    <div class="day-tab" data-day="sunday">Sunday</div>
+                </div>
+                
+                <div class="current-day-indicator">
+                    <i class="fas fa-calendar-check"></i>
+                    <span id="current-day-name">Today is Monday</span>
+                </div>
+                
+                <div class="timeslots-container">
+                    <div id="timeslots-list" class="timeslots-list">
+                        <!-- Time slots will be generated here -->
+                        <div class="no-slots-message">
+                            <i class="fas fa-calendar-plus"></i>
+                            <p>No time slots added for this day yet.</p>
+                            <button id="add-first-slot" class="timetable-btn primary">Add your first time slot</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Add Time Slot Modal -->
+            <div id="add-timeslot-modal" class="modal">
+                <div class="modal-content">
+                    <span class="close-modal">&times;</span>
+                    <h3>Add Time Slot</h3>
+                    <form id="timeslot-form">
+                        <div class="form-group">
+                            <label for="timeslot-day">Day</label>
+                            <select id="timeslot-day" required>
+                                <option value="monday">Monday</option>
+                                <option value="tuesday">Tuesday</option>
+                                <option value="wednesday">Wednesday</option>
+                                <option value="thursday">Thursday</option>
+                                <option value="friday">Friday</option>
+                                <option value="saturday">Saturday</option>
+                                <option value="sunday">Sunday</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="timeslot-start">Start Time</label>
+                            <input type="time" id="timeslot-start" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="timeslot-end">End Time</label>
+                            <input type="time" id="timeslot-end" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="timeslot-activity">Activity</label>
+                            <input type="text" id="timeslot-activity" placeholder="What are you planning to do?" required>
+                        </div>
+                        
+                        <button type="submit" class="timetable-btn primary">Add Time Slot</button>
+                    </form>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+<div id="statsModal" class="modal">
+    <div class="modal-content stats-modal">
+        <span class="close-btn">&times;</span>
+        <h2>Your Progress 📈</h2>
+        <a href="https://www.buymeacoffee.com/YouFloww" target="_blank" class="coffee-link">
+            <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee">
+        </a>
+        <div class="tabs">
+            <div class="tab active" data-tab="stats">📈 Stats</div>
+            <div class="tab" data-tab="store">🛒 Themes</div>
+            <div class="tab" data-tab="settings">⚙️ Settings</div>
+            <div class="tab" data-tab="profile">👤 Profile</div>
+            <div class="tab" data-tab="journal">📔 Journal</div>
+            <div class="tab" data-tab="timetable">📅 Timetable</div>
+        </div>
+        
+        <div id="statsContainer" class="tab-content active">
+            <div class="stats-grid">
+                <div class="stat-card focus-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <h3>Total Focus Time</h3>
+                    <p class="stat-value" id="totalFocusTime">0h 0m</p>
+                    <p class="stat-subtext">Lifetime achievement</p>
+                </div>
+                
+                <div class="stat-card sessions-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <h3>Total Sessions</h3>
+                    <p class="stat-value" id="totalSessionsCount">0</p>
+                    <p class="stat-subtext">Productivity moments</p>
+                </div>
+                
+                <div class="stat-card streak-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-fire"></i>
+                    </div>
+                    <h3>Current Streak</h3>
+                    <p class="stat-value" id="currentStreak">0 days</p>
+                    <p class="stat-subtext">Keep it going!</p>
+                </div>
+                
+                <div class="stat-card best-streak-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-trophy"></i>
+                    </div>
+                    <h3>Best Streak</h3>
+                    <p class="stat-value" id="bestStreak">0 days</p>
+                    <p class="stat-subtext">Your personal record</p>
+                </div>
+                
+                <div class="stat-card longest-session-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-star"></i>
+                    </div>
+                    <h3>Longest Session</h3>
+                    <p class="stat-value" id="longestSession">0m</p>
+                    <p class="stat-subtext">Your deepest focus</p>
+                </div>
+                
+                <div class="stat-card today-sessions-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-calendar-day"></i>
+                    </div>
+                    <h3>Today's Sessions</h3>
+                    <p class="stat-value" id="todaySessions">0</p>
+                    <p class="stat-subtext">Daily progress</p>
+                </div>
+            </div>
+            
+            <div class="charts-container">
+                <div class="chart-wrapper">
+                    <h3>Weekly Focus Trend</h3>
+                    <div class="chart-container"><canvas id="barChart"></canvas></div>
+                </div>
+                <div class="chart-wrapper">
+                    <h3>Session Distribution</h3>
+                    <div class="chart-container"><canvas id="pieChart"></canvas></div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="storeContainer" class="tab-content">
+            <div class="settings-group">
+                <h3>🎬 YouTube Background</h3>
+                <div class="input-group">
+                    <input type="text" id="youtube-input" placeholder="Paste YouTube URL...">
+                    <button id="setYoutubeBtn">Set</button>
+                </div>
+            </div>
+            <div class="settings-group">
+                <h3>🖼️ Custom Image Background</h3>
+                <div class="input-group">
+                    <input type="file" id="image-upload-input" accept="image/*" class="hidden">
+                    <button id="uploadImageBtn">Upload Image</button>
+                    <button id="clearImageBtn" class="btn-danger">Clear</button>
+                </div>
+            </div>
+            <h3>Or Select a Theme</h3>
+            <div id="storeItems">
+                 <div class="store-item" data-type="image" data-path="https://images.unsplash.com/photo-1542831371-d648083a23de?q=80&w=2070&auto=format&fit=crop">
+                    <span>🌆 Cosmic Code</span><button>Apply</button>
+                </div>
+                <div class="store-item" data-type="youtube" data-id="4wJRkS-M-3s">
+                    <span>🎵 Lofi Study Cafe</span><button>Apply</button>
+                </div>
+                <div class="store-item" data-type="youtube" data-id="NJuSStkIZBg">
+                    <span>🌧️ Cozy Rainy Night</span><button>Apply</button>
+                </div>
+                <div class="store-item" data-type="youtube" data-id="6KL2QZ91kAM">
+                    <span>🏞️ Nature Walk</span><button>Apply</button>
+                </div>
+            </div>
+        </div>
+        <div id="settingsContainer" class="tab-content">
+            <h3>⏱️ Timer Durations (minutes)</h3>
+            <div class="settings-grid">
+                <label for="work-duration">Work:</label>
+                <input type="number" id="work-duration" min="1">
+                <label for="short-break-duration">Short Break:</label>
+                <input type="number" id="short-break-duration" min="1">
+                <label for="long-break-duration">Long Break:</label>
+                <input type="number" id="long-break-duration" min="1">
+            </div>
+            <!-- New Settings -->
+            <h3>🎵 Sound Effects</h3>
+            <div class="settings-group">
+                 <label for="sound-effects-select">Start/End Sounds:</label>
+                 <select id="sound-effects-select" class="settings-select">
+                    <option value="indian">For Indians</option>
+                    <option value="non-indian">For Non-Indians</option>
+                    <option value="off">Turn Off</option>
+                </select>
+            </div>
+            <h3>🤖 Accountability AI</h3>
+            <div class="settings-group">
+                <div class="toggle-switch-container">
+                    <label for="accountability-toggle">Accountability Partner (Camera)</label>
+                    <label class="switch">
+                        <input type="checkbox" id="accountability-toggle">
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+                <p class="settings-description" id="accountability-warning">Pauses the timer if you're away from the screen for 30+ seconds. Note: This feature only works when you're using the current tab.</p>
+            </div>
+            <button id="saveSettingsBtn">Save Settings</button>
+        </div>
+        <div id="profileContainer" class="tab-content">
+            <div class="info-zone">
+                <h3>🔥 Streak Info</h3>
+                <p>Complete at least one full work session each day to build your streak. Keep the fire going!</p>
+            </div>
+             <div class="danger-zone">
+                <h3>⚠️ Danger Zone</h3>
+                <p>This will reset ALL your stats and settings permanently.</p>
+                <button id="clearDataBtn" class="btn-danger">Clear All Data</button>
+            </div>
+        </div>
+        <div id="journalContainer" class="tab-content">
+            <div class="journal-tab-content">
+                <h3>Your Journal Entries</h3>
+                <div id="journal-tab-entries" class="journal-tab-entries">
+                    <!-- Journal entries will be displayed here -->
+                </div>
+            </div>
+        </div>
+        <div id="timetableContainer" class="tab-content">
+            <div class="timetable-tab-content">
+                <h3>Your Weekly Schedule</h3>
+                <p>View and manage your timetable from the main timetable section.</p>
+            </div>
+        </div>
+    </div>
+</div>
+<div id="cornerWidget">
+    <div class="progress-label"><span>Day</span><span id="dayProgressPercent"></span></div>
+    <div class="progress-bar-container"><div id="dayProgressBar" class="progress-bar"></div></div>
+    <div class="progress-label"><span>Month</span><span id="monthProgressPercent"></span></div>
+    <div class="progress-bar-container"><div id="monthProgressBar" class="progress-bar"></div></div>
+    <div class="progress-label"><span>Year</span><span id="yearProgressPercent"></span></div>
+    <div class="progress-bar-container"><div id="yearProgressBar" class="progress-bar"></div></div>
+</div>
+<div id="ambient-container"></div>
+<div id="focusModeUI">
+    <div id="focusModeTimer"></div>
+    <div id="focusModeProgressBarContainer"><div id="focusModeProgressBar"></div></div>
+    <div id="focusModeControls">
+        <button id="focusModePlayPauseBtn" aria-label="Play/Pause"><span class="icon"></span></button>
+        <button id="focusModeExitBtn" aria-label="Exit Focus Mode"><span class="icon"></span></button>
+    </div>
+</div>
+<div id="completionModal" class="modal">
+    <div class="completion-content">
+        <div class="completion-icon">🎉</div>
+        <h2 id="completion-title">Session Complete!</h2>
+        <p id="completion-message">Great work! Keep the momentum going.</p>
+        <button id="closeCompletionModalBtn">Awesome!</button>
+    </div>
+</div>
+<!-- New Session Review Modal with animated assistant -->
+<div id="reviewModal" class="modal">
+    <div class="review-modal-content">
+        <div class="assistant-character animated-walk-in">
+            <svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+                <ellipse id="body" cx="60" cy="80" rx="28" ry="25" fill="#6c63ff"/>
+                <circle id="head" cx="60" cy="55" r="20" fill="#ffe0b2" stroke="#333" stroke-width="2"/>
+                <ellipse id="eye-left" cx="54" cy="55" rx="3" ry="4" fill="#222"/>
+                <ellipse id="eye-right" cx="66" cy="55" rx="3" ry="4" fill="#222"/>
+                <path d="M54 65 Q60 73 66 65" stroke="#222" stroke-width="2" fill="none"/>
+                <g id="pointing-arm">
+                    <rect x="70" y="85" width="30" height="8" rx="4" fill="#ffe0b2" stroke="#333" stroke-width="2"/>
+                    <circle cx="100" cy="89" r="7" fill="#ffe0b2" stroke="#333" stroke-width="2"/>
+                </g>
+                <rect id="leg" x="62" y="100" width="8" height="20" rx="4" fill="#6c63ff"/>
+            </svg>
+        </div>
+        <h2 class="review-title">Session Review</h2>
+        <p class="review-subtitle">Here's how your focus session went:</p>
+        <div class="review-stats-grid" id="statsGrid">
+            <div class="review-stat-item">
+                <h3>Total Focus</h3>
+                <p id="reviewFocusTime">0m 0s</p>
+            </div>
+            <div class="review-stat-item">
+                <h3>Away Time</h3>
+                <p id="reviewAwayTime">0m 0s</p>
+            </div>
+            <div class="review-stat-item">
+                <h3>Total Duration</h3>
+                <p id="reviewTotalDuration">0m 0s</p>
+            </div>
+        </div>
+        <button id="closeReviewModalBtn">Keep Flowing!</button>
+    </div>
+</div>
+<div id="pip-player-container" class="hidden">
+    <div id="pip-player-header">
+        <span class="pip-title">YouTube Player</span>
+        <button id="pip-close-btn">&times;</button>
+    </div>
+    <div id="pip-player-content">
+        <div id="player"></div>
+    </div>
+    <div class="pip-input-container">
+        <input type="text" id="pip-youtube-input" placeholder="Paste new YouTube URL here...">
+        <button id="pip-set-btn">Set</button>
+    </div>
+    <div id="pip-resize-handle"></div>
+</div>
+
+<!-- macOS Dock Navigation -->
+<nav id="mac-dock">
+    <div class="dock-container">
+        <div class="dock-item" data-section="timer">
+            <div class="dock-icon">
+                <i class="fas fa-clock"></i>
+            </div>
+            <span class="dock-label">Timer</span>
+        </div>
+        <div class="dock-item" data-section="todo">
+            <div class="dock-icon">
+                <i class="fas fa-tasks"></i>
+            </div>
+            <span class="dock-label">Tasks</span>
+        </div>
+        <div class="dock-item" data-section="journal">
+            <div class="dock-icon">
+                <i class="fas fa-book"></i>
+            </div>
+            <span class="dock-label">Journal</span>
+        </div>
+        <div class="dock-item" data-section="timetable">
+            <div class="dock-icon">
+                <i class="fas fa-calendar"></i>
+            </div>
+            <span class="dock-label">Schedule</span>
+        </div>
+        <div class="dock-item" data-section="stats">
+            <div class="dock-icon">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <span class="dock-label">Stats</span>
+        </div>
+        <div class="dock-item" data-section="settings">
+            <div class="dock-icon">
+                <i class="fas fa-cog"></i>
+            </div>
+            <span class="dock-label">Settings</span>
+        </div>
+    </div>
+</nav>
+
+<audio id="whiteNoise" loop><source src="whitenoise.mp3" type="audio/mpeg"></audio>
+<audio id="pauseAlertSound"><source src="https://actions.google.com/sounds/v1/ui/close_button_pressed.ogg" type="audio/ogg"></audio>
+<audio id="resumeAlertSound"><source src="https://actions.google.com/sounds/v1/ui/button_press.ogg" type="audio/ogg"></audio>
+<audio class="start-sound-indian" src="start-sound1.mp3"></audio>
+<audio class="start-sound-indian" src="start-sound2.mp3"></audio>
+<audio class="start-sound-indian" src="start-sound3.mp3"></audio>
+<audio class="start-sound-indian" src="start-sound4.mp3"></audio>
+<audio class="good-meme-indian" src="good-meme1.mp3"></audio>
+<audio class="good-meme-indian" src="good-meme2.mp3"></audio>
+<audio class="good-meme-indian" src="good-meme3.mp3"></audio>
+<audio class="good-meme-indian" src="good-meme4.mp3"></audio>
+<audio class="bad-meme-indian" src="bad-meme1.mp3"></audio>
+<audio class="bad-meme-indian" src="bad-meme2.mp3"></audio>
+<audio class="bad-meme-indian" src="bad-meme3.mp3"></audio>
+<audio class="bad-meme-indian" src="bad-meme4.mp3"></audio>
+<audio class="start-sound-non-indian" src="https://github.com/ishaanx/pomodoro-accountability-sounds/raw/main/start.mp3"></audio>
+<audio class="good-meme-non-indian" src="https://github.com/ishaanx/pomodoro-accountability-sounds/raw/main/good.mp3"></audio>
+<audio class="bad-meme-non-indian" src="https://github.com/ishaanx/pomodoro-accountability-sounds/raw/main/bad.mp3"></audio>
+
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js" type="module"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js" type="module"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js" type="module"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-analytics.js" type="module"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
+<script src="https://www.youtube.com/iframe_api"></script>
+<script src="script.js" type="module"></script>
+<a href="https://www.buymeacoffee.com/YouFloww" target="_blank" style="position: fixed; bottom: 20px; left: 20px; z-index: 1000;">
+    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 30px !important;width: 108px !important;" >
+</a>
+</body>
+</html>
