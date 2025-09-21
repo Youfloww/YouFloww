@@ -1,3 +1,98 @@
+/* --- Disk Player Styles --- */
+.disk-player-container {
+        position: fixed;
+        top: 120px;
+        left: 24px;
+        z-index: 1199;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+}
+.disk-player {
+    width: 90px;
+    height: 90px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+}
+.disk-image {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    box-shadow: 0 0 18px 2px #ffe0b2;
+    transition: box-shadow 0.3s;
+}
+.disk-player.rotating .disk-image {
+    animation: disk-rotate 1.2s linear infinite;
+    box-shadow: 0 0 32px 8px #f7a047;
+}
+@keyframes disk-rotate {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+.disk-change-btn {
+        margin-top: 6px;
+        padding: 4px;
+        font-size: 1.1rem;
+        border-radius: 50%;
+        background: transparent;
+        color: var(--primary-color);
+        border: none;
+        cursor: pointer;
+        box-shadow: none;
+        transition: background 0.2s, color 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .disk-change-btn i {
+        font-size: 1.1rem;
+    }
+}
+.disk-change-btn:hover {
+        background: var(--primary-color);
+        color: #fff;
+}
+body.focus-mode #diskPlayerContainer {
+    position: absolute;
+    top: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1002;
+}
+/* Ensure Save Settings button stays above dock bar */
+#settingsContainer {
+    margin-bottom: 100px;
+}
+/* --- Glow Pill Button --- */
+#glowPillBtn.glow-pill-btn {
+    position: fixed;
+    top: 24px;
+    left: 24px;
+    z-index: 1200;
+    background: linear-gradient(90deg, #fffbe6 0%, #ffe0b2 100%);
+    color: #f7a047;
+    font-weight: 700;
+    font-size: 1.15rem;
+    border: none;
+    border-radius: 999px;
+    box-shadow: 0 0 0 0 rgba(247,160,71,0.5);
+    padding: 0.7em 2.2em;
+    cursor: pointer;
+    transition: box-shadow 0.3s, background 0.3s;
+    outline: none;
+    letter-spacing: 0.04em;
+}
+#glowPillBtn.glow {
+    box-shadow: 0 0 24px 8px #f7a047, 0 0 60px 16px #ffe0b2;
+    background: linear-gradient(90deg, #fffbe6 0%, #ffe0b2 100%);
+}
+#glowPillBtn:active {
+    transform: scale(0.98);
+}
 :root {
     --primary-color: #f7a047;
     --secondary-color: #6c63ff;
