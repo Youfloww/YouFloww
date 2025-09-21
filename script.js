@@ -1154,7 +1154,7 @@ document.getElementById('todo-input').addEventListener('keydown', function(e) {
     }
 });
 document.getElementById('add-todo-btn').addEventListener('click', addTodo);
-document.querySelector('.clear-todos-btn').addEventListener('click', clearTodos);
+// Removed event listener for 'Clear All Tasks' button since the button was removed from HTML
 
 function toggleSubtask(todoIndex, subtaskIndex) {
     const sub = currentUserData.todos[todoIndex].subtasks[subtaskIndex];
