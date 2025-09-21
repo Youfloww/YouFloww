@@ -20,6 +20,18 @@
     </script>
 </head>
 <body>
+<!-- Glow Pill Button Top Left -->
+<button id="glowPillBtn" class="glow-pill-btn">YouFloww</button>
+<!-- Disk Player (shown below pill if enabled) -->
+<div id="diskPlayerContainer" class="disk-player-container hidden">
+    <div id="diskPlayer" class="disk-player">
+        <img src="disk.png" alt="Disk" class="disk-image" />
+        <input type="file" id="diskMusicUpload" accept="audio/*" class="hidden" />
+        <button id="diskChangeMusicBtn" class="disk-change-btn hidden" title="Change Music">
+            <i class="fas fa-music"></i>
+        </button>
+    </div>
+</div>
 <!-- YouTube Video Background - always at back -->
 <div id="video-background-container"></div>
 <video id="video" width="720" height="560" autoplay muted playsinline class="hidden"></video>
@@ -500,7 +512,7 @@
 <!-- macOS Dock Navigation -->
 <nav id="mac-dock">
     <div class="dock-container">
-        <div class="dock-item" data-section="timer">
+    <div class="dock-item" data-section="timer">
             <div class="dock-icon">
                 <i class="fas fa-clock"></i>
             </div>
@@ -535,6 +547,12 @@
                 <i class="fas fa-cog"></i>
             </div>
             <span class="dock-label">Settings</span>
+        </div>
+        <div class="dock-item" data-section="diskplayer">
+            <div class="dock-icon">
+                <i class="fas fa-compact-disc"></i>
+            </div>
+            <span class="dock-label">Disk Player</span>
         </div>
     </div>
 </nav>
