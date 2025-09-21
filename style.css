@@ -1,3 +1,71 @@
+/* Magical Star Trail Canvas Styles */
+#star-trail-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 10;
+}
+/* Custom Gravity Loader Overlay Styles (no Framer) */
+#gravity-loader-overlay {
+    position: fixed;
+    z-index: 99999;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    background: linear-gradient(120deg, #181818 0%, #232323 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.6s cubic-bezier(.4,0,.2,1);
+    opacity: 1;
+    pointer-events: all;
+}
+#gravity-particles-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1;
+    pointer-events: none;
+}
+#gravity-loader-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.2rem;
+}
+#glowy-title {
+    font-family: 'Montserrat', 'Poppins', Arial, sans-serif;
+    font-size: 3.2rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    color: #fff;
+    text-shadow: 0 0 32px #f7a047, 0 0 8px #fff, 0 0 2px #fff;
+    user-select: none;
+    margin-bottom: 0.5em;
+    cursor: pointer;
+    transition: text-shadow 0.2s;
+}
+#loader-counter {
+    font-size: 2.2rem;
+    font-family: 'JetBrains Mono', 'Fira Mono', monospace;
+    color: #ffd180;
+    text-shadow: 0 0 12px #f7a047, 0 0 2px #fff;
+    font-weight: 700;
+    margin-top: 0.2em;
+    letter-spacing: 0.04em;
+    user-select: none;
+}
+@media (max-width: 600px) {
+    #gravity-loader-content { gap: 0.7rem; }
+    #glowy-title { font-size: 2.1rem; }
+    #loader-counter { font-size: 1.2rem; }
+}
 /* --- Customize Modal Journal Delete Buttons --- */
 .delete-journal-entry-btn, .delete-journal-image-btn {
     font-size: 0.95em;
