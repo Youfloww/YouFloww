@@ -466,26 +466,6 @@ h3 { margin-bottom: 1rem; color: var(--primary-color); }
     box-shadow: 0 2px 8px rgba(255,0,0,0.08);
     transition: background 0.2s;
 }
-.clear-todos-btn:hover {
-    background: var(--danger-hover-color);
-}
-#confetti-canvas {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    z-index: 10;
-}
-.confetti-piece {
-    position: absolute;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    opacity: 0.85;
-    z-index: 11;
-}
-    transition: border 0.2s;
-}
-#todo-input:focus {
     border-color: #a8edea;
     outline: none;
 }
@@ -608,44 +588,6 @@ h3 { margin-bottom: 1rem; color: var(--primary-color); }
 }
 .subtask-delete-btn:hover {
     color: #c53030;
-}
-.clear-todos-btn {
-    background: linear-gradient(135deg, #fed6e3 0%, #a8edea 100%);
-    border: none;
-    border-radius: 8px;
-    padding: 8px 18px;
-    font-size: 1rem;
-    color: #2d3748;
-    cursor: pointer;
-    box-shadow: 0 2px 8px rgba(168,237,234,0.10);
-    margin-top: 8px;
-    transition: background 0.2s;
-    z-index: 2;
-}
-.clear-todos-btn:hover {
-    background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
-}
-#confetti-canvas {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    pointer-events: none;
-    z-index: 10;
-}
-.confetti-piece {
-    position: absolute;
-    width: 8px;
-    height: 16px;
-    border-radius: 3px;
-    opacity: 0.8;
-    will-change: top, opacity;
-}
-
-/* --- Journal Section --- */
-#journal-section { 
-    background: var(--card-dark); 
-    border-radius: var(--border-radius); 
-    padding: 1.5rem; 
-    border: 1px solid var(--border-color); 
 }
 
 .journal-header {
@@ -1012,8 +954,8 @@ button:hover { filter: brightness(1.1); transform: translateY(-2px); }
 button:active { transform: translateY(0) scale(0.98); }
 button:disabled { background-color: var(--disabled-color) !important; color: var(--text-color) !important; cursor: not-allowed; transform: none; box-shadow: none; filter: none; }
 #add-todo-btn, #saveSettingsBtn { background: var(--secondary-color); }
-.clear-todos-btn, .btn-danger { background: var(--danger-color); color: white; }
-.clear-todos-btn:hover, .btn-danger:hover { background: var(--danger-hover-color); }
+.btn-danger { background: var(--danger-color); color: white; }
+.btn-danger:hover { background: var(--danger-hover-color); }
 .hidden { display: none !important; }
 
 /* --- Modal & Auth --- */
