@@ -356,6 +356,9 @@
                     <button id="uploadImageBtn">Upload Image</button>
                     <button id="clearImageBtn" class="btn-danger">Clear</button>
                 </div>
+                <div style="font-size:0.98em;color:#f7a047;margin-top:0.5em;">
+                  <b>Note:</b> Please reload the page after uploading an image to see your new background.
+                </div>
             </div>
             <h3>Or Select a Theme</h3>
             <div id="storeItems">
@@ -576,6 +579,207 @@
 <audio class="good-meme-non-indian" src="https://github.com/ishaanx/pomodoro-accountability-sounds/raw/main/good.mp3"></audio>
 <audio class="bad-meme-non-indian" src="https://github.com/ishaanx/pomodoro-accountability-sounds/raw/main/bad.mp3"></audio>
 
+<!-- Custom Gravity Loader Overlay (no Framer) -->
+<div id="gravity-loader-overlay">
+  <canvas id="gravity-particles-canvas"></canvas>
+  <canvas id="star-trail-canvas"></canvas>
+  <div id="gravity-loader-content">
+    <img src="disk.png" alt="Disk" id="loader-disk-img" style="width:90px;height:90px;margin-bottom:1.2em;filter:drop-shadow(0 0 16px #f7a04788);user-select:none;pointer-events:none;" draggable="false" />
+    <h1 id="glowy-title">YouFloww</h1>
+    <div id="loader-counter">0%</div>
+  </div>
+</div>
+<script>
+// --- Gravity Particles (lighter version) ---
+(function() {
+  const canvas = document.getElementById('gravity-particles-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let W = window.innerWidth, H = window.innerHeight;
+  canvas.width = W; canvas.height = H;
+  window.addEventListener('resize', () => { W = window.innerWidth; H = window.innerHeight; canvas.width = W; canvas.height = H; });
+  const particles = [];
+  const colors = ['#f7a047', '#fff', '#ffecb3', '#ffd180'];
+  const gravity = 0.08;
+  const mouse = { x: W/2, y: H/2, active: false };
+  const PARTICLE_COUNT = 28; // reduced for performance
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    particles.push({
+      x: Math.random()*W, y: Math.random()*H,
+      vx: (Math.random()-0.5)*1.2, vy: (Math.random()-0.5)*1.2,
+      r: Math.random()*2+2.2, color: colors[Math.floor(Math.random()*colors.length)],
+      glow: Math.random()*8+6
+    });
+  }
+  canvas.addEventListener('mousemove', e => {
+    mouse.x = e.clientX; mouse.y = e.clientY; mouse.active = true;
+  });
+  canvas.addEventListener('mouseleave', () => { mouse.active = false; });
+  let lastFrame = 0;
+  function draw(ts) {
+    if (ts - lastFrame < 1000/36) { requestAnimationFrame(draw); return; } // ~36fps
+    lastFrame = ts;
+    ctx.clearRect(0,0,W,H);
+    for (let p of particles) {
+      if (mouse.active) {
+        let dx = p.x-mouse.x, dy = p.y-mouse.y, dist = Math.sqrt(dx*dx+dy*dy);
+        if (dist < 120) {
+          let repel = (120-dist)/120 * 2.1;
+          p.vx += (dx/dist)*repel*1.7;
+          p.vy += (dy/dist)*repel*1.7;
+        }
+      }
+      p.vy += gravity*0.13;
+      p.x += p.vx; p.y += p.vy;
+      p.vx *= 0.95; p.vy *= 0.95;
+      if (p.x < 0) { p.x = 0; p.vx *= -0.7; }
+      if (p.x > W) { p.x = W; p.vx *= -0.7; }
+      if (p.y < 0) { p.y = 0; p.vy *= -0.7; }
+      if (p.y > H) { p.y = H; p.vy *= -0.7; }
+      ctx.save();
+      ctx.globalAlpha = 0.6;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = p.glow;
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,p.r,0,2*Math.PI);
+      ctx.fillStyle = p.color;
+      ctx.fill();
+      ctx.restore();
+    }
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+})();
+// --- Magical Star Cursor Trail (lighter version) ---
+(function() {
+  const canvas = document.getElementById('star-trail-canvas');
+  if (!canvas) return;
+  let W = window.innerWidth, H = window.innerHeight;
+  canvas.width = W; canvas.height = H;
+  canvas.style.position = 'absolute';
+  canvas.style.inset = '0';
+  canvas.style.pointerEvents = 'none';
+  canvas.style.zIndex = 10;
+  window.addEventListener('resize', () => { W = window.innerWidth; H = window.innerHeight; canvas.width = W; canvas.height = H; });
+  const ctx = canvas.getContext('2d');
+  const starColors = ['#fff7b2', '#ffe0fc', '#aeefff', '#ffd180', '#f7a047', '#fff'];
+  let stars = [];
+  let mouse = { x: W/2, y: H/2, moved: false };
+  const MAX_STARS = 18; // reduced for performance
+  const STAR_LIFETIME = 22; // shorter for performance
+  canvas.addEventListener('mousemove', e => {
+    mouse.x = e.clientX; mouse.y = e.clientY; mouse.moved = true;
+  });
+  document.addEventListener('mousemove', e => {
+    mouse.x = e.clientX; mouse.y = e.clientY; mouse.moved = true;
+  });
+  function spawnStar(x, y) {
+    if (stars.length >= MAX_STARS) return;
+    const angle = Math.random()*2*Math.PI;
+    const speed = Math.random()*1.1+0.3;
+    stars.push({
+      x, y,
+      vx: Math.cos(angle)*speed*0.6,
+      vy: Math.sin(angle)*speed*0.6,
+      r: Math.random()*1.7+1.7,
+      color: starColors[Math.floor(Math.random()*starColors.length)],
+      twinkle: Math.random()*0.5+0.7,
+      alpha: 1,
+      life: 0,
+      maxLife: STAR_LIFETIME+Math.random()*7
+    });
+  }
+  let lastX = mouse.x, lastY = mouse.y;
+  let lastFrame = 0;
+  function animate(ts) {
+    if (ts - lastFrame < 1000/36) { requestAnimationFrame(animate); return; } // ~36fps
+    lastFrame = ts;
+    ctx.clearRect(0,0,W,H);
+    if (mouse.moved) {
+      const dx = mouse.x-lastX, dy = mouse.y-lastY;
+      const dist = Math.sqrt(dx*dx+dy*dy);
+      const steps = Math.floor(dist/8);
+      for (let i=0; i<steps; i++) {
+        const t = i/steps;
+        spawnStar(lastX+dx*t, lastY+dy*t);
+      }
+      lastX = mouse.x; lastY = mouse.y;
+      mouse.moved = false;
+    }
+    for (let i=stars.length-1; i>=0; i--) {
+      const s = stars[i];
+      s.x += s.vx; s.y += s.vy;
+      s.life++;
+      const twinkle = 0.7+0.5*Math.sin(s.life*0.25+s.twinkle*10);
+      ctx.save();
+      ctx.globalAlpha = s.alpha*twinkle;
+      ctx.shadowColor = s.color;
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      for (let j=0;j<5;j++) {
+        const angle = (Math.PI*2/5)*j - Math.PI/2;
+        const x = s.x + Math.cos(angle)*s.r;
+        const y = s.y + Math.sin(angle)*s.r;
+        if (j===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.closePath();
+      ctx.fillStyle = s.color;
+      ctx.fill();
+      ctx.restore();
+      if (s.life > s.maxLife) s.alpha -= 0.08;
+      if (s.alpha <= 0) stars.splice(i,1);
+    }
+    requestAnimationFrame(animate);
+  }
+  requestAnimationFrame(animate);
+})();
+// --- Glowy Text ---
+(function() {
+  const title = document.getElementById('glowy-title');
+  if (!title) return;
+  title.style.position = 'relative';
+  title.style.fontSize = '3.2rem';
+  title.style.fontWeight = '900';
+  title.style.letterSpacing = '0.04em';
+  title.style.color = '#fff';
+  title.style.textShadow = '0 0 32px #f7a047, 0 0 8px #fff, 0 0 2px #fff';
+  title.style.transition = 'text-shadow 0.2s';
+  title.addEventListener('mousemove', e => {
+    const rect = title.getBoundingClientRect();
+    const x = e.clientX-rect.left, y = e.clientY-rect.top;
+    title.style.textShadow = `0 0 32px #f7a047, ${x/8-20}px ${y/8-20}px 24px #fff, 0 0 2px #fff`;
+  });
+  title.addEventListener('mouseleave', () => {
+    title.style.textShadow = '0 0 32px #f7a047, 0 0 8px #fff, 0 0 2px #fff';
+  });
+})();
+// --- Loader Counter ---
+(function() {
+  const counter = document.getElementById('loader-counter');
+  if (!counter) return;
+  let start = null;
+  function animateCounter(ts) {
+    if (!start) start = ts;
+    let elapsed = ts-start;
+    let percent = Math.min(100, Math.floor((elapsed/4000)*100));
+    counter.textContent = percent+'%';
+    if (percent < 100) requestAnimationFrame(animateCounter);
+    else counter.textContent = '100%';
+  }
+  requestAnimationFrame(animateCounter);
+})();
+// --- Hide Overlay after 4s ---
+window.addEventListener('DOMContentLoaded', function() {
+  var overlay = document.getElementById('gravity-loader-overlay');
+  if (overlay) {
+    setTimeout(function() {
+      overlay.style.opacity = '0';
+      overlay.style.pointerEvents = 'none';
+      setTimeout(function() { overlay.style.display = 'none'; }, 600);
+    }, 4000);
+  }
+});
+</script>
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js" type="module"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js" type="module"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js" type="module"></script>
