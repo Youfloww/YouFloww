@@ -1,3 +1,143 @@
+// ============ Disk Player Feature ============
+let diskPlayerEnabled = true;
+let diskPlayerAudio = null;
+let diskPlayerMusicUrl = 'diskmusic.mp3';
+let diskPlayerPlaying = false;
+function showDiskPlayerModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal visible';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width:400px;text-align:center;">
+            <span class="close-btn" style="position:absolute;top:10px;right:18px;font-size:2rem;cursor:pointer;">&times;</span>
+            <h2>Disk Player</h2>
+            <div style="margin:1.5em 0;">
+                <label style="font-size:1.1em;">Enable Disk Player?</label><br>
+                <button id="enableDiskPlayerBtn" style="margin:1em 0 0.5em 0;">Enable</button>
+                <button id="disableDiskPlayerBtn" style="margin:0.5em 0;">Disable</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    modal.querySelector('.close-btn').onclick = () => modal.remove();
+    modal.querySelector('#enableDiskPlayerBtn').onclick = () => {
+        diskPlayerEnabled = true;
+        updateDiskPlayerUI();
+        modal.remove();
+        if (!diskPlayerMusicUrl) {
+            showDiskMusicUploadModal();
+        }
+    };
+    modal.querySelector('#disableDiskPlayerBtn').onclick = () => {
+        diskPlayerEnabled = false;
+        updateDiskPlayerUI();
+        modal.remove();
+    };
+}
+function showDiskMusicUploadModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal visible';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width:400px;text-align:center;">
+            <span class="close-btn" style="position:absolute;top:10px;right:18px;font-size:2rem;cursor:pointer;">&times;</span>
+            <h2>Upload Music</h2>
+            <input type="file" id="diskMusicUploadModalInput" accept="audio/*" style="margin:1.5em 0;" />
+        </div>
+    `;
+    document.body.appendChild(modal);
+    modal.querySelector('.close-btn').onclick = () => modal.remove();
+    modal.querySelector('#diskMusicUploadModalInput').onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            diskPlayerMusicUrl = URL.createObjectURL(file);
+            updateDiskPlayerUI();
+            modal.remove();
+        }
+    };
+}
+function updateDiskPlayerUI() {
+    const container = document.getElementById('diskPlayerContainer');
+    if (diskPlayerEnabled) {
+        container.classList.remove('hidden');
+        if (diskPlayerMusicUrl) {
+            document.getElementById('diskChangeMusicBtn').classList.remove('hidden');
+        } else {
+            document.getElementById('diskChangeMusicBtn').classList.add('hidden');
+        }
+    } else {
+        container.classList.add('hidden');
+    }
+}
+function handleDiskPlayerClick() {
+    if (!diskPlayerMusicUrl) {
+        showDiskMusicUploadModal();
+        return;
+    }
+    if (!diskPlayerAudio) {
+        diskPlayerAudio = new Audio(diskPlayerMusicUrl);
+        diskPlayerAudio.loop = true;
+    }
+    const disk = document.getElementById('diskPlayer');
+    if (diskPlayerPlaying) {
+        disk.classList.remove('rotating');
+        diskPlayerAudio.pause();
+        diskPlayerPlaying = false;
+    } else {
+        disk.classList.add('rotating');
+        diskPlayerAudio.src = diskPlayerMusicUrl;
+        diskPlayerAudio.play();
+        diskPlayerPlaying = true;
+    }
+}
+function handleDiskChangeMusic() {
+    document.getElementById('diskMusicUpload').click();
+}
+function handleDiskMusicUpload(e) {
+    const file = e.target.files[0];
+    if (file) {
+        diskPlayerMusicUrl = URL.createObjectURL(file);
+        if (diskPlayerAudio) {
+            diskPlayerAudio.pause();
+            diskPlayerAudio = null;
+            diskPlayerPlaying = false;
+            document.getElementById('diskPlayer').classList.remove('rotating');
+        }
+        updateDiskPlayerUI();
+    }
+}
+// Show disk player above timer in focus mode
+function updateDiskPlayerFocusMode() {
+    const container = document.getElementById('diskPlayerContainer');
+    if (diskPlayerEnabled) {
+        if (document.body.classList.contains('focus-mode')) {
+            container.classList.remove('hidden');
+        } else {
+            updateDiskPlayerUI();
+        }
+    }
+}
+document.addEventListener('DOMContentLoaded', function() {
+    // Disk player dock option
+    const dockDisk = document.querySelector('.dock-item[data-section="diskplayer"]');
+    if (dockDisk) {
+        dockDisk.addEventListener('click', showDiskPlayerModal);
+    }
+    // Disk player click
+    document.getElementById('diskPlayer').addEventListener('click', handleDiskPlayerClick);
+    document.getElementById('diskChangeMusicBtn').addEventListener('click', handleDiskChangeMusic);
+    document.getElementById('diskMusicUpload').addEventListener('change', handleDiskMusicUpload);
+    // Show disk player above timer in focus mode
+    const observer = new MutationObserver(updateDiskPlayerFocusMode);
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+});
+// ============ Glow Pill Button Logic ============
+document.addEventListener('DOMContentLoaded', function() {
+    const glowBtn = document.getElementById('glowPillBtn');
+    if (glowBtn) {
+        glowBtn.addEventListener('click', function() {
+            glowBtn.classList.toggle('glow');
+        });
+    }
+});
 // FIREBASE SDKs - Imported from index.html
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
@@ -607,21 +747,17 @@ function hideFaceStatusPrompt() {
 // YOUTUBE PIP PLAYER FUNCTIONALITY
 // ===================================================================================
 function initYoutubePlayer() {
-    // Default playlists based on user location
-    const defaultPlaylist = currentUserData.settings?.soundProfile === 'indian' 
-        ? 'UBBHpoW3AKA' 
-        : 'PLBgJjIxp0WaVX6LSodfsQ9pBfHWObvkfX';
-    
+    // Default video for YouTube player
+    const defaultVideoId = 'gUbNlN_SqpE';
     // Load YouTube IFrame API
     if (typeof YT !== 'undefined' && YT.Player) {
-        createYoutubePlayer(defaultPlaylist);
+        createYoutubePlayer(defaultVideoId);
     } else {
         // Wait for YouTube API to load
         window.onYouTubeIframeAPIReady = function() {
-            createYoutubePlayer(defaultPlaylist);
+            createYoutubePlayer(defaultVideoId);
         };
     }
-    
     // Set up PiP player event listeners
     setupPipPlayer();
 }
@@ -630,9 +766,8 @@ function createYoutubePlayer(playlistId) {
     youtubePlayer = new YT.Player('player', {
         height: '100%',
         width: '100%',
+        videoId: playlistId,
         playerVars: {
-            'listType': 'playlist',
-            'list': playlistId,
             'autoplay': 0,
             'controls': 1,
             'rel': 0,
