@@ -509,6 +509,8 @@ function endSession() {
     const timeFocusedSec = workDuration - timeLeft;
     const minutesFocused = Math.floor(timeFocusedSec / 60);
     handleEndOfWorkSession(minutesFocused, false);
+    // Always play bad meme sound on early end
+    playRandomSound('bad');
     showSessionReview();
     resetTimer();
 }
@@ -516,6 +518,8 @@ function endSession() {
 function handleSessionCompletion() {
     const minutesFocused = Math.floor(workDuration / 60);
     handleEndOfWorkSession(minutesFocused, true);
+    // Always play good meme sound on full session complete
+    playRandomSound('good');
     showCompletionPopup();
     if (isAccountabilityOn) showSessionReview();
     sessionCount++;
@@ -1154,7 +1158,7 @@ document.getElementById('todo-input').addEventListener('keydown', function(e) {
     }
 });
 document.getElementById('add-todo-btn').addEventListener('click', addTodo);
-// Removed event listener for 'Clear All Tasks' button since the button was removed from HTML
+document.querySelector('.clear-todos-btn').addEventListener('click', clearTodos);
 
 function toggleSubtask(todoIndex, subtaskIndex) {
     const sub = currentUserData.todos[todoIndex].subtasks[subtaskIndex];
@@ -1185,14 +1189,12 @@ function initJournal() {
         month: 'long',
         day: 'numeric'
     });
-    
     // Load today's entry if it exists
     const todayKey = today.toISOString().slice(0, 10);
     if (currentUserData.journalEntries && currentUserData.journalEntries[todayKey]) {
         const entry = currentUserData.journalEntries[todayKey];
         DOMElements.journal.entry.value = entry.text;
         updateCharCount();
-        
         if (entry.image) {
             const img = document.createElement('img');
             img.src = entry.image;
@@ -1200,23 +1202,50 @@ function initJournal() {
             DOMElements.journal.imagePreview.appendChild(img);
             DOMElements.journal.imagePreview.classList.remove('hidden');
         }
+    } else {
+        DOMElements.journal.entry.value = '';
+        DOMElements.journal.imagePreview.innerHTML = '';
+        DOMElements.journal.imagePreview.classList.add('hidden');
     }
-    
     // Load previous entries
     loadPreviousJournalEntries();
+    // Remove and re-add add photo feature
+    if (DOMElements.journal.imageUpload) {
+        DOMElements.journal.imageUpload.value = '';
+        DOMElements.journal.imageUpload.removeEventListener('change', handleImageUpload);
+        DOMElements.journal.imageUpload.addEventListener('change', handleImageUpload);
+    }
 }
 
 function updateCharCount() {
     const text = DOMElements.journal.entry.value;
     const count = text.length;
     DOMElements.journal.charCount.textContent = `${count}/1024`;
-    
     if (count > 1000) {
         DOMElements.journal.charCount.style.color = 'var(--danger-color)';
     } else if (count > 800) {
         DOMElements.journal.charCount.style.color = 'var(--primary-color)';
     } else {
         DOMElements.journal.charCount.style.color = 'var(--text-color)';
+    }
+    // Auto-save journal entry on type
+    autoSaveJournalEntry();
+    
+    function autoSaveJournalEntry() {
+        const text = DOMElements.journal.entry.value;
+        if (text.length > 1024) return;
+        const today = new Date();
+        const todayKey = today.toISOString().slice(0, 10);
+        if (!currentUserData.journalEntries) currentUserData.journalEntries = {};
+        if (!currentUserData.journalEntries[todayKey] || currentUserData.journalEntries[todayKey].text !== text) {
+            currentUserData.journalEntries[todayKey] = {
+                text: text,
+                date: todayKey,
+                image: DOMElements.journal.imagePreview.querySelector('img')?.src || null
+            };
+            saveUserData();
+            loadPreviousJournalEntries();
+        }
     }
 }
 
@@ -1753,10 +1782,14 @@ function setupEventListeners() {
     // Journal
     DOMElements.journal.entry.addEventListener('input', updateCharCount);
     DOMElements.journal.saveBtn.addEventListener('click', saveJournalEntry);
-    DOMElements.journal.imageUpload.addEventListener('change', handleImageUpload);
-    document.getElementById('upload-image-btn').addEventListener('click', () => {
-        DOMElements.journal.imageUpload.click();
-    });
+    if (DOMElements.journal.imageUpload) {
+        DOMElements.journal.imageUpload.removeEventListener('change', handleImageUpload);
+        DOMElements.journal.imageUpload.addEventListener('change', handleImageUpload);
+    }
+    const uploadBtn = document.getElementById('upload-image-btn');
+    if (uploadBtn) {
+        uploadBtn.onclick = () => DOMElements.journal.imageUpload.click();
+    }
     
     // Close modals when clicking outside
     window.addEventListener('click', (e) => {
@@ -1766,14 +1799,17 @@ function setupEventListeners() {
     });
     
     // Change name button
-    document.getElementById('changeNameBtn').addEventListener('click', () => {
-        const newName = prompt("Enter your name:", currentUserData.profileName || "Floww User");
-        if (newName && newName.trim()) {
-            currentUserData.profileName = newName.trim();
-            DOMElements.profile.nameDisplay.textContent = newName.trim();
-            saveUserData();
-        }
-    });
+    const changeNameBtn = document.getElementById('changeNameBtn');
+    if (changeNameBtn) {
+        changeNameBtn.onclick = () => {
+            const newName = prompt("Enter your name:", currentUserData.profileName || "Floww User");
+            if (newName && newName.trim()) {
+                currentUserData.profileName = newName.trim();
+                DOMElements.profile.nameDisplay.textContent = newName.trim();
+                saveUserData();
+            }
+        };
+    }
     
     // Progress widget
     updateCornerWidget();
@@ -2047,4 +2083,112 @@ document.addEventListener('DOMContentLoaded', () => {
     if (isGuestMode) {
         initializeAppState();
     }
+    // Render journal and timetable in Customize modal when opened
+    const statsBtn = document.getElementById('statsBtn');
+    if (statsBtn) {
+        statsBtn.addEventListener('click', () => {
+            renderJournalTabEntries();
+            renderTimetableTabEntries();
+        });
+    }
 });
+
+// Render all journal entries in the Customize modal's Journal tab
+function renderJournalTabEntries() {
+    const container = document.getElementById('journal-tab-entries');
+    container.innerHTML = '';
+    if (!currentUserData.journalEntries || Object.keys(currentUserData.journalEntries).length === 0) {
+        container.innerHTML = '<p>No journal entries yet.</p>';
+        // Also update main journal/history if open
+        if (window.DOMElements && DOMElements.journal && DOMElements.journal.entriesList) {
+            DOMElements.journal.entriesList.innerHTML = '<p>No previous entries yet.</p>';
+        }
+        return;
+    }
+    // Sort by date (newest first)
+    const sorted = Object.entries(currentUserData.journalEntries)
+        .sort(([a], [b]) => new Date(b) - new Date(a));
+    sorted.forEach(([date, entry]) => {
+        const entryDiv = document.createElement('div');
+        entryDiv.className = 'journal-entry-item';
+        const entryDate = new Date(date);
+        const formattedDate = entryDate.toLocaleDateString('en-US', {
+            weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
+        });
+        let html = `<div class="journal-entry-date"><i class="fas fa-calendar"></i>${formattedDate}</div>`;
+        html += `<div class="journal-entry-content">${entry.text}</div>`;
+        if (entry.image) {
+            html += `<img src="${entry.image}" class="journal-entry-image" alt="Journal image">`;
+            html += `<button class="delete-journal-image-btn" data-date="${date}"><i class="fas fa-trash"></i> Delete Image</button>`;
+        }
+        html += `<button class="delete-journal-entry-btn" data-date="${date}"><i class="fas fa-trash"></i> Delete Entry</button>`;
+        entryDiv.innerHTML = html;
+        container.appendChild(entryDiv);
+    });
+    // Add delete event listeners
+    container.querySelectorAll('.delete-journal-entry-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const date = btn.getAttribute('data-date');
+            if (confirm('Delete this journal entry?')) {
+                delete currentUserData.journalEntries[date];
+                saveUserData();
+                renderJournalTabEntries();
+                // Also update main journal/history if open
+                if (typeof loadPreviousJournalEntries === 'function') loadPreviousJournalEntries();
+            }
+        });
+    });
+    container.querySelectorAll('.delete-journal-image-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const date = btn.getAttribute('data-date');
+            if (currentUserData.journalEntries[date]) {
+                currentUserData.journalEntries[date].image = null;
+                saveUserData();
+                renderJournalTabEntries();
+                // Also update main journal/history if open
+                if (typeof loadPreviousJournalEntries === 'function') loadPreviousJournalEntries();
+            }
+        });
+    });
+}
+
+// Render all timetable slots in the Customize modal's Timetable tab
+function renderTimetableTabEntries() {
+    const container = document.querySelector('#timetableContainer .timetable-tab-content');
+    if (!container) return;
+    let html = '';
+    if (!currentUserData.timetable || Object.keys(currentUserData.timetable).length === 0) {
+        html = '<p>No timetable slots added yet.</p>';
+    } else {
+        // Group by day
+        const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+        days.forEach(day => {
+            const slots = Object.entries(currentUserData.timetable).filter(([id, slot]) => slot.day === day);
+            if (slots.length > 0) {
+                html += `<div class="timetable-day-group"><h4>${day.charAt(0).toUpperCase() + day.slice(1)}</h4>`;
+                slots.sort((a, b) => a[1].start.localeCompare(b[1].start)).forEach(([id, slot]) => {
+                    html += `<div class="timetable-slot-item">`;
+                    html += `<span class="timetable-slot-time">${slot.start} - ${slot.end}</span> `;
+                    html += `<span class="timetable-slot-activity">${slot.activity}</span> `;
+                    html += `<button class="delete-timetable-slot-btn" data-id="${id}"><i class="fas fa-trash"></i></button>`;
+                    html += `</div>`;
+                });
+                html += `</div>`;
+            }
+        });
+    }
+    container.innerHTML = html;
+    // Add delete event listeners
+    container.querySelectorAll('.delete-timetable-slot-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const id = btn.getAttribute('data-id');
+            if (confirm('Delete this time slot?')) {
+                if (currentUserData.timetable && currentUserData.timetable[id]) {
+                    delete currentUserData.timetable[id];
+                    saveUserData();
+                    renderTimetableTabEntries();
+                }
+            }
+        });
+    });
+}
