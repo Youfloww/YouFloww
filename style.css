@@ -1,3 +1,17 @@
+/* Pie Chart Animation */
+.charts-container {
+    position: relative;
+}
+#pieChart {
+    opacity: 0;
+    transform: scale(0.85);
+    transition: opacity 0.7s cubic-bezier(.4,1.6,.4,1), transform 0.7s cubic-bezier(.4,1.6,.4,1);
+}
+#statsModal.visible #pieChart,
+#statsModal .tab-content.active #pieChart {
+    opacity: 1;
+    transform: scale(1);
+}
 /* Magical Star Trail Canvas Styles */
 #star-trail-canvas {
     position: absolute;
