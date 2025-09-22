@@ -1999,24 +1999,36 @@ function switchTab(tabName) {
 }
 
 function renderCharts() {
-    // Weekly focus chart
+    // Weekly focus chart (in hours)
     const weeklyData = currentUserData.weeklyFocus || {};
     const last7Days = [...Array(7)].map((_, i) => {
         const d = new Date();
         d.setDate(d.getDate() - i);
         return d.toISOString().slice(0, 10);
     }).reverse();
-    
     const barCtx = document.getElementById('barChart').getContext('2d');
     if (window.barChartInstance) window.barChartInstance.destroy();
+    // Convert minutes to hours (rounded to 2 decimals)
+    const hoursArr = last7Days.map(d => ((weeklyData[d] || 0) / 60).toFixed(2));
     window.barChartInstance = new Chart(barCtx, {
         type: 'bar',
         data: {
             labels: last7Days.map(d => new Date(d).toLocaleDateString('en-US', { weekday: 'short' })),
             datasets: [{
-                label: 'Focus Minutes',
-                data: last7Days.map(d => weeklyData[d] || 0),
-                backgroundColor: 'rgba(108, 99, 255, 0.7)',
+                label: 'Focus Hours',
+                data: hoursArr,
+                backgroundColor: {
+                    type: 'linear',
+                    x0: 0,
+                    y0: 0,
+                    x1: 0,
+                    y1: 400,
+                    colorStops: {
+                        0: '#6c63ff',
+                        1: '#f7a047'
+                    }
+                },
+                borderRadius: 10,
                 borderColor: 'rgba(108, 99, 255, 1)',
                 borderWidth: 1
             }]
@@ -2024,10 +2036,17 @@ function renderCharts() {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            animation: {
+                duration: 1200,
+                easing: 'easeOutQuart'
+            },
             scales: {
                 y: {
                     beginAtZero: true,
-                    ticks: { color: '#e0e0e0' },
+                    ticks: {
+                        color: '#e0e0e0',
+                        callback: function(value) { return value + 'h'; }
+                    },
                     grid: { color: 'rgba(255, 255, 255, 0.1)' }
                 },
                 x: {
@@ -2036,18 +2055,22 @@ function renderCharts() {
                 }
             },
             plugins: {
-                legend: { labels: { color: '#e0e0e0' } }
+                legend: { labels: { color: '#e0e0e0' } },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ` ${ctx.parsed.y} hours`
+                    }
+                }
             }
         }
     });
-    
-    // Session distribution chart
+
+    // Session distribution chart (animated, improved pie)
     const sessionData = currentUserData.todos ? currentUserData.todos.reduce((acc, todo) => {
         if (todo.completed) acc.completed++;
         else acc.pending++;
         return acc;
     }, { completed: 0, pending: 0 }) : { completed: 0, pending: 0 };
-    
     const pieCtx = document.getElementById('pieChart').getContext('2d');
     if (window.pieChartInstance) window.pieChartInstance.destroy();
     window.pieChartInstance = new Chart(pieCtx, {
@@ -2056,21 +2079,65 @@ function renderCharts() {
             labels: ['Completed', 'Pending'],
             datasets: [{
                 data: [sessionData.completed, sessionData.pending],
-                backgroundColor: ['rgba(76, 175, 80, 0.7)', 'rgba(244, 67, 54, 0.7)'],
-                borderColor: ['rgba(76, 175, 80, 1)', 'rgba(244, 67, 54, 1)'],
-                borderWidth: 1
+                backgroundColor: [
+                    'rgba(76, 175, 80, 0.92)',
+                    'rgba(244, 67, 54, 0.92)'
+                ],
+                borderColor: [
+                    'rgba(76, 175, 80, 1)',
+                    'rgba(244, 67, 54, 1)'
+                ],
+                borderWidth: 3,
+                hoverOffset: 18,
+                hoverBorderColor: '#fff',
+                hoverBorderWidth: 4,
+                shadowOffsetX: 0,
+                shadowOffsetY: 0,
+                shadowBlur: 16,
+                shadowColor: 'rgba(76,175,80,0.18)'
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            cutout: '65%',
+            animation: {
+                animateRotate: true,
+                animateScale: true,
+                duration: 1400,
+                easing: 'easeOutElastic'
+            },
             plugins: {
-                legend: { 
+                legend: {
                     position: 'bottom',
-                    labels: { color: '#e0e0e0' }
+                    labels: { color: '#e0e0e0', font: { weight: 'bold', size: 14 }, padding: 18 }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => `${ctx.label}: ${ctx.parsed}`
+                    },
+                    backgroundColor: '#222',
+                    titleColor: '#4caf50',
+                    bodyColor: '#fff',
+                    borderColor: '#4caf50',
+                    borderWidth: 2
                 }
             }
-        }
+        },
+        plugins: [{
+            // Custom plugin for animated shadow glow
+            afterDraw: chart => {
+                const ctx = chart.ctx;
+                chart.getDatasetMeta(0).data.forEach(segment => {
+                    ctx.save();
+                    ctx.shadowColor = 'rgba(76,175,80,0.18)';
+                    ctx.shadowBlur = 18;
+                    ctx.beginPath();
+                    segment.draw(ctx);
+                    ctx.restore();
+                });
+            }
+        }]
     });
 }
 
