@@ -1,3 +1,11 @@
+/* Ensure Chart.js tooltips are above the chart */
+.chartjs-tooltip, .chartjs-tooltip * {
+    z-index: 9999 !important;
+}
+
+canvas#pieChart {
+    z-index: 1;
+}
 /* Pie Chart Animation */
 .charts-container {
     position: relative;
