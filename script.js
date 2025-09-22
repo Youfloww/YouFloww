@@ -1,7 +1,7 @@
 // ============ Disk Player Feature ============
 let diskPlayerEnabled = true;
 let diskPlayerAudio = null;
-let diskPlayerMusicUrl = 'diskmusic.mp3';
+let diskPlayerMusicUrl = 'assets/sounds/diskmusic.mp3'; // fixed path
 let diskPlayerPlaying = false;
 function showDiskPlayerModal() {
     const modal = document.createElement('div');
