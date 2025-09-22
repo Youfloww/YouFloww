@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YouFloww: The Ultimate Pomodoro Timer for Deep Focus</title>
     <meta name="description" content="Boost your productivity with YouFloww, the advanced Pomodoro timer with unique features to help you achieve a state of flow and eliminate distractions.">
+    <link rel="icon" type="image/png" href="assets/images/disk.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -25,7 +26,7 @@
 <!-- Disk Player (shown below pill if enabled) -->
 <div id="diskPlayerContainer" class="disk-player-container hidden">
     <div id="diskPlayer" class="disk-player">
-        <img src="disk.png" alt="Disk" class="disk-image" />
+        <img src="assets/images/disk.png" alt="Disk" class="disk-image" />
         <input type="file" id="diskMusicUpload" accept="audio/*" class="hidden" />
         <button id="diskChangeMusicBtn" class="disk-change-btn hidden" title="Change Music">
             <i class="fas fa-music"></i>
@@ -122,7 +123,7 @@
                 </div>
                 <ul id="todo-list" class="sortable-list"></ul>
                 <button class="clear-todos-btn">Clear All Tasks</button>
-                <audio id="completeSound"><source src="complete.mp3" type="audio/mpeg"></audio>
+                <audio id="completeSound"><source src="assets/sounds/complete.mp3" type="audio/mpeg"></audio>
                 <div id="confetti-canvas"></div>
             </div>
             <div class="controls-container">
@@ -560,31 +561,40 @@
     </div>
 </nav>
 
-<audio id="whiteNoise" loop><source src="whitenoise.mp3" type="audio/mpeg"></audio>
+<audio id="whiteNoise" loop><source src="assets/sounds/whitenoise.mp3" type="audio/mpeg"></audio>
 <audio id="pauseAlertSound"><source src="https://actions.google.com/sounds/v1/ui/close_button_pressed.ogg" type="audio/ogg"></audio>
 <audio id="resumeAlertSound"><source src="https://actions.google.com/sounds/v1/ui/button_press.ogg" type="audio/ogg"></audio>
-<audio class="start-sound-indian" src="start-sound1.mp3"></audio>
-<audio class="start-sound-indian" src="start-sound2.mp3"></audio>
-<audio class="start-sound-indian" src="start-sound3.mp3"></audio>
-<audio class="start-sound-indian" src="start-sound4.mp3"></audio>
-<audio class="good-meme-indian" src="good-meme1.mp3"></audio>
-<audio class="good-meme-indian" src="good-meme2.mp3"></audio>
-<audio class="good-meme-indian" src="good-meme3.mp3"></audio>
-<audio class="good-meme-indian" src="good-meme4.mp3"></audio>
-<audio class="bad-meme-indian" src="bad-meme1.mp3"></audio>
-<audio class="bad-meme-indian" src="bad-meme2.mp3"></audio>
-<audio class="bad-meme-indian" src="bad-meme3.mp3"></audio>
-<audio class="bad-meme-indian" src="bad-meme4.mp3"></audio>
-<audio class="start-sound-non-indian" src="https://github.com/ishaanx/pomodoro-accountability-sounds/raw/main/start.mp3"></audio>
-<audio class="good-meme-non-indian" src="https://github.com/ishaanx/pomodoro-accountability-sounds/raw/main/good.mp3"></audio>
-<audio class="bad-meme-non-indian" src="https://github.com/ishaanx/pomodoro-accountability-sounds/raw/main/bad.mp3"></audio>
+<audio class="start-sound-indian" src="assets/sounds/start-sound1.mp3"></audio>
+<audio class="start-sound-indian" src="assets/sounds/start-sound2.mp3"></audio>
+<audio class="start-sound-indian" src="assets/sounds/start-sound3.mp3"></audio>
+<audio class="start-sound-indian" src="assets/sounds/start-sound4.mp3"></audio>
+<audio class="good-meme-indian" src="assets/sounds/good-meme1.mp3"></audio>
+<audio class="good-meme-indian" src="assets/sounds/good-meme2.mp3"></audio>
+<audio class="good-meme-indian" src="assets/sounds/good-meme3.mp3"></audio>
+<audio class="good-meme-indian" src="assets/sounds/good-meme4.mp3"></audio>
+<audio class="bad-meme-indian" src="assets/sounds/bad-meme1.mp3"></audio>
+<audio class="bad-meme-indian" src="assets/sounds/bad-meme2.mp3"></audio>
+<audio class="bad-meme-indian" src="assets/sounds/bad-meme3.mp3"></audio>
+<audio class="bad-meme-indian" src="assets/sounds/bad-meme4.mp3"></audio>
+<audio class="start-sound-non-indian" src="assets/sounds/start-nonindian-1.mp3"></audio>
+<audio class="start-sound-non-indian" src="assets/sounds/start-nonindian-2.mp3"></audio>
+<audio class="start-sound-non-indian" src="assets/sounds/start-nonindian-3.mp3"></audio>
+<audio class="start-sound-non-indian" src="assets/sounds/start-nonindian-4.mp3"></audio>
+<audio class="good-meme-non-indian" src="assets/sounds/good-nonindian-1.mp3"></audio>
+<audio class="good-meme-non-indian" src="assets/sounds/good-nonindian-2.mp3"></audio>
+<audio class="good-meme-non-indian" src="assets/sounds/good-nonindian-3.mp3"></audio>
+<audio class="good-meme-non-indian" src="assets/sounds/good-nonindian-4.mp3"></audio>
+<audio class="bad-meme-non-indian" src="assets/sounds/bad-nonindian-1.mp3"></audio>
+<audio class="bad-meme-non-indian" src="assets/sounds/bad-nonindian-2.mp3"></audio>
+<audio class="bad-meme-non-indian" src="assets/sounds/bad-nonindian-3.mp3"></audio>
+<audio class="bad-meme-non-indian" src="assets/sounds/bad-nonindian-4.mp3"></audio>
 
 <!-- Custom Gravity Loader Overlay (no Framer) -->
 <div id="gravity-loader-overlay">
   <canvas id="gravity-particles-canvas"></canvas>
   <canvas id="star-trail-canvas"></canvas>
   <div id="gravity-loader-content">
-    <img src="disk.png" alt="Disk" id="loader-disk-img" style="width:90px;height:90px;margin-bottom:1.2em;filter:drop-shadow(0 0 16px #f7a04788);user-select:none;pointer-events:none;" draggable="false" />
+    <img src="assets/images/disk.png" alt="Disk" id="loader-disk-img" style="width:90px;height:90px;margin-bottom:1.2em;filter:drop-shadow(0 0 16px #f7a04788);user-select:none;pointer-events:none;" draggable="false" />
     <h1 id="glowy-title">YouFloww</h1>
     <div id="loader-counter">0%</div>
   </div>
