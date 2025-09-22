@@ -2105,18 +2105,7 @@ function renderCharts() {
                 animateRotate: true,
                 animateScale: true,
                 duration: 1400,
-                easing: 'easeOutElastic',
-                from: 0,
-                to: 1,
-                onProgress: function(animation) {
-                    // This ensures the pie fills from 0 to value
-                    const chart = animation.chart;
-                    const dataset = chart.data.datasets[0];
-                    const progress = animation.currentStep / animation.numSteps;
-                    chart.getDatasetMeta(0).data.forEach((arc, i) => {
-                        arc.circumference = chart.getDatasetMeta(0).total * progress * (dataset.data[i] / dataset.data.reduce((a,b)=>a+b,1));
-                    });
-                }
+                easing: 'easeOutElastic'
             },
             plugins: {
                 legend: {
