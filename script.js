@@ -2090,11 +2090,7 @@ function renderCharts() {
                 borderWidth: 3,
                 hoverOffset: 18,
                 hoverBorderColor: '#fff',
-                hoverBorderWidth: 4,
-                shadowOffsetX: 0,
-                shadowOffsetY: 0,
-                shadowBlur: 16,
-                shadowColor: 'rgba(76,175,80,0.18)'
+                hoverBorderWidth: 4
             }]
         },
         options: {
@@ -2104,8 +2100,8 @@ function renderCharts() {
             animation: {
                 animateRotate: true,
                 animateScale: true,
-                duration: 1400,
-                easing: 'easeOutElastic'
+                duration: 1200,
+                easing: 'easeOutQuart'
             },
             plugins: {
                 legend: {
@@ -2123,21 +2119,7 @@ function renderCharts() {
                     borderWidth: 2
                 }
             }
-        },
-        plugins: [{
-            // Custom plugin for animated shadow glow
-            afterDraw: chart => {
-                const ctx = chart.ctx;
-                chart.getDatasetMeta(0).data.forEach(segment => {
-                    ctx.save();
-                    ctx.shadowColor = 'rgba(76,175,80,0.18)';
-                    ctx.shadowBlur = 18;
-                    ctx.beginPath();
-                    segment.draw(ctx);
-                    ctx.restore();
-                });
-            }
-        }]
+        }
     });
 }
 
