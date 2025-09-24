@@ -1,3 +1,80 @@
+.quote-text.fall {
+    animation: quoteFall 0.7s cubic-bezier(.42,0,.58,1) forwards;
+    opacity: 0;
+}
+@keyframes quoteFall {
+    0% { transform: perspective(600px) translateY(0) scale(1) rotate(0deg); opacity: 1; }
+    60% { transform: perspective(600px) translateY(60px) scale(0.98) rotate(8deg); opacity: 1; }
+    100% { transform: perspective(600px) translateY(120vh) scale(0.95) rotate(16deg); opacity: 0; }
+}
+/* === Motivational Quote Section === */
+#quote-section {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 2.5em;
+    margin-bottom: 1.5em;
+}
+.quote-container {
+    background: #111;
+    box-shadow: 0 4px 24px rgba(247,160,71,0.18), 0 1.5px 8px #ffd18044;
+    border-radius: 1.5em;
+    padding: 2em 2.5em;
+    max-width: 540px;
+    text-align: center;
+    position: relative;
+    animation: fadeInQuote 1.2s cubic-bezier(.42,0,.58,1);
+}
+/* Professional interactive quote motion */
+.quote-text {
+    font-family: 'Inter', sans-serif;
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #f7a047;
+    text-shadow: 0 2px 12px #f7a04788, 0 0 2px #fff2;
+    margin-bottom: 0.7em;
+    margin-top: 0;
+    letter-spacing: 0.02em;
+    line-height: 1.5;
+    transition: transform 0.18s cubic-bezier(.42,0,.58,1), text-shadow 0.18s cubic-bezier(.42,0,.58,1), color 0.18s cubic-bezier(.42,0,.58,1);
+    cursor: pointer;
+    will-change: transform, text-shadow, color;
+    perspective: 600px;
+}
+.quote-text.tilted {
+    color: #ffd180;
+    text-shadow: 0 0 32px #f7a047, 0 0 8px #fff, 0 0 2px #fff;
+}
+.quote-text.bounce {
+    animation: quoteBounce 0.5s cubic-bezier(.42,0,.58,1);
+}
+@keyframes quoteBounce {
+    0% { transform: scale(1) translateY(0); }
+    30% { transform: scale(1.08) translateY(-8px); }
+    50% { transform: scale(0.96) translateY(2px); }
+    70% { transform: scale(1.03) translateY(-4px); }
+    100% { transform: scale(1) translateY(0); }
+}
+.quote-author {
+    font-size: 1.05rem;
+    color: #ffd180;
+    font-weight: 500;
+    margin-top: 0.2em;
+    opacity: 0.85;
+}
+@keyframes fadeInQuote {
+    from { opacity: 0; transform: translateY(24px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes quoteWobble {
+    0% { transform: scale(1) rotate(0deg); }
+    20% { transform: scale(1.08) rotate(-2deg); }
+    40% { transform: scale(0.98) rotate(2deg); }
+    60% { transform: scale(1.05) rotate(-1deg); }
+    80% { transform: scale(1.02) rotate(1deg); }
+    100% { transform: scale(1) rotate(0deg); }
+}
 /* Ensure Chart.js tooltips are above the chart */
 .chartjs-tooltip, .chartjs-tooltip * {
     z-index: 9999 !important;
