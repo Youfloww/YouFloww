@@ -1608,7 +1608,78 @@ function loadTimetableData() {
 }
 
 // ===================================================================================
+// MOTIVATIONAL QUOTE OF THE DAY FUNCTIONALITY
+// ===================================================================================
+function fetchQuoteOfTheDay() {
+    const quoteTextEl = document.getElementById('daily-quote');
+    const quoteAuthorEl = document.getElementById('quote-author');
+    if (!quoteTextEl || !quoteAuthorEl) return;
+    // Use localStorage to cache quote for the day
+    const today = new Date().toISOString().slice(0, 10);
+    const cached = JSON.parse(localStorage.getItem('quoteOfTheDay') || '{}');
+    if (cached.date === today && cached.text && cached.author) {
+        quoteTextEl.textContent = cached.text;
+        quoteAuthorEl.textContent = cached.author ? `— ${cached.author}` : '';
+        return;
+    }
+    fetch('https://api.quotable.io/random?tags=motivational|inspirational')
+        .then(res => res.json())
+        .then(data => {
+            quoteTextEl.textContent = data.content;
+            quoteAuthorEl.textContent = data.author ? `— ${data.author}` : '';
+            localStorage.setItem('quoteOfTheDay', JSON.stringify({
+                date: today,
+                text: data.content,
+                author: data.author
+            }));
+        })
+        .catch(() => {
+            quoteTextEl.textContent = 'Stay motivated and keep flowing!';
+            quoteAuthorEl.textContent = '';
+        });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    fetchQuoteOfTheDay();
+    // Professional interactive motion for quote text
+    const quoteTextEl = document.getElementById('daily-quote');
+    if (quoteTextEl) {
+        let tiltTimeout;
+        quoteTextEl.addEventListener('mousemove', (e) => {
+            const rect = quoteTextEl.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            const rotateX = ((y - centerY) / centerY) * 8;
+            const rotateY = ((x - centerX) / centerX) * -8;
+            quoteTextEl.style.transform = `perspective(600px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+            quoteTextEl.classList.add('tilted');
+            clearTimeout(tiltTimeout);
+        });
+        quoteTextEl.addEventListener('mouseleave', () => {
+            quoteTextEl.style.transform = '';
+            quoteTextEl.classList.remove('tilted');
+        });
+        quoteTextEl.addEventListener('click', () => {
+            // Fall down animation
+            quoteTextEl.classList.add('fall');
+            // Remove from view after animation
+            setTimeout(() => {
+                quoteTextEl.style.visibility = 'hidden';
+                quoteTextEl.classList.remove('fall');
+                quoteTextEl.style.transform = '';
+                quoteTextEl.classList.remove('tilted');
+                // Restore after delay
+                setTimeout(() => {
+                    quoteTextEl.style.visibility = 'visible';
+                }, 1200);
+            }, 700);
+        });
+    }
+});
 // macOS DOCK FUNCTIONALITY
+// ===================================================================================
 // ===================================================================================
 function initMacDock() {
     DOMElements.dockItems.forEach(item => {
