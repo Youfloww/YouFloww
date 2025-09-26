@@ -158,6 +158,15 @@
                     <div id="quote-author" class="quote-author"></div>
                 </div>
             </section>
+
+            <!-- Leaderboard Section -->
+            <section id="leaderboard-section">
+                <div class="leaderboard-card">
+                    <h2><i class="fas fa-trophy"></i> Today's Leaderboard</h2>
+                    <div class="leaderboard-subtext">Top 10 by focus hours. Refreshes every 3 minutes.</div>
+                    <ol id="leaderboard-list" class="leaderboard-list"></ol>
+                </div>
+            </section>
         
         <!-- New Journal Section -->
         <section id="journal-section" class="hidden">
@@ -418,7 +427,7 @@
             <h3>🤖 Accountability AI</h3>
             <div class="settings-group">
                 <div class="toggle-switch-container">
-                    <label for="accountability-toggle">Accountability Partner (Camera)</label>
+                    <label for="accountability-toggle">Accountability Partner (Camera) <span class="beta-badge">In Testing Phase</span></label>
                     <label class="switch">
                         <input type="checkbox" id="accountability-toggle">
                         <span class="slider round"></span>
@@ -823,3 +832,4 @@ window.addEventListener('DOMContentLoaded', function() {
 </a>
 </body>
 </html>
+
