@@ -141,7 +141,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // FIREBASE SDKs - Imported from index.html
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, collection, query, where, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-analytics.js";
 
 // ============ Minimalist Animated Intro Logic ============
@@ -230,6 +230,94 @@ let currentUserData = {};
 let userDataRef = null;
 
 // ===================================================================================
+// LEADERBOARD HELPERS (Public Users projection)
+// ===================================================================================
+function getTodayKey() {
+    return new Date().toISOString().slice(0, 10);
+}
+
+async function updatePublicUserDoc() {
+    try {
+        if (isGuestMode || !auth.currentUser) return;
+        const today = getTodayKey();
+        const minutes = (currentUserData.weeklyFocus && currentUserData.weeklyFocus[today]) || 0;
+        const profileName = currentUserData.profileName || "Floww User";
+        const ref = doc(db, 'publicUsers', auth.currentUser.uid);
+        await setDoc(ref, {
+            profileName,
+            todayFocusMinutes: minutes,
+            date: today
+        }, { merge: true });
+        // Instantly refresh leaderboard after successful write
+        await refreshLeaderboard();
+    } catch (e) {
+        console.error('Error updating public user doc:', e);
+    }
+}
+
+let leaderboardInterval = null;
+async function refreshLeaderboard() {
+    try {
+        const listEl = document.getElementById('leaderboard-list');
+        if (!listEl) return;
+        const today = getTodayKey();
+        // Query only today's docs; sort and limit client-side to avoid composite index requirements
+        const q = query(
+            collection(db, 'publicUsers'),
+            where('date', '==', today)
+        );
+        const snap = await getDocs(q);
+        let entries = [];
+        snap.forEach(docSnap => {
+            const d = docSnap.data() || {};
+            const minutesRaw = d.todayFocusMinutes;
+            const minutes = typeof minutesRaw === 'number' && isFinite(minutesRaw) ? Math.max(0, minutesRaw) : 0;
+            entries.push({
+                name: d.profileName || 'Floww User',
+                minutes
+            });
+        });
+        // Sort desc by minutes and take top 10
+        entries.sort((a, b) => b.minutes - a.minutes);
+        entries = entries.slice(0, 10);
+
+        listEl.innerHTML = '';
+        entries.forEach((e, idx) => {
+            const li = document.createElement('li');
+            const hours = e.minutes / 60;
+            let medal = '';
+            if (idx === 0) medal = '🥇';
+            else if (idx === 1) medal = '🥈';
+            else if (idx === 2) medal = '🥉';
+            li.innerHTML = `<span class="rank">${idx + 1} ${medal}</span><span class="name">${e.name}</span><span class="value">${hours.toFixed(2)}h</span>`;
+            listEl.appendChild(li);
+        });
+        // Fill up to 10 with placeholders if needed
+        for (let i = entries.length; i < 10; i++) {
+            const li = document.createElement('li');
+            li.classList.add('placeholder');
+            li.innerHTML = `<span class="rank">${i + 1}</span><span class="name">—</span><span class="value">0.00h</span>`;
+            listEl.appendChild(li);
+        }
+    } catch (e) {
+        console.error('Failed to refresh leaderboard:', e);
+    }
+}
+
+function startLeaderboard() {
+    refreshLeaderboard();
+    if (leaderboardInterval) clearInterval(leaderboardInterval);
+    leaderboardInterval = setInterval(refreshLeaderboard, 180000); // every 3 minutes
+}
+
+function stopLeaderboard() {
+    if (leaderboardInterval) clearInterval(leaderboardInterval);
+    leaderboardInterval = null;
+    const listEl = document.getElementById('leaderboard-list');
+    if (listEl) listEl.innerHTML = '';
+}
+
+// ===================================================================================
 // GLOBAL STATE & VARIABLES
 // ===================================================================================
 let timerInterval, isRunning = false, isWorkSession = true, sessionCount = 0;
@@ -254,6 +342,50 @@ let awayTimerStart = null;
 let modelsLoaded = false; // Flag to check if face-api models are loaded
 let poseDetector = null;
 let poseDetectionInterval = null;
+
+// Prefer MediaPipe Pose Landmarker for robust full-body detection
+let useMediaPipePose = true; // default to MediaPipe; fallback to MoveNet if unavailable
+let mpPoseLandmarker = null;
+let mpVision = null;
+let mpPoseRunningMode = 'VIDEO';
+let lastMPLandmarks = null;
+
+// Accountability movement tracking & UX
+let lastPose = null;
+let lastActivityTimestamp = null;
+const INACTIVITY_THRESHOLD_MS = 15000; // 15 seconds
+let skipAccountabilityPermissionOnce = false;
+let pendingStartIsResume = false;
+let accountabilityInactivityModal = null;
+let accountabilityPermissionModal = null;
+
+// Shirt color baseline detection
+let baselineHSV = null;
+let baselineSetAt = null;
+let colorSampleCanvas = null;
+let colorSampleCtx = null;
+const SHIRT_HUE_TOL = 12; // degrees
+const SHIRT_S_TOL = 0.25; // saturation tolerance
+const SHIRT_V_TOL = 0.30; // value tolerance
+
+// Motion detection (frame differencing on sample canvas)
+let lastMotionImage = null; // Uint8ClampedArray of previous ROI sample
+let motionLevel = 0; // 0..1
+const MOTION_THRESHOLD = 0.008; // more sensitive motion detection
+const MOTION_DECAY = 0.85; // smooth out noise
+const ACC_PERMISSION_KEY = 'youfloww_acc_camera_granted';
+
+// ==== Accountability Debug UI (temporary) ====
+let enableAccDebug = false;
+let accDebugEl = null;
+let lastEngineUsed = 'None';
+let lastFaceDetected = false;
+let lastPersonDetected = false;
+let lastMovementDetected = false;
+let lastShirtMatch = false;
+let lastHSVCurrent = null;
+let lastSampledRoi = null;
+let lastVideoDims = { w: 0, h: 0 };
 
 // YOUTUBE PLAYER STATE
 let youtubePlayer = null;
@@ -367,11 +499,13 @@ onAuthStateChanged(auth, user => {
         DOMElements.authModal.classList.remove('visible');
         userDataRef = doc(db, "users", user.uid);
         loadUserData();
+        startLeaderboard();
     } else if (!isGuestMode) {
         DOMElements.appContainer.classList.add('hidden');
         DOMElements.authModal.classList.add('visible');
         if (timerInterval) clearInterval(timerInterval);
         isRunning = false;
+        stopLeaderboard();
     }
 });
 
@@ -396,6 +530,7 @@ function loadUserData() {
                 if (currentUserData.todaySessions === undefined) currentUserData.todaySessions = 0;
             }
             initializeAppState();
+            updatePublicUserDoc();
         });
     }
 }
@@ -441,10 +576,27 @@ function playRandomSound(type) {
 
 function startTimer(isResume = false) {
     if (isRunning) return;
+
+    // If accountability is enabled for a WORK session and no stream is active, check permission gate
+    if (isAccountabilityOn && isWorkSession) {
+        if (!isCameraActive()) {
+            const granted = localStorage.getItem(ACC_PERMISSION_KEY) === 'true';
+            if (!granted && !skipAccountabilityPermissionOnce) {
+                pendingStartIsResume = isResume;
+                showAccountabilityPermissionModal();
+                return;
+            }
+        }
+    }
+
     isRunning = true;
     if (isWorkSession) {
-        if (isResume) DOMElements.sounds.resumeAlert.play();
-        else playRandomSound('start');
+        if (isResume) {
+            DOMElements.sounds.resumeAlert.play();
+        } else if (!sessionStartTime) {
+            // Play start sound only on fresh work session start (not resume)
+            playRandomSound('start');
+        }
     }
     if (!sessionStartTime) sessionStartTime = Date.now();
     if (lastPauseTimestamp) {
@@ -453,9 +605,20 @@ function startTimer(isResume = false) {
     }
     endTime = Date.now() + timeLeft * 1000;
     updateUIState();
-    if (isAccountabilityOn) {
+    if (isAccountabilityOn && isWorkSession) {
+        // Initialize activity timestamp on (re)start
+        lastActivityTimestamp = Date.now();
+        // Reset shirt color baseline at the start of each work session
+        baselineHSV = null;
+        baselineSetAt = null;
+        ensureColorSampleCanvas();
         startFaceDetection();
         startPoseDetection();
+        // Prime baseline sampling immediately using fallback ROI in case pose takes a moment
+        try {
+            updateShirtColorActivityWithMP(null);
+            updateShirtColorActivityWithMoveNet(null);
+        } catch {}
     }
     timerInterval = setInterval(() => {
         timeLeft = Math.round((endTime - Date.now()) / 1000);
@@ -470,7 +633,8 @@ function startTimer(isResume = false) {
         }
     }, 1000);
 
-    if (isAccountabilityOn && !DOMElements.video.srcObject) {
+    if (isAccountabilityOn && isWorkSession && !isCameraActive()) {
+        // Try to start camera silently; if user had granted earlier, this won't prompt
         startVideo();
     }
 }
@@ -506,30 +670,47 @@ function resetTimer() {
 }
 
 function endSession() {
-    const timeFocusedSec = workDuration - timeLeft;
-    const minutesFocused = Math.floor(timeFocusedSec / 60);
-    handleEndOfWorkSession(minutesFocused, false);
-    // Always play bad meme sound on early end
-    playRandomSound('bad');
-    showSessionReview();
-    resetTimer();
+    if (isWorkSession) {
+        const timeFocusedSec = workDuration - timeLeft;
+        const minutesFocused = Math.floor(timeFocusedSec / 60);
+        handleEndOfWorkSession(minutesFocused, false);
+        // Play bad meme sound only for work session
+        playRandomSound('bad');
+        showSessionReview();
+        resetTimer();
+    } else {
+        // Ending a break early: no sounds, just reset back to work preset
+        resetTimer();
+    }
 }
 
 function handleSessionCompletion() {
-    const minutesFocused = Math.floor(workDuration / 60);
-    handleEndOfWorkSession(minutesFocused, true);
-    // Always play good meme sound on full session complete
-    playRandomSound('good');
-    showCompletionPopup();
-    if (isAccountabilityOn) showSessionReview();
-    sessionCount++;
-    isWorkSession = false;
-    timeLeft = (sessionCount % 4 === 0) ? longBreakDuration : shortBreakDuration;
-    sessionStartTime = null;
-    totalAwayTime = 0;
-    updateTimerDisplay();
-    updateUIState();
-    startTimer();
+    if (isWorkSession) {
+        const minutesFocused = Math.floor(workDuration / 60);
+        handleEndOfWorkSession(minutesFocused, true);
+        // Play good meme sound only for work session completion
+        playRandomSound('good');
+        showCompletionPopup();
+        if (isAccountabilityOn) showSessionReview();
+        sessionCount++;
+        isWorkSession = false; // move to break
+        timeLeft = (sessionCount % 4 === 0) ? longBreakDuration : shortBreakDuration;
+        sessionStartTime = null;
+        totalAwayTime = 0;
+        updateTimerDisplay();
+        updateUIState();
+        // Start break silently (no camera/detection)
+        startTimer();
+    } else {
+        // Break finished: switch back to work silently, no sounds
+        isWorkSession = true;
+        timeLeft = workDuration;
+        sessionStartTime = null;
+        totalAwayTime = 0;
+        updateTimerDisplay();
+        updateUIState();
+        startTimer();
+    }
 }
 
 function handleEndOfWorkSession(minutesFocused, sessionCompleted) {
@@ -560,9 +741,10 @@ function handleEndOfWorkSession(minutesFocused, sessionCompleted) {
         if (!currentUserData.weeklyFocus) currentUserData.weeklyFocus = {};
         currentUserData.weeklyFocus[today] = (currentUserData.weeklyFocus[today] || 0) + minutesFocused;
     }
-    if (minutesFocused >= 20) playRandomSound('good');
-    else if (minutesFocused > 0) playRandomSound('bad');
+    // Note: Sounds are handled at call sites (natural completion -> good, early end -> bad)
     saveUserData();
+    // Update public projection used by leaderboard
+    updatePublicUserDoc();
 }
 
 // Update streak logic
@@ -617,17 +799,27 @@ async function loadFaceApiModels() {
 }
 
 async function setupPoseDetection() {
+    // Try to init TensorFlow MoveNet first (as backup)
     try {
-        const detectorConfig = {
-            modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
-            enableSmoothing: true
-        };
-        poseDetector = await poseDetection.createDetector(
-            poseDetection.SupportedModels.MoveNet,
-            detectorConfig
-        );
+        if (window.poseDetection) {
+            const detectorConfig = {
+                modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
+                enableSmoothing: true
+            };
+            poseDetector = await poseDetection.createDetector(
+                poseDetection.SupportedModels.MoveNet,
+                detectorConfig
+            );
+        }
     } catch (error) {
-        console.error("Could not load pose detection model:", error);
+        console.warn("MoveNet init failed, will rely on MediaPipe Pose:", error);
+    }
+    // Always attempt to init MediaPipe Pose Landmarker (preferred)
+    try {
+        await initMediaPipePoseLandmarker();
+        useMediaPipePose = !!mpPoseLandmarker;
+    } catch (e) {
+        console.error("Could not initialize MediaPipe Pose:", e);
     }
 }
 
@@ -638,15 +830,25 @@ async function startVideo() {
             video: { 
                 width: { ideal: 640 },
                 height: { ideal: 480 }
-            } 
+            },
+            audio: false
         });
+        DOMElements.video.setAttribute('playsinline', 'true');
         DOMElements.video.srcObject = stream;
-        DOMElements.poseCanvas.width = DOMElements.video.videoWidth;
-        DOMElements.poseCanvas.height = DOMElements.video.videoHeight;
+        // Ensure video metadata is loaded before sizing canvas and playing
+        await new Promise((resolve) => {
+            if (DOMElements.video.readyState >= 1) return resolve();
+            DOMElements.video.onloadedmetadata = () => resolve();
+        });
+        try { await DOMElements.video.play(); } catch {}
+        const vw = DOMElements.video.videoWidth || DOMElements.video.width || 640;
+        const vh = DOMElements.video.videoHeight || DOMElements.video.height || 480;
+        DOMElements.poseCanvas.width = vw;
+        DOMElements.poseCanvas.height = vh;
     } catch (err) {
         console.error("Camera access error:", err);
         alert("Camera access is required for Accountability features. Please allow access and refresh.");
-        DOMElements.settings.accountabilityToggle.checked = false;
+        if (DOMElements.settings.accountabilityToggle) DOMElements.settings.accountabilityToggle.checked = false;
         isAccountabilityOn = false;
         window.isAccountabilityOn = isAccountabilityOn;
         saveSettingsToData();
@@ -660,9 +862,16 @@ function stopVideo() {
     }
 }
 
+function isCameraActive() {
+    const stream = DOMElements.video.srcObject;
+    if (!stream) return false;
+    const tracks = stream.getVideoTracks?.() || [];
+    return tracks.some(t => t.readyState === 'live' && t.enabled);
+}
+
 function startFaceDetection() {
     if (!faceApiInterval && isAccountabilityOn) {
-        faceApiInterval = setInterval(handleFaceDetection, 1000);
+        faceApiInterval = setInterval(handleFaceDetection, 700);
         window.faceApiInterval = faceApiInterval;
     }
 }
@@ -676,8 +885,8 @@ function stopFaceDetection() {
 }
 
 function startPoseDetection() {
-    if (!poseDetectionInterval && isAccountabilityOn && poseDetector) {
-        poseDetectionInterval = setInterval(handlePoseDetection, 1000);
+    if (!poseDetectionInterval && isAccountabilityOn && (mpPoseLandmarker || poseDetector)) {
+        poseDetectionInterval = setInterval(handlePoseDetection, 500);
     }
 }
 
@@ -687,32 +896,97 @@ function stopPoseDetection() {
 }
 
 async function handleFaceDetection() {
-    if (!modelsLoaded || !isRunning || DOMElements.video.paused || DOMElements.video.ended || !DOMElements.video.srcObject) return;
+    if (!modelsLoaded || !isAccountabilityOn || DOMElements.video.ended || !isCameraActive()) return;
     
     try {
         const detections = await faceapi.detectAllFaces(
             DOMElements.video, 
-            new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.4 })
+            new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.5 })
         ).withFaceLandmarks(true);
 
         const faceDetected = detections.length > 0;
+        lastFaceDetected = faceDetected;
         handlePresenceDetection(faceDetected);
+        if (faceDetected) {
+            // Seed baseline if not set yet
+            if (!baselineHSV) {
+                try { updateShirtColorActivityWithMP(null); } catch {}
+                try { updateShirtColorActivityWithMoveNet(null); } catch {}
+            }
+            lastActivityTimestamp = Date.now();
+            hideAccountabilityPopup();
+        }
+        // Movement-based inactivity check is evaluated separately (pose detection preferred)
+        checkInactivityAndMaybePause();
     } catch (error) {
         console.error("Face detection error:", error);
     }
 }
 
 async function handlePoseDetection() {
-    if (!poseDetector || !isRunning || DOMElements.video.paused || DOMElements.video.ended || !DOMElements.video.srcObject) return;
-    
+    if (!isAccountabilityOn || DOMElements.video.ended || !isCameraActive()) return;
+
     try {
-        const poses = await poseDetector.estimatePoses(DOMElements.video);
-        const personDetected = poses.length > 0 && poses[0].keypoints.some(kp => kp.score > 0.4);
-        
-        // If pose detection finds a person, use that instead of face detection
+        if (useMediaPipePose && mpPoseLandmarker) {
+            lastEngineUsed = 'MediaPipe';
+            const ts = performance.now();
+            const result = mpPoseLandmarker.detectForVideo(DOMElements.video, ts);
+            const landmarksArr = result?.landmarks || [];
+            const personDetected = landmarksArr.length > 0;
+            lastPersonDetected = personDetected;
+
+            if (personDetected) {
+                const curr = landmarksArr[0];
+                // Update shirt color baseline/match using torso ROI
+                updateShirtColorActivityWithMP(curr);
+                let movementDetected = true;
+                if (lastMPLandmarks) {
+                    movementDetected = hasSignificantMovementMP(lastMPLandmarks, curr);
+                }
+                lastMPLandmarks = curr;
+                lastMovementDetected = !!movementDetected;
+                if (movementDetected) {
+                    lastActivityTimestamp = Date.now();
+                    hideAccountabilityPopup();
+                }
+                handlePresenceDetection(true);
+            } else {
+                handlePresenceDetection(false);
+                // Also try shirt color with fallback ROI; typically will not match, aiding absence detection
+                updateShirtColorActivityWithMP(null);
+            }
+        } else if (poseDetector) {
+            lastEngineUsed = 'MoveNet';
+            const poses = await poseDetector.estimatePoses(DOMElements.video);
+            let personDetected = false;
+            if (poses.length > 0) {
+                const visibleCount = poses[0].keypoints.filter(kp => (kp.score || 0) > 0.3).length;
+                personDetected = visibleCount >= 4;
+            }
+            lastPersonDetected = personDetected;
         if (personDetected) {
-            handlePresenceDetection(true);
+                const currentPose = poses[0];
+                // Update shirt color baseline/match using torso ROI from MoveNet keypoints
+                updateShirtColorActivityWithMoveNet(currentPose);
+                let movementDetected = true;
+                if (lastPose) {
+                    movementDetected = hasSignificantMovement(lastPose, currentPose);
+                }
+                lastPose = currentPose;
+                lastMovementDetected = !!movementDetected;
+                if (movementDetected) {
+                    lastActivityTimestamp = Date.now();
+                    hideAccountabilityPopup();
+                }
+                handlePresenceDetection(true);
+            } else {
+                handlePresenceDetection(false);
+                // Also try shirt color with fallback ROI
+                updateShirtColorActivityWithMoveNet(null);
+            }
         }
+        checkInactivityAndMaybePause();
+        updateAccDebugPanel();
     } catch (error) {
         console.error("Pose detection error:", error);
     }
@@ -724,15 +998,19 @@ function handlePresenceDetection(presenceDetected) {
             if (!awayTimerStart) {
                 awayTimerStart = Date.now();
                 showFaceStatusPrompt("Are you there? Timer will pause soon...");
-            } else if (Date.now() - awayTimerStart > 30000) { // 30 seconds
+            } else if (Date.now() - awayTimerStart > INACTIVITY_THRESHOLD_MS) { // pause if no person detected
                 pauseTimer(true);
                 showFaceStatusPrompt("Timer paused. Come back to resume.");
+                showAccountabilityPopup();
             }
         } else {
             if (awayTimerStart) {
                 awayTimerStart = null;
                 hideFaceStatusPrompt();
-                if (!isRunning && !pauseWasManual) startTimer(true);
+            }
+            if (!isRunning && !pauseWasManual) {
+                hideAccountabilityPopup();
+                startTimer(true);
             }
         }
     }
@@ -745,6 +1023,468 @@ function showFaceStatusPrompt(message) {
 
 function hideFaceStatusPrompt() {
     DOMElements.faceStatusPrompt.classList.remove('visible');
+}
+
+// Compute if there is significant movement between poses
+function hasSignificantMovement(prevPose, currPose) {
+    try {
+        const prev = prevPose.keypoints || [];
+        const curr = currPose.keypoints || [];
+        let totalDist = 0;
+        let maxDist = 0;
+        let count = 0;
+        for (let i = 0; i < Math.min(prev.length, curr.length); i++) {
+            const p = prev[i];
+            const c = curr[i];
+            if ((p.score ?? 0) > 0.3 && (c.score ?? 0) > 0.3) {
+                const dx = (p.x - c.x);
+                const dy = (p.y - c.y);
+                const dist = Math.hypot(dx, dy);
+                totalDist += dist;
+                maxDist = Math.max(maxDist, dist);
+                count++;
+            }
+        }
+        // Heuristics: either a keypoint moved notably, or cumulative micro-movements are present
+        return (maxDist > 8) || (count > 0 && totalDist / count > 1.5);
+    } catch {
+        return true; // fail-open to avoid false pauses
+    }
+}
+
+function ensureColorSampleCanvas() {
+    if (!colorSampleCanvas) {
+        colorSampleCanvas = document.createElement('canvas');
+        colorSampleCanvas.width = 160; // small for perf
+        colorSampleCanvas.height = 120;
+        colorSampleCtx = colorSampleCanvas.getContext('2d', { willReadFrequently: true });
+    }
+}
+
+function getTorsoRoiFromMP(landmarks, vw, vh) {
+    if (!landmarks || landmarks.length < 25) return null;
+    const LShoulder = landmarks[11];
+    const RShoulder = landmarks[12];
+    const LHip = landmarks[23];
+    const RHip = landmarks[24];
+    if (!LShoulder || !RShoulder || !LHip || !RHip) return null;
+    const left = Math.min(LShoulder.x, RShoulder.x, LHip.x, RHip.x);
+    const right = Math.max(LShoulder.x, RShoulder.x, LHip.x, RHip.x);
+    const top = Math.min(LShoulder.y, RShoulder.y);
+    const bottom = Math.max(LHip.y, RHip.y);
+    // Expand a bit
+    const padX = 0.05;
+    const padY = 0.05;
+    return {
+        x: Math.max(0, (left - padX) * vw),
+        y: Math.max(0, (top - padY) * vh),
+        w: Math.min(vw, (right - left + 2 * padX) * vw),
+        h: Math.min(vh, (bottom - top + 2 * padY) * vh)
+    };
+}
+
+function getTorsoRoiFromMoveNet(pose, vw, vh) {
+    if (!pose || !pose.keypoints) return null;
+    const kp = pose.keypoints;
+    const idx = {
+        LShoulder: 5, RShoulder: 6, LHip: 11, RHip: 12
+    };
+    const LShoulder = kp[idx.LShoulder];
+    const RShoulder = kp[idx.RShoulder];
+    const LHip = kp[idx.LHip];
+    const RHip = kp[idx.RHip];
+    if (!LShoulder || !RShoulder || !LHip || !RHip) return null;
+    if ((LShoulder.score || 0) < 0.3 || (RShoulder.score || 0) < 0.3 || (LHip.score || 0) < 0.3 || (RHip.score || 0) < 0.3) return null;
+    const left = Math.min(LShoulder.x, RShoulder.x, LHip.x, RHip.x);
+    const right = Math.max(LShoulder.x, RShoulder.x, LHip.x, RHip.x);
+    const top = Math.min(LShoulder.y, RShoulder.y);
+    const bottom = Math.max(LHip.y, RHip.y);
+    const padX = 10; const padY = 10;
+    return {
+        x: Math.max(0, left - padX),
+        y: Math.max(0, top - padY),
+        w: Math.min(vw, (right - left) + 2 * padX),
+        h: Math.min(vh, (bottom - top) + 2 * padY)
+    };
+}
+
+function fallbackTorsoRoi(vw, vh) {
+    // Larger fallback ROI around upper body/chest area
+    const w = Math.max(60, vw * 0.4);
+    const h = Math.max(80, vh * 0.5);
+    return {
+        x: Math.max(0, (vw - w) / 2),
+        y: Math.max(0, vh * 0.2),
+        w,
+        h
+    };
+}
+
+function rgbToHsv(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let h, s, v = max;
+    const d = max - min;
+    s = max === 0 ? 0 : d / max;
+    if (max === min) h = 0; else {
+        switch (max) {
+            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+            case g: h = (b - r) / d + 2; break;
+            case b: h = (r - g) / d + 4; break;
+        }
+        h /= 6;
+    }
+    return { h: h * 360, s, v };
+}
+
+function sampleAvgHSVFromROI(video, roi) {
+    if (!roi || roi.w <= 1 || roi.h <= 1) return null;
+    ensureColorSampleCanvas();
+    const vwEff = video.videoWidth || video.width || 640;
+    const vhEff = video.videoHeight || video.height || 480;
+    lastVideoDims = { w: vwEff, h: vhEff };
+    // Draw video scaled into small canvas to reduce cost
+    try {
+        colorSampleCtx.drawImage(video, 0, 0, colorSampleCanvas.width, colorSampleCanvas.height);
+    } catch {}
+    // Map ROI to sample canvas coords
+    const scaleX = colorSampleCanvas.width / Math.max(1, vwEff);
+    const scaleY = colorSampleCanvas.height / Math.max(1, vhEff);
+    const sx = Math.max(0, Math.floor(roi.x * scaleX));
+    const sy = Math.max(0, Math.floor(roi.y * scaleY));
+    const sw = Math.min(colorSampleCanvas.width - sx, Math.floor(roi.w * scaleX));
+    const sh = Math.min(colorSampleCanvas.height - sy, Math.floor(roi.h * scaleY));
+    lastSampledRoi = { x: sx, y: sy, w: sw, h: sh };
+    if (sw <= 1 || sh <= 1) return null;
+    let img;
+    try {
+        img = colorSampleCtx.getImageData(sx, sy, sw, sh);
+    } catch {
+        return null;
+    }
+    const data = img.data;
+    let sumH = 0, sumS = 0, sumV = 0, count = 0;
+    // Sample every 4th pixel for speed
+    for (let i = 0; i < data.length; i += 16) {
+        const r = data[i], g = data[i + 1], b = data[i + 2];
+        const { h, s, v } = rgbToHsv(r, g, b);
+        sumH += h; sumS += s; sumV += v; count++;
+    }
+    if (count === 0) return null;
+    return { h: sumH / count, s: sumS / count, v: sumV / count };
+}
+
+function hsvMatchesBaseline(curr, base) {
+    if (!curr || !base) return false;
+    let dh = Math.abs(curr.h - base.h);
+    if (dh > 180) dh = 360 - dh; // circular hue distance
+    const ds = Math.abs(curr.s - base.s);
+    const dv = Math.abs(curr.v - base.v);
+    return dh <= SHIRT_HUE_TOL && ds <= SHIRT_S_TOL && dv <= SHIRT_V_TOL;
+}
+
+function computeMotionFromROI(video, roi) {
+    if (!roi || roi.w <= 1 || roi.h <= 1) return 0;
+    ensureColorSampleCanvas();
+    const vwEff = video.videoWidth || video.width || 640;
+    const vhEff = video.videoHeight || video.height || 480;
+    try { colorSampleCtx.drawImage(video, 0, 0, colorSampleCanvas.width, colorSampleCanvas.height); } catch {}
+    const scaleX = colorSampleCanvas.width / Math.max(1, vwEff);
+    const scaleY = colorSampleCanvas.height / Math.max(1, vhEff);
+    const sx = Math.max(0, Math.floor(roi.x * scaleX));
+    const sy = Math.max(0, Math.floor(roi.y * scaleY));
+    const sw = Math.min(colorSampleCanvas.width - sx, Math.floor(roi.w * scaleX));
+    const sh = Math.min(colorSampleCanvas.height - sy, Math.floor(roi.h * scaleY));
+    if (sw <= 1 || sh <= 1) return 0;
+    let img;
+    try { img = colorSampleCtx.getImageData(sx, sy, sw, sh); } catch { return 0; }
+    const data = img.data;
+    let diffSum = 0;
+    let count = 0;
+    if (!lastMotionImage || lastMotionImage.length !== data.length) {
+        lastMotionImage = new Uint8ClampedArray(data); // seed
+        return 0;
+    }
+    // Compare every 4th pixel
+    for (let i = 0; i < data.length; i += 16) {
+        const dr = Math.abs(data[i] - lastMotionImage[i]);
+        const dg = Math.abs(data[i+1] - lastMotionImage[i+1]);
+        const db = Math.abs(data[i+2] - lastMotionImage[i+2]);
+        diffSum += (dr + dg + db) / (3 * 255);
+        count++;
+    }
+    // Update buffer
+    lastMotionImage.set(data);
+    const avg = count ? diffSum / count : 0;
+    motionLevel = MOTION_DECAY * motionLevel + (1 - MOTION_DECAY) * avg;
+    return motionLevel;
+}
+
+function updateShirtColorActivityWithMP(landmarks) {
+    if (!DOMElements.video) return;
+    const vw = DOMElements.video.videoWidth || DOMElements.video.width || 640;
+    const vh = DOMElements.video.videoHeight || DOMElements.video.height || 480;
+    let roi = getTorsoRoiFromMP(landmarks, vw, vh) || fallbackTorsoRoi(vw, vh);
+    const hsv = sampleAvgHSVFromROI(DOMElements.video, roi);
+    const m = computeMotionFromROI(DOMElements.video, roi);
+    lastMovementDetected = m > MOTION_THRESHOLD;
+    if (lastMovementDetected) {
+        lastActivityTimestamp = Date.now();
+        hideAccountabilityPopup();
+    }
+    if (!hsv) return;
+    lastHSVCurrent = hsv;
+    if (!baselineHSV) {
+        baselineHSV = hsv;
+        baselineSetAt = Date.now();
+        return;
+    }
+    const match = hsvMatchesBaseline(hsv, baselineHSV);
+    lastShirtMatch = match;
+    if (match) {
+        lastActivityTimestamp = Date.now();
+        hideAccountabilityPopup();
+        handlePresenceDetection(true);
+    }
+}
+
+function updateShirtColorActivityWithMoveNet(pose) {
+    if (!DOMElements.video) return;
+    const vw = DOMElements.video.videoWidth || DOMElements.video.width || 640;
+    const vh = DOMElements.video.videoHeight || DOMElements.video.height || 480;
+    let roi = getTorsoRoiFromMoveNet(pose, vw, vh) || fallbackTorsoRoi(vw, vh);
+    const hsv = sampleAvgHSVFromROI(DOMElements.video, roi);
+    const m = computeMotionFromROI(DOMElements.video, roi);
+    lastMovementDetected = m > MOTION_THRESHOLD;
+    if (lastMovementDetected) {
+        lastActivityTimestamp = Date.now();
+        hideAccountabilityPopup();
+    }
+    if (!hsv) return;
+    lastHSVCurrent = hsv;
+    if (!baselineHSV) {
+        baselineHSV = hsv;
+        baselineSetAt = Date.now();
+        return;
+    }
+    const match = hsvMatchesBaseline(hsv, baselineHSV);
+    lastShirtMatch = match;
+    if (match) {
+        lastActivityTimestamp = Date.now();
+        hideAccountabilityPopup();
+        handlePresenceDetection(true);
+    }
+}
+
+function hasSignificantMovementMP(prevLandmarks, currLandmarks) {
+    try {
+        // Landmarks are normalized [0..1]; compute average and max movement across a subset (shoulders, elbows, hips)
+        const idxs = [11, 12, 13, 14, 23, 24]; // shoulders, elbows, hips indices for MediaPipe
+        let total = 0;
+        let maxd = 0;
+        let count = 0;
+        for (const i of idxs) {
+            const p = prevLandmarks[i];
+            const c = currLandmarks[i];
+            if (!p || !c) continue;
+            const dx = (p.x - c.x);
+            const dy = (p.y - c.y);
+            const dist = Math.hypot(dx, dy);
+            total += dist;
+            maxd = Math.max(maxd, dist);
+            count++;
+        }
+        return (maxd > 0.01) || (count > 0 && total / count > 0.004);
+    } catch {
+        return true;
+    }
+}
+
+function checkInactivityAndMaybePause() {
+    if (!isAccountabilityOn || !isRunning) return;
+    if (!lastActivityTimestamp) lastActivityTimestamp = Date.now();
+    const inactiveFor = Date.now() - lastActivityTimestamp;
+    if (inactiveFor > INACTIVITY_THRESHOLD_MS) {
+        pauseTimer(true);
+        showAccountabilityPopup();
+    }
+}
+
+function showAccountabilityPopup() {
+    try {
+        if (!accountabilityInactivityModal) {
+            accountabilityInactivityModal = document.createElement('div');
+            accountabilityInactivityModal.className = 'modal visible';
+            accountabilityInactivityModal.innerHTML = `
+                <div class="modal-content" style="max-width:420px;text-align:center;">
+                    <span class="close-btn" style="position:absolute;top:10px;right:18px;font-size:2rem;cursor:pointer;">&times;</span>
+                    <h2 style="margin-top:0;">Stay in Flow ✨</h2>
+                    <p style="margin:1em 0 0.5em 0;font-size:1.05em;">You should be focusing right now! Where are you?</p>
+                    <p style="opacity:0.8;">We paused your timer. Come back into view and we’ll auto-resume.</p>
+                </div>`;
+            document.body.appendChild(accountabilityInactivityModal);
+            accountabilityInactivityModal.querySelector('.close-btn').onclick = () => accountabilityInactivityModal.classList.remove('visible');
+        } else {
+            accountabilityInactivityModal.classList.add('visible');
+        }
+    } catch (e) {
+        console.error('Failed to show accountability popup:', e);
+    }
+}
+
+function hideAccountabilityPopup() {
+    try {
+        if (accountabilityInactivityModal) accountabilityInactivityModal.classList.remove('visible');
+    } catch {}
+}
+
+// ---- Debug Panel Helpers ----
+function initAccountabilityDebugPanel() {
+    if (accDebugEl || !enableAccDebug) return;
+    accDebugEl = document.createElement('div');
+    accDebugEl.id = 'acc-debug-panel';
+    accDebugEl.style.cssText = [
+        'position:fixed','right:12px','bottom:12px','z-index:99999',
+        'background:rgba(20,20,30,0.9)','color:#eaeaea','padding:10px 12px','border-radius:10px',
+        'font-family:ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+        'font-size:12px','line-height:1.4','box-shadow:0 8px 24px rgba(0,0,0,0.35)'
+    ].join(';');
+    accDebugEl.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <strong>Accountability Debug</strong>
+            <div>
+                <button id="acc-debug-seed" style="background:#444;border:0;color:#eee;border-radius:6px;padding:2px 6px;margin-right:6px;cursor:pointer;">Set Baseline</button>
+                <button id="acc-debug-close" style="background:#333;border:0;color:#eee;border-radius:6px;padding:2px 6px;cursor:pointer;">×</button>
+            </div>
+        </div>
+        <div id="acc-debug-content" style="white-space:pre"></div>
+        <div style="opacity:0.7;margin-top:6px;">Toggle: Shift+D</div>
+    `;
+    document.body.appendChild(accDebugEl);
+    document.getElementById('acc-debug-close').onclick = () => {
+        accDebugEl.style.display = 'none';
+    };
+    document.getElementById('acc-debug-seed').onclick = () => {
+        baselineHSV = null;
+        baselineSetAt = null;
+        lastMotionImage = null;
+        motionLevel = 0;
+        updateAccDebugPanel();
+    };
+    document.addEventListener('keydown', (e) => {
+        if (e.key.toLowerCase() === 'd' && e.shiftKey) {
+            if (!accDebugEl) return;
+            accDebugEl.style.display = accDebugEl.style.display === 'none' ? 'block' : 'none';
+        }
+    });
+    updateAccDebugPanel();
+}
+
+function formatHSV(hsv) {
+    if (!hsv) return '—';
+    return `H:${Math.round(hsv.h)} S:${(hsv.s*100|0)}% V:${(hsv.v*100|0)}%`;
+}
+
+function hsvDiff(a, b) {
+    if (!a || !b) return { dh:'—', ds:'—', dv:'—' };
+    let dh = Math.abs(a.h - b.h); if (dh > 180) dh = 360 - dh;
+    const ds = Math.abs(a.s - b.s);
+    const dv = Math.abs(a.v - b.v);
+    return { dh: Math.round(dh), ds: Math.round(ds*100), dv: Math.round(dv*100) };
+}
+
+function updateAccDebugPanel() {
+    if (!accDebugEl || !enableAccDebug) return;
+    const content = document.getElementById('acc-debug-content');
+    const cameraActive = isCameraActive();
+    const inactiveFor = lastActivityTimestamp ? (Date.now() - lastActivityTimestamp) : 0;
+    const diff = hsvDiff(baselineHSV, lastHSVCurrent);
+    const gating = {
+        accountabilityOn: !!isAccountabilityOn,
+        workSession: !!isWorkSession,
+        running: !!isRunning,
+        cameraActive: !!cameraActive,
+        modelsLoaded: !!modelsLoaded,
+        mpReady: !!mpPoseLandmarker,
+        movenetReady: !!poseDetector
+    };
+    const lines = [
+        `Engine: ${lastEngineUsed}`,
+        `Camera: ${cameraActive ? 'ON' : 'OFF'}  | Work: ${isWorkSession}  | Running: ${isRunning}`,
+        `Face: ${lastFaceDetected}  | Person: ${lastPersonDetected}  | Move: ${lastMovementDetected} (${motionLevel.toFixed(3)})  | ShirtMatch: ${lastShirtMatch}`,
+        `InactiveFor: ${(inactiveFor/1000).toFixed(1)}s  | Threshold: ${(INACTIVITY_THRESHOLD_MS/1000).toFixed(0)}s`,
+        `BaselineHSV: ${formatHSV(baselineHSV)}`,
+        `CurrentHSV:  ${formatHSV(lastHSVCurrent)}  | ΔH:${diff.dh} ΔS:${diff.ds}% ΔV:${diff.dv}%`,
+        `Video: ${lastVideoDims.w}x${lastVideoDims.h}  ROI: ${lastSampledRoi ? `${lastSampledRoi.w}x${lastSampledRoi.h}@(${lastSampledRoi.x},${lastSampledRoi.y})` : '—'}`,
+        '',
+        `Gating -> accountabilityOn:${gating.accountabilityOn} workSession:${gating.workSession} running:${gating.running} cameraActive:${gating.cameraActive}`,
+        `Models -> face:${modelsLoaded} mp:${gating.mpReady} movenet:${gating.movenetReady}`,
+        !gating.running ? 'Hint: Click Start to begin detection.' : ''
+    ];
+    content.textContent = lines.filter(Boolean).join('\n');
+}
+
+function showAccountabilityPermissionModal() {
+    try {
+        if (!accountabilityPermissionModal) {
+            accountabilityPermissionModal = document.createElement('div');
+            accountabilityPermissionModal.className = 'modal visible';
+            accountabilityPermissionModal.innerHTML = `
+                <div class="modal-content" style="max-width:480px;text-align:center;">
+                    <span class="close-btn" style="position:absolute;top:10px;right:18px;font-size:2rem;cursor:pointer;">&times;</span>
+                    <h2 style="margin-top:0;">Accountability Partner</h2>
+                    <p style="margin:1em 0 0.25em 0;font-size:1.05em;">Camera permission not granted.</p>
+                    <p style="opacity:0.8;margin:0.25em 0 1em 0;">We process video locally in your browser and do not upload it. To use the accountability partner, please allow camera access.</p>
+                    <div style="display:flex;gap:10px;justify-content:center;margin-top:1em;">
+                        <button id="acc-allow-btn" class="timetable-btn primary">Allow Camera</button>
+                        <button id="acc-disable-btn" class="timetable-btn">Disable Accountability</button>
+                    </div>
+                    <div id="acc-error" style="color:var(--danger-color);margin-top:0.75em;display:none;"></div>
+                </div>`;
+            document.body.appendChild(accountabilityPermissionModal);
+            accountabilityPermissionModal.querySelector('.close-btn').onclick = () => accountabilityPermissionModal.classList.remove('visible');
+            accountabilityPermissionModal.querySelector('#acc-allow-btn').onclick = async () => {
+                const errEl = accountabilityPermissionModal.querySelector('#acc-error');
+                errEl.style.display = 'none';
+                try {
+                    await startVideo();
+                    // Remember that permission was granted to avoid re-prompting next sessions
+                    try { localStorage.setItem(ACC_PERMISSION_KEY, 'true'); } catch {}
+                    accountabilityPermissionModal.classList.remove('visible');
+                    const resumeFlag = pendingStartIsResume;
+                    pendingStartIsResume = false;
+                    skipAccountabilityPermissionOnce = true;
+                    startTimer(resumeFlag);
+                    skipAccountabilityPermissionOnce = false;
+                } catch (e) {
+                    errEl.textContent = 'Could not access camera. Please check your browser permissions and try again.';
+                    errEl.style.display = 'block';
+                }
+            };
+            accountabilityPermissionModal.querySelector('#acc-disable-btn').onclick = () => {
+                // Turn off accountability and proceed
+                isAccountabilityOn = false;
+                window.isAccountabilityOn = isAccountabilityOn;
+                if (DOMElements.settings.accountabilityToggle) {
+                    DOMElements.settings.accountabilityToggle.checked = false;
+                }
+                currentUserData.settings = currentUserData.settings || {};
+                currentUserData.settings.isAccountabilityOn = false;
+                try { localStorage.setItem(ACC_PERMISSION_KEY, 'false'); } catch {}
+                saveUserData();
+                accountabilityPermissionModal.classList.remove('visible');
+                const resumeFlag = pendingStartIsResume;
+                pendingStartIsResume = false;
+                skipAccountabilityPermissionOnce = true;
+                startTimer(resumeFlag);
+                skipAccountabilityPermissionOnce = false;
+            };
+        } else {
+            accountabilityPermissionModal.classList.add('visible');
+        }
+    } catch (e) {
+        console.error('Failed to show permission modal:', e);
+    }
 }
 
 // ===================================================================================
@@ -1641,6 +2381,7 @@ function fetchQuoteOfTheDay() {
 
 document.addEventListener('DOMContentLoaded', () => {
     fetchQuoteOfTheDay();
+    // Debug panel disabled
     // Professional interactive motion for quote text
     const quoteTextEl = document.getElementById('daily-quote');
     if (quoteTextEl) {
@@ -1709,10 +2450,18 @@ function navigateToSection(section) {
         case 'timer':
             document.getElementById('timer-section').classList.remove('hidden');
             document.getElementById('features-section').classList.remove('hidden');
+            const lb1 = document.getElementById('leaderboard-section');
+            if (lb1) lb1.classList.remove('hidden');
+            const q1 = document.getElementById('quote-section');
+            if (q1) q1.classList.remove('hidden');
             break;
         case 'todo':
             document.getElementById('timer-section').classList.remove('hidden');
             document.getElementById('features-section').classList.remove('hidden');
+            const lb2 = document.getElementById('leaderboard-section');
+            if (lb2) lb2.classList.remove('hidden');
+            const q2 = document.getElementById('quote-section');
+            if (q2) q2.classList.remove('hidden');
             // Scroll to todo section
             setTimeout(() => {
                 document.getElementById('todo-container').scrollIntoView({ behavior: 'smooth' });
@@ -1878,6 +2627,7 @@ function setupEventListeners() {
                 currentUserData.profileName = newName.trim();
                 DOMElements.profile.nameDisplay.textContent = newName.trim();
                 saveUserData();
+                updatePublicUserDoc();
             }
         };
     }
@@ -1998,6 +2748,42 @@ function toggleAmbientEffect(effect) {
         btn.classList.toggle('active', isSakuraActive);
         if (isSakuraActive) spawnAmbientParticles(effect);
     }
+}
+
+// MediaPipe dynamic loader and initializer
+async function loadScriptOnce(src) {
+    return new Promise((resolve, reject) => {
+        if (document.querySelector(`script[src="${src}"]`)) return resolve();
+        const s = document.createElement('script');
+        s.src = src;
+        s.async = true;
+        s.onload = () => resolve();
+        s.onerror = (e) => reject(e);
+        document.head.appendChild(s);
+    });
+}
+
+async function initMediaPipePoseLandmarker() {
+    if (mpPoseLandmarker) return;
+    // Load vision bundle (FilesetResolver, PoseLandmarker)
+    const bundleUrl = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/vision_bundle.js';
+    await loadScriptOnce(bundleUrl);
+    if (!window.FilesetResolver || !window.PoseLandmarker) {
+        throw new Error('MediaPipe Tasks Vision not available');
+    }
+    mpVision = await window.FilesetResolver.forVisionTasks(
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm'
+    );
+    mpPoseLandmarker = await window.PoseLandmarker.createFromOptions(mpVision, {
+        baseOptions: {
+            modelAssetPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm/pose_landmarker_full.task'
+        },
+        runningMode: mpPoseRunningMode,
+        numPoses: 1,
+        minPoseDetectionConfidence: 0.4,
+        minPosePresenceConfidence: 0.4,
+        minTrackingConfidence: 0.4
+    });
 }
 
 function spawnAmbientParticles(effect) {
