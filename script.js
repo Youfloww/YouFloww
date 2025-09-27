@@ -129,15 +129,190 @@ document.addEventListener('DOMContentLoaded', function() {
     const observer = new MutationObserver(updateDiskPlayerFocusMode);
     observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
 });
-// ============ Glow Pill Button Logic ============
+// ============ Glow Pill Button Logic & Teaser ============
 document.addEventListener('DOMContentLoaded', function() {
     const glowBtn = document.getElementById('glowPillBtn');
     if (glowBtn) {
-        glowBtn.addEventListener('click', function() {
+        glowBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
             glowBtn.classList.toggle('glow');
+            // Launch teaser slightly after the glow toggle so the effect is visible
+            setTimeout(() => showTeaserOverlay(), 120);
         });
     }
 });
+
+function showTeaserOverlay(opts = {}) {
+    let overlay = document.getElementById('teaserOverlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'teaserOverlay';
+        overlay.className = '';
+        overlay.innerHTML = `
+          <div class="teaser-wrap">
+            <button class="teaser-close" aria-label="Close">✕</button>
+            <video id="teaserVideo" playsinline preload="auto"></video>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+        const closeBtn = overlay.querySelector('.teaser-close');
+        closeBtn.addEventListener('click', (e) => { e.stopPropagation(); hideTeaserOverlay(); });
+        // Outside click/Esc: gated by flags set per mode
+        overlay.addEventListener('click', (e) => {
+            if (e.target.id === 'teaserOverlay' && overlay.dataset.allowOutside === 'true') {
+                hideTeaserOverlay();
+            }
+        });
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && overlay.dataset.allowEscape === 'true') hideTeaserOverlay();
+        });
+    }
+
+    // Resolve options
+    const mode = opts.mode || 'teaser';
+    const fullscreen = !!opts.fullscreen;
+    // Default sound behavior: teaser keeps previous behavior, intro should be with sound
+    const shouldMute = (opts && Object.prototype.hasOwnProperty.call(opts, 'muted')) ? !!opts.muted : (mode === 'intro' ? false : false);
+    const showClose = (opts && Object.prototype.hasOwnProperty.call(opts, 'showClose')) ? !!opts.showClose : (mode !== 'intro');
+    const showSkip = !!opts.showSkip;
+    const showSound = !!opts.showSound;
+    // Interaction gating
+    overlay.dataset.allowOutside = (mode === 'teaser') ? 'true' : 'false';
+    overlay.dataset.allowEscape = (mode === 'teaser') ? 'true' : 'false';
+
+    // Apply container styles based on mode
+    const wrap = overlay.querySelector('.teaser-wrap');
+    if (fullscreen) wrap.classList.add('fullscreen'); else wrap.classList.remove('fullscreen');
+
+    // Toggle close button
+    const closeBtn = overlay.querySelector('.teaser-close');
+    if (closeBtn) closeBtn.style.display = showClose ? 'inline-flex' : 'none';
+
+    // Ensure skip button exists when needed
+    let skipBtn = overlay.querySelector('.teaser-skip');
+    if (showSkip) {
+        if (!skipBtn) {
+            skipBtn = document.createElement('button');
+            skipBtn.className = 'teaser-skip';
+            skipBtn.textContent = 'Skip';
+            skipBtn.addEventListener('click', (e) => { e.stopPropagation(); hideTeaserOverlay(); });
+            wrap.appendChild(skipBtn);
+        } else {
+            skipBtn.style.display = 'inline-block';
+        }
+    } else if (skipBtn) {
+        skipBtn.style.display = 'none';
+    }
+
+    // Ensure sound toggle exists when needed (for intro mode)
+    let soundBtn = overlay.querySelector('.teaser-sound');
+    if (showSound) {
+        if (!soundBtn) {
+            soundBtn = document.createElement('button');
+            soundBtn.className = 'teaser-sound';
+            soundBtn.innerHTML = '<i class="fas fa-volume-mute"></i>';
+            wrap.appendChild(soundBtn);
+        } else {
+            soundBtn.style.display = 'inline-flex';
+        }
+    } else if (soundBtn) {
+        soundBtn.style.display = 'none';
+    }
+
+    const video = document.getElementById('teaserVideo');
+    if (soundBtn && video) {
+        const updateIcon = () => {
+            soundBtn.innerHTML = video.muted ? '<i class="fas fa-volume-mute"></i>' : '<i class="fas fa-volume-up"></i>';
+            soundBtn.title = video.muted ? 'Sound off' : 'Sound on';
+        };
+        updateIcon();
+        soundBtn.onclick = (e) => {
+            e.stopPropagation();
+            // Unmute/mute; click is a user gesture so audio should play
+            video.muted = !video.muted;
+            updateIcon();
+            // If unmuting and video is paused (unlikely on muted autoplay), try play again
+            if (!video.muted && video.paused) {
+                video.play().catch(() => {
+                    // Fallback: show controls
+                    video.setAttribute('controls', 'controls');
+                });
+            }
+        };
+    }
+
+    if (video) {
+        // Source is assets/images/video.mp4
+        video.src = 'assets/images/video.mp4';
+        video.muted = shouldMute;
+        video.currentTime = 0;
+        video.onended = () => hideTeaserOverlay();
+        overlay.classList.remove('hidden');
+        // Attempt to play with sound if requested
+        const tryPlay = () => video.play().catch((err) => {
+            // If autoplay with sound is blocked, show a tiny overlay control to start
+            if (!video.muted) {
+                video.removeAttribute('controls');
+                // Create tap-to-play overlay button if not present
+                let tapBtn = overlay.querySelector('#teaserTapToPlay');
+                if (!tapBtn) {
+                    tapBtn = document.createElement('button');
+                    tapBtn.id = 'teaserTapToPlay';
+                    tapBtn.textContent = 'Tap to Play';
+                    tapBtn.style.position = 'absolute';
+                    tapBtn.style.left = '50%';
+                    tapBtn.style.top = '50%';
+                    tapBtn.style.transform = 'translate(-50%, -50%)';
+                    tapBtn.style.padding = '10px 16px';
+                    tapBtn.style.borderRadius = '10px';
+                    tapBtn.style.border = '1px solid rgba(255,255,255,0.25)';
+                    tapBtn.style.background = 'rgba(0,0,0,0.6)';
+                    tapBtn.style.color = '#fff';
+                    tapBtn.style.zIndex = '6';
+                    tapBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        tapBtn.remove();
+                        video.play().catch(() => {
+                            // As a fallback, reveal controls
+                            video.setAttribute('controls', 'controls');
+                        });
+                    });
+                    wrap.appendChild(tapBtn);
+                }
+            } else {
+                // If muted and still fails, show controls
+                video.setAttribute('controls', 'controls');
+            }
+        });
+        tryPlay();
+
+        // Intro mode: clicking anywhere on the video area enables sound (no separate button)
+        if (mode === 'intro') {
+            const onTapEnableSound = (e) => {
+                // Avoid hijacking Skip button clicks
+                if (e.target && (e.target.classList && (e.target.classList.contains('teaser-skip') || e.target.classList.contains('teaser-close')))) return;
+                // Only act if currently muted
+                if (video.muted) {
+                    video.muted = false;
+                    video.play().catch(() => {
+                        // As a fallback, reveal native controls
+                        video.setAttribute('controls', 'controls');
+                    });
+                }
+            };
+            if (!wrap.dataset.soundHandlerAttached) {
+                wrap.addEventListener('click', onTapEnableSound);
+                wrap.dataset.soundHandlerAttached = 'true';
+            }
+        }
+    }
+}
+function hideTeaserOverlay() {
+    const overlay = document.getElementById('teaserOverlay');
+    const video = document.getElementById('teaserVideo');
+    if (video) { try { video.pause(); } catch {} }
+    if (overlay) overlay.classList.add('hidden');
+}
 // FIREBASE SDKs - Imported from index.html
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
@@ -147,6 +322,7 @@ import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-
 // ============ Minimalist Animated Intro Logic ============
 function playMinimalistIntro() {
     const overlay = document.getElementById('introOverlay');
+    if (!overlay) return; // Guard if this overlay isn't present
     const sparkle = overlay.querySelector('.sparkle');
     for (let i = 0; i < 12; i++) {
         const dot = document.createElement('div');
@@ -163,6 +339,19 @@ function playMinimalistIntro() {
     }, 3400);
 }
 window.addEventListener('DOMContentLoaded', playMinimalistIntro);
+
+// For testing: show full-screen teaser video (muted autoplay) with click-to-unmute and centered Skip; hide gravity loader overlay
+document.addEventListener('DOMContentLoaded', () => {
+    try {
+        showTeaserOverlay({ mode: 'intro', muted: true, fullscreen: true, showClose: false, showSkip: true, showSound: false });
+    } catch {}
+    const grav = document.getElementById('gravity-loader-overlay');
+    if (grav) {
+        grav.style.opacity = '0';
+        grav.style.pointerEvents = 'none';
+        grav.style.display = 'none';
+    }
+});
 
 // ============ NEW: Guest Mode State ============
 let isGuestMode = false;
@@ -235,7 +424,65 @@ let userDataRef = null;
 // LEADERBOARD HELPERS (Public Users projection)
 // ===================================================================================
 function getTodayKey() {
-    return new Date().toISOString().slice(0, 10);
+    // Use local date key (not UTC) so day boundaries match the user's timezone
+    return getLocalDateKey();
+}
+
+// Local date helpers for robust day-boundary handling
+function dateKeyToLocalDate(key) {
+    // key format: YYYY-MM-DD
+    if (!key || typeof key !== 'string') return new Date();
+    const [y, m, d] = key.split('-').map(Number);
+    return new Date(y, (m || 1) - 1, d || 1);
+}
+function diffLocalDateKeysDays(a, b) {
+    // Positive if b is after a (in days)
+    const da = dateKeyToLocalDate(a);
+    const db = dateKeyToLocalDate(b);
+    const msPerDay = 24 * 60 * 60 * 1000;
+    // Normalize to local midnight by constructing Date(y,m,d)
+    const diff = Math.round((db - da) / msPerDay);
+    return diff;
+}
+
+// Track local day to detect rollovers while the app is open
+let lastLocalDayKey = null;
+let _dayWatcherInterval = null;
+function ensureDailyRollovers() {
+    try {
+        const today = getLocalDateKey();
+        if (!lastLocalDayKey) lastLocalDayKey = today;
+        // Reset "today" counters in UI when calendar day changes (even before first session)
+        if (currentUserData && currentUserData.lastSessionDate !== today) {
+            currentUserData.todaySessions = 0;
+            // Do not overwrite lastSessionDate here; it will update on first session of the new day
+            saveUserData();
+        }
+        // Make sure leaderboard projection points to today (so boards show up-to-date day)
+        updatePublicUserDoc();
+        // Update charts and stats displays to reflect the new day baseline
+        try { updateStatsDisplay(); } catch {}
+        try { renderCharts(); } catch {}
+    } catch (e) { console.warn('ensureDailyRollovers failed', e); }
+}
+function onNewLocalDay() {
+    // Called when local date boundary is crossed while app is open
+    lastLocalDayKey = getLocalDateKey();
+    ensureDailyRollovers();
+    // Refresh leaderboard immediately
+    try { refreshLeaderboard(); } catch {}
+    // Refresh daily quote cache
+    try { fetchQuoteOfTheDay(); } catch {}
+}
+function startDayBoundaryWatcher() {
+    if (_dayWatcherInterval) clearInterval(_dayWatcherInterval);
+    lastLocalDayKey = getLocalDateKey();
+    _dayWatcherInterval = setInterval(() => {
+        const nowKey = getLocalDateKey();
+        if (nowKey !== lastLocalDayKey) {
+            onNewLocalDay();
+        }
+    }, 30000); // check every 30s to catch midnight reliably
 }
 
 async function updatePublicUserDoc() {
@@ -717,7 +964,7 @@ const secondsFocused = Math.max(0, Math.round(sessionSeconds));
         currentUserData.totalSessions = (currentUserData.totalSessions || 0) + 1;
         
         // Update today's sessions count
-        const today = new Date().toISOString().slice(0, 10);
+const today = getLocalDateKey();
         if (!currentUserData.weeklyFocusSeconds) currentUserData.weeklyFocusSeconds = {};
         currentUserData.weeklyFocusSeconds[today] = (currentUserData.weeklyFocusSeconds[today] || 0) + secondsFocused;
         if (!currentUserData.weeklyFocus) currentUserData.weeklyFocus = {};
@@ -750,9 +997,9 @@ const secondsFocused = Math.max(0, Math.round(sessionSeconds));
     updatePublicUserDoc();
 }
 
-// Update streak logic
+// Update streak logic (local-day aware)
 function updateStreak() {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getLocalDateKey();
     const prevCount = currentUserData.streakCount || 0;
     const lastStreakDate = currentUserData.lastStreakDate;
     let change = 'none';
@@ -762,20 +1009,17 @@ function updateStreak() {
         currentUserData.lastStreakDate = today;
         change = 'inc';
     } else {
-        const lastDate = new Date(lastStreakDate);
-        const currentDate = new Date(today);
-        const diffTime = Math.abs(currentDate - lastDate);
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        const diffDays = diffLocalDateKeysDays(lastStreakDate, today);
         if (diffDays === 1) {
             currentUserData.streakCount = (currentUserData.streakCount || 0) + 1;
             currentUserData.lastStreakDate = today;
             change = 'inc';
         } else if (diffDays > 1) {
-            currentUserData.streakCount = 1; // reset to 1 since a session completed today
+            currentUserData.streakCount = 1; // reset to 1 since a session completed today after a gap
             currentUserData.lastStreakDate = today;
             change = 'reset';
         }
-        // If same day, do nothing
+        // If same day (diffDays === 0), do nothing
     }
     if (currentUserData.streakCount > currentUserData.bestStreak) {
         currentUserData.bestStreak = currentUserData.streakCount;
@@ -1101,6 +1345,10 @@ async function initializeAppState() {
     
     // Update streak display
     DOMElements.streak.count.textContent = currentUserData.streakCount || 0;
+
+    // Ensure daily rollovers on load and start day boundary watcher
+    ensureDailyRollovers();
+    startDayBoundaryWatcher();
 }
 
 function loadSettingsFromData() {
@@ -2756,19 +3004,20 @@ function showStreakAnimation(type, count) {
 function renderCharts() {
     // Weekly focus chart (in hours)
     const weeklyData = currentUserData.weeklyFocus || {};
-    const last7Days = [...Array(7)].map((_, i) => {
+    // Build last 7 local-day keys in chronological order
+    const last7Days = [...Array(7)].map((_, idx) => {
         const d = new Date();
-        d.setDate(d.getDate() - i);
-        return d.toISOString().slice(0, 10);
-    }).reverse();
+        d.setDate(d.getDate() - (6 - idx));
+        return getLocalDateKey(d);
+    });
     const barCtx = document.getElementById('barChart').getContext('2d');
     if (window.barChartInstance) window.barChartInstance.destroy();
     // Convert minutes to hours (rounded to 2 decimals)
-    const hoursArr = last7Days.map(d => ((weeklyData[d] || 0) / 60).toFixed(2));
+    const hoursArr = last7Days.map(k => ((weeklyData[k] || 0) / 60).toFixed(2));
     window.barChartInstance = new Chart(barCtx, {
         type: 'bar',
         data: {
-            labels: last7Days.map(d => new Date(d).toLocaleDateString('en-US', { weekday: 'short' })),
+labels: last7Days.map(k => dateKeyToLocalDate(k).toLocaleDateString('en-US', { weekday: 'short' })),
             datasets: [{
                 label: 'Focus Hours',
                 data: hoursArr,
