@@ -6,12 +6,28 @@
     <title>YouFloww: The Ultimate Pomodoro Timer for Deep Focus</title>
     <meta name="description" content="Boost your productivity with YouFloww, the advanced Pomodoro timer with unique features to help you achieve a state of flow and eliminate distractions.">
     <link rel="icon" type="image/png" href="assets/images/disk.png">
+    <link rel="canonical" href="https://youfloww.com/">
+    <meta name="robots" content="index, follow">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://youfloww.com/">
+    <meta property="og:title" content="YouFloww: The Ultimate Pomodoro Timer for Deep Focus">
+    <meta property="og:description" content="Stay in flow with adaptive Pomodoro, task-focused sessions, ambience, and accountability tools. Study and work sessions that actually stick.">
+    <meta property="og:image" content="https://youfloww.com/assets/images/disk.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="YouFloww: The Ultimate Pomodoro Timer for Deep Focus">
+    <meta name="twitter:description" content="Stay in flow with adaptive Pomodoro, task-focused sessions, ambience, and accountability tools.">
+    <meta name="twitter:image" content="https://youfloww.com/assets/images/disk.png">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <!-- Font Awesome 6 (primary) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Font Awesome 5 (fallback for fas/fa-legacy classes) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="style.css">
         <link rel="manifest" href="manifest.json">
+    <!-- Google tag (gtag.js) -->
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-V3CLSWYVTF"></script>
     <script>
@@ -30,8 +46,61 @@
                 "logo": "https://youfloww.com/assets/images/disk.png"
             }
             </script>
+            <!-- SoftwareApplication markup -->
+            <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "SoftwareApplication",
+              "name": "YouFloww",
+              "applicationCategory": "Productivity",
+              "operatingSystem": "Web",
+              "url": "https://youfloww.com/",
+              "image": "https://youfloww.com/assets/images/disk.png",
+              "offers": { "@type": "Offer", "price": 0, "priceCurrency": "USD" },
+              "description": "Pomodoro timer with task-focused sessions, ambience, accountability, and streaks."
+            }
+            </script>
+            <!-- FAQ Page markup -->
+            <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "FAQPage",
+              "mainEntity": [
+                {
+                  "@type": "Question",
+                  "name": "What is YouFloww?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "YouFloww is a browser-based focus companion with Pomodoro, task tracking, ambience, and accountability features to help you enter flow."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "Can I time sessions for a specific task?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Yes. Select a task to focus and YouFloww will log time to it, show progress, and resume remaining estimate later."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "Is YouFloww free?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Yes, YouFloww runs entirely in your browser for free."
+                  }
+                }
+              ]
+            }
+            </script>
 </head>
 <body>
+<h1 class="visually-hidden">YouFloww – Pomodoro timer for deep focus, task progress, ambience, and streaks</h1>
+<noscript>
+  <div style="max-width:720px;margin:1rem auto;color:#ddd;background:#1e1e1e;border:1px solid #333;border-radius:8px;padding:0.75rem;font-size:0.95rem;">
+    YouFloww is a browser-based Pomodoro timer with task-focused sessions, ambience, and streaks. Enable JavaScript to use the app.
+  </div>
+</noscript>
 <!-- Glow Pill Button Top Left -->
 <button id="glowPillBtn" class="glow-pill-btn">YouFloww</button>
 <!-- Disk Player (shown below pill if enabled) -->
