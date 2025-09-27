@@ -187,6 +187,7 @@ function getDefaultUserData() {
     return {
         profileName: "Floww User",
         totalFocusMinutes: 0,
+        totalFocusSeconds: 0,
         totalSessions: 0,
         streakCount: 0,
         bestStreak: 0,
@@ -195,6 +196,7 @@ function getDefaultUserData() {
         todaySessions: 0,
         lastSessionDate: null,
         weeklyFocus: {},
+        weeklyFocusSeconds: {},
         todos: [],
         journalEntries: {},
         timetable: {},
@@ -240,12 +242,13 @@ async function updatePublicUserDoc() {
     try {
         if (isGuestMode || !auth.currentUser) return;
         const today = getTodayKey();
-        const minutes = (currentUserData.weeklyFocus && currentUserData.weeklyFocus[today]) || 0;
+        const sec = (currentUserData.weeklyFocusSeconds && currentUserData.weeklyFocusSeconds[today]) || (((currentUserData.weeklyFocus && currentUserData.weeklyFocus[today]) || 0) * 60);
+        const minutesFloat = sec / 60;
         const profileName = currentUserData.profileName || "Floww User";
         const ref = doc(db, 'publicUsers', auth.currentUser.uid);
         await setDoc(ref, {
             profileName,
-            todayFocusMinutes: minutes,
+            todayFocusMinutes: parseFloat(minutesFloat.toFixed(2)),
             date: today
         }, { merge: true });
         // Instantly refresh leaderboard after successful write
@@ -323,6 +326,7 @@ function stopLeaderboard() {
 let timerInterval, isRunning = false, isWorkSession = true, sessionCount = 0;
 let endTime = 0, timeLeft;
 let workDuration, shortBreakDuration, longBreakDuration;
+let baseWorkDuration = null; // store settings-based work session length for restore when no task focus
 let sessionStartTime = null;
 let totalAwayTime = 0;
 let lastPauseTimestamp = null;
@@ -332,14 +336,31 @@ let isSnowActive = false, isRainActive = false, isSakuraActive = false;
 let lastSnowSpawn = 0, lastRainSpawn = 0, lastSakuraSpawn = 0;
 const SNOW_INTERVAL = 200, RAIN_INTERVAL = 50, SAKURA_INTERVAL = 500;
 
-// Warn user before leaving if a timer is running
-window.addEventListener('beforeunload', (e) => {
-    if (isRunning) {
-        e.preventDefault();
-        // Most modern browsers ignore the custom text but require setting returnValue
-        e.returnValue = 'A focus session is currently running. Are you sure you want to leave?';
-    }
-});
+// Task-specific session focus
+let activeTaskIndex = null; // index in currentUserData.todos; null means no task-specific focus
+
+// Warn user before leaving if a timer is running (close, reload, or back nav)
+let leaveWarningEnabled = false;
+function handleBeforeUnload(e) {
+    if (!isRunning) return;
+    e.preventDefault();
+    // Most modern browsers ignore custom text; setting returnValue triggers the generic prompt
+    e.returnValue = '';
+    return '';
+}
+function enableLeaveWarning() {
+    if (leaveWarningEnabled) return;
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    // Some browsers rely on onbeforeunload to trigger the prompt reliably
+    window.onbeforeunload = handleBeforeUnload;
+    leaveWarningEnabled = true;
+}
+function disableLeaveWarning() {
+    if (!leaveWarningEnabled) return;
+    window.removeEventListener('beforeunload', handleBeforeUnload);
+    window.onbeforeunload = null;
+    leaveWarningEnabled = false;
+}
 
 // ACCOUNTABILITY AI STATE
 const faceapi = window.faceapi;
@@ -351,50 +372,6 @@ let awayTimerStart = null;
 let modelsLoaded = false; // Flag to check if face-api models are loaded
 let poseDetector = null;
 let poseDetectionInterval = null;
-
-// Prefer MediaPipe Pose Landmarker for robust full-body detection
-let useMediaPipePose = true; // default to MediaPipe; fallback to MoveNet if unavailable
-let mpPoseLandmarker = null;
-let mpVision = null;
-let mpPoseRunningMode = 'VIDEO';
-let lastMPLandmarks = null;
-
-// Accountability movement tracking & UX
-let lastPose = null;
-let lastActivityTimestamp = null;
-const INACTIVITY_THRESHOLD_MS = 15000; // 15 seconds
-let skipAccountabilityPermissionOnce = false;
-let pendingStartIsResume = false;
-let accountabilityInactivityModal = null;
-let accountabilityPermissionModal = null;
-
-// Shirt color baseline detection
-let baselineHSV = null;
-let baselineSetAt = null;
-let colorSampleCanvas = null;
-let colorSampleCtx = null;
-const SHIRT_HUE_TOL = 12; // degrees
-const SHIRT_S_TOL = 0.25; // saturation tolerance
-const SHIRT_V_TOL = 0.30; // value tolerance
-
-// Motion detection (frame differencing on sample canvas)
-let lastMotionImage = null; // Uint8ClampedArray of previous ROI sample
-let motionLevel = 0; // 0..1
-const MOTION_THRESHOLD = 0.008; // more sensitive motion detection
-const MOTION_DECAY = 0.85; // smooth out noise
-const ACC_PERMISSION_KEY = 'youfloww_acc_camera_granted';
-
-// ==== Accountability Debug UI (temporary) ====
-let enableAccDebug = false;
-let accDebugEl = null;
-let lastEngineUsed = 'None';
-let lastFaceDetected = false;
-let lastPersonDetected = false;
-let lastMovementDetected = false;
-let lastShirtMatch = false;
-let lastHSVCurrent = null;
-let lastSampledRoi = null;
-let lastVideoDims = { w: 0, h: 0 };
 
 // YOUTUBE PLAYER STATE
 let youtubePlayer = null;
@@ -564,6 +541,10 @@ function updateTimerDisplay() {
 
 function updateUIState() {
     DOMElements.statusDisplay.textContent = isWorkSession ? "Work Session" : "Break Time";
+    // Glow states for status when running
+    DOMElements.statusDisplay.classList.toggle('glow-work', isRunning && isWorkSession);
+    DOMElements.statusDisplay.classList.toggle('glow-break', isRunning && !isWorkSession);
+
     DOMElements.playIcon.classList.toggle('hidden', isRunning);
     DOMElements.pauseIcon.classList.toggle('hidden', !isRunning);
     DOMElements.playPauseBtn.setAttribute('aria-label', isRunning ? 'Pause Timer' : 'Start Timer');
@@ -585,20 +566,8 @@ function playRandomSound(type) {
 
 function startTimer(isResume = false) {
     if (isRunning) return;
-
-    // If accountability is enabled for a WORK session and no stream is active, check permission gate
-    if (isAccountabilityOn && isWorkSession) {
-        if (!isCameraActive()) {
-            const granted = localStorage.getItem(ACC_PERMISSION_KEY) === 'true';
-            if (!granted && !skipAccountabilityPermissionOnce) {
-                pendingStartIsResume = isResume;
-                showAccountabilityPermissionModal();
-                return;
-            }
-        }
-    }
-
     isRunning = true;
+    enableLeaveWarning();
     if (isWorkSession) {
         if (isResume) {
             DOMElements.sounds.resumeAlert.play();
@@ -614,20 +583,9 @@ function startTimer(isResume = false) {
     }
     endTime = Date.now() + timeLeft * 1000;
     updateUIState();
-    if (isAccountabilityOn && isWorkSession) {
-        // Initialize activity timestamp on (re)start
-        lastActivityTimestamp = Date.now();
-        // Reset shirt color baseline at the start of each work session
-        baselineHSV = null;
-        baselineSetAt = null;
-        ensureColorSampleCanvas();
+    if (isAccountabilityOn) {
         startFaceDetection();
         startPoseDetection();
-        // Prime baseline sampling immediately using fallback ROI in case pose takes a moment
-        try {
-            updateShirtColorActivityWithMP(null);
-            updateShirtColorActivityWithMoveNet(null);
-        } catch {}
     }
     timerInterval = setInterval(() => {
         timeLeft = Math.round((endTime - Date.now()) / 1000);
@@ -642,8 +600,7 @@ function startTimer(isResume = false) {
         }
     }, 1000);
 
-    if (isAccountabilityOn && isWorkSession && !isCameraActive()) {
-        // Try to start camera silently; if user had granted earlier, this won't prompt
+    if (isAccountabilityOn && !DOMElements.video.srcObject) {
         startVideo();
     }
 }
@@ -652,6 +609,7 @@ function pauseTimer(isAuto = false) {
     if (!isRunning) return;
     clearInterval(timerInterval);
     isRunning = false;
+    disableLeaveWarning();
     if (!isAuto) {
         pauseWasManual = true;
         DOMElements.sounds.pauseAlert.play();
@@ -669,69 +627,102 @@ function resetTimer() {
     stopFaceDetection();
     stopPoseDetection();
     isRunning = false;
+    disableLeaveWarning();
     isWorkSession = true;
     sessionCount = 0;
     timeLeft = workDuration;
     sessionStartTime = null;
     totalAwayTime = 0;
     updateTimerDisplay();
-    updateUIState();
+updateUIState();
+updateFocusedTaskIndicator();
 }
 
 function endSession() {
-    if (isWorkSession) {
-        const timeFocusedSec = workDuration - timeLeft;
-        const minutesFocused = Math.floor(timeFocusedSec / 60);
-        handleEndOfWorkSession(minutesFocused, false);
-        // Play bad meme sound only for work session
-        playRandomSound('bad');
-        showSessionReview();
-        resetTimer();
-    } else {
-        // Ending a break early: no sounds, just reset back to work preset
-        resetTimer();
-    }
+    const sessionSeconds = Math.max(0, Math.round(workDuration - timeLeft));
+    handleEndOfWorkSession(sessionSeconds, false);
+    // Only play bad meme on early end of a WORK session
+    if (isWorkSession) playRandomSound('bad');
+    showSessionReview();
+    resetTimer();
 }
 
 function handleSessionCompletion() {
     if (isWorkSession) {
-        const minutesFocused = Math.floor(workDuration / 60);
-        handleEndOfWorkSession(minutesFocused, true);
-        // Play good meme sound only for work session completion
+        // Work session finished
+        const sessionSeconds = Math.max(0, Math.round(workDuration - timeLeft));
+        handleEndOfWorkSession(sessionSeconds, true);
+        // Only play good meme for work completion
         playRandomSound('good');
         showCompletionPopup();
         if (isAccountabilityOn) showSessionReview();
         sessionCount++;
-        isWorkSession = false; // move to break
+        isWorkSession = false;
         timeLeft = (sessionCount % 4 === 0) ? longBreakDuration : shortBreakDuration;
         sessionStartTime = null;
         totalAwayTime = 0;
         updateTimerDisplay();
         updateUIState();
-        // Start break silently (no camera/detection)
         startTimer();
     } else {
-        // Break finished: switch back to work silently, no sounds
+        // Break finished — switch back to work without memes or stats
         isWorkSession = true;
-        timeLeft = workDuration;
         sessionStartTime = null;
         totalAwayTime = 0;
+        // Use remaining estimate if a task is selected; otherwise default work duration
+        const remainingSec = getFocusedTaskRemainingSeconds();
+        if (remainingSec && remainingSec > 0) {
+            timeLeft = remainingSec;
+        } else {
+            timeLeft = workDuration;
+        }
         updateTimerDisplay();
         updateUIState();
         startTimer();
     }
 }
 
-function handleEndOfWorkSession(minutesFocused, sessionCompleted) {
+function handleEndOfWorkSession(sessionSeconds, sessionCompleted) {
     stopFaceDetection();
     stopPoseDetection();
     stopVideo();
-    if (minutesFocused > 0) {
-        currentUserData.totalFocusMinutes = (currentUserData.totalFocusMinutes || 0) + minutesFocused;
+
+    // If a task is focused, attribute this session's time (in seconds) to it as well
+    if (activeTaskIndex !== null && currentUserData.todos && currentUserData.todos[activeTaskIndex] && !currentUserData.todos[activeTaskIndex].completed) {
+        const t = currentUserData.todos[activeTaskIndex];
+        if (!Number.isFinite(t.loggedSeconds)) t.loggedSeconds = 0;
+        t.loggedSeconds += Math.max(0, Math.round(sessionSeconds));
+        // Auto-complete task if estimate is met or exceeded
+        const estSec = (Number.isFinite(t.estimateMinutes) ? t.estimateMinutes : 0) * 60;
+        if (estSec > 0 && t.loggedSeconds >= estSec) {
+            t.loggedSeconds = estSec; // cap to estimate
+            t.completed = true;
+            // Celebrate auto-complete just like manual completion
+            try { playCompleteSound(); } catch {}
+            try { showConfetti(); } catch {}
+        }
+        // Clear focus after ending a session
+        activeTaskIndex = null;
+        // Persist and refresh UI/progress
+        saveUserData();
+        loadTodos();
+        updateFocusedTaskIndicator();
+    }
+
+const secondsFocused = Math.max(0, Math.round(sessionSeconds));
+    const minutesFocused = Math.floor(secondsFocused / 60);
+    if (secondsFocused > 0) {
+        currentUserData.totalFocusSeconds = (currentUserData.totalFocusSeconds || 0) + secondsFocused;
+        currentUserData.totalFocusMinutes = Math.floor((currentUserData.totalFocusSeconds || 0) / 60);
         currentUserData.totalSessions = (currentUserData.totalSessions || 0) + 1;
         
         // Update today's sessions count
         const today = new Date().toISOString().slice(0, 10);
+        if (!currentUserData.weeklyFocusSeconds) currentUserData.weeklyFocusSeconds = {};
+        currentUserData.weeklyFocusSeconds[today] = (currentUserData.weeklyFocusSeconds[today] || 0) + secondsFocused;
+        if (!currentUserData.weeklyFocus) currentUserData.weeklyFocus = {};
+        currentUserData.weeklyFocus[today] = Math.floor((currentUserData.weeklyFocusSeconds[today] || 0) / 60);
+
         if (currentUserData.lastSessionDate !== today) {
             currentUserData.todaySessions = 1;
             currentUserData.lastSessionDate = today;
@@ -739,16 +730,19 @@ function handleEndOfWorkSession(minutesFocused, sessionCompleted) {
             currentUserData.todaySessions = (currentUserData.todaySessions || 0) + 1;
         }
         
-        // Update longest session
+        // Update longest session (in minutes)
         if (minutesFocused > currentUserData.longestSession) {
             currentUserData.longestSession = minutesFocused;
         }
         
-        // Update streak
-        updateStreak();
-        
-        if (!currentUserData.weeklyFocus) currentUserData.weeklyFocus = {};
-        currentUserData.weeklyFocus[today] = (currentUserData.weeklyFocus[today] || 0) + minutesFocused;
+        // Update streak and animate changes
+        const streakChange = updateStreak();
+        if (streakChange && streakChange.change === 'inc') {
+            try { DOMElements.sounds.resumeAlert.play(); } catch {}
+            showStreakAnimation('increase', streakChange.newCount);
+        } else if (streakChange && streakChange.change === 'reset') {
+            showStreakAnimation('reset', 0);
+        }
     }
     // Note: Sounds are handled at call sites (natural completion -> good, early end -> bad)
     saveUserData();
@@ -759,37 +753,35 @@ function handleEndOfWorkSession(minutesFocused, sessionCompleted) {
 // Update streak logic
 function updateStreak() {
     const today = new Date().toISOString().slice(0, 10);
+    const prevCount = currentUserData.streakCount || 0;
     const lastStreakDate = currentUserData.lastStreakDate;
-    
-    // If no last streak date or last streak was yesterday, increment streak
+    let change = 'none';
+
     if (!lastStreakDate) {
         currentUserData.streakCount = 1;
         currentUserData.lastStreakDate = today;
+        change = 'inc';
     } else {
         const lastDate = new Date(lastStreakDate);
         const currentDate = new Date(today);
         const diffTime = Math.abs(currentDate - lastDate);
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
         if (diffDays === 1) {
-            // Consecutive day
             currentUserData.streakCount = (currentUserData.streakCount || 0) + 1;
             currentUserData.lastStreakDate = today;
+            change = 'inc';
         } else if (diffDays > 1) {
-            // Broken streak, reset to 1
-            currentUserData.streakCount = 1;
+            currentUserData.streakCount = 1; // reset to 1 since a session completed today
             currentUserData.lastStreakDate = today;
+            change = 'reset';
         }
-        // If same day, do nothing (already completed a session today)
+        // If same day, do nothing
     }
-    
-    // Update best streak
     if (currentUserData.streakCount > currentUserData.bestStreak) {
         currentUserData.bestStreak = currentUserData.streakCount;
     }
-    
-    // Update streak display
     DOMElements.streak.count.textContent = currentUserData.streakCount || 0;
+    return { change, newCount: currentUserData.streakCount, prevCount };
 }
 
 // ===================================================================================
@@ -808,27 +800,17 @@ async function loadFaceApiModels() {
 }
 
 async function setupPoseDetection() {
-    // Try to init TensorFlow MoveNet first (as backup)
     try {
-        if (window.poseDetection) {
-            const detectorConfig = {
-                modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
-                enableSmoothing: true
-            };
-            poseDetector = await poseDetection.createDetector(
-                poseDetection.SupportedModels.MoveNet,
-                detectorConfig
-            );
-        }
+        const detectorConfig = {
+            modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
+            enableSmoothing: true
+        };
+        poseDetector = await poseDetection.createDetector(
+            poseDetection.SupportedModels.MoveNet,
+            detectorConfig
+        );
     } catch (error) {
-        console.warn("MoveNet init failed, will rely on MediaPipe Pose:", error);
-    }
-    // Always attempt to init MediaPipe Pose Landmarker (preferred)
-    try {
-        await initMediaPipePoseLandmarker();
-        useMediaPipePose = !!mpPoseLandmarker;
-    } catch (e) {
-        console.error("Could not initialize MediaPipe Pose:", e);
+        console.error("Could not load pose detection model:", error);
     }
 }
 
@@ -839,25 +821,15 @@ async function startVideo() {
             video: { 
                 width: { ideal: 640 },
                 height: { ideal: 480 }
-            },
-            audio: false
+            } 
         });
-        DOMElements.video.setAttribute('playsinline', 'true');
         DOMElements.video.srcObject = stream;
-        // Ensure video metadata is loaded before sizing canvas and playing
-        await new Promise((resolve) => {
-            if (DOMElements.video.readyState >= 1) return resolve();
-            DOMElements.video.onloadedmetadata = () => resolve();
-        });
-        try { await DOMElements.video.play(); } catch {}
-        const vw = DOMElements.video.videoWidth || DOMElements.video.width || 640;
-        const vh = DOMElements.video.videoHeight || DOMElements.video.height || 480;
-        DOMElements.poseCanvas.width = vw;
-        DOMElements.poseCanvas.height = vh;
+        DOMElements.poseCanvas.width = DOMElements.video.videoWidth;
+        DOMElements.poseCanvas.height = DOMElements.video.videoHeight;
     } catch (err) {
         console.error("Camera access error:", err);
         alert("Camera access is required for Accountability features. Please allow access and refresh.");
-        if (DOMElements.settings.accountabilityToggle) DOMElements.settings.accountabilityToggle.checked = false;
+        DOMElements.settings.accountabilityToggle.checked = false;
         isAccountabilityOn = false;
         window.isAccountabilityOn = isAccountabilityOn;
         saveSettingsToData();
@@ -871,16 +843,9 @@ function stopVideo() {
     }
 }
 
-function isCameraActive() {
-    const stream = DOMElements.video.srcObject;
-    if (!stream) return false;
-    const tracks = stream.getVideoTracks?.() || [];
-    return tracks.some(t => t.readyState === 'live' && t.enabled);
-}
-
 function startFaceDetection() {
     if (!faceApiInterval && isAccountabilityOn) {
-        faceApiInterval = setInterval(handleFaceDetection, 700);
+        faceApiInterval = setInterval(handleFaceDetection, 1000);
         window.faceApiInterval = faceApiInterval;
     }
 }
@@ -894,8 +859,8 @@ function stopFaceDetection() {
 }
 
 function startPoseDetection() {
-    if (!poseDetectionInterval && isAccountabilityOn && (mpPoseLandmarker || poseDetector)) {
-        poseDetectionInterval = setInterval(handlePoseDetection, 500);
+    if (!poseDetectionInterval && isAccountabilityOn && poseDetector) {
+        poseDetectionInterval = setInterval(handlePoseDetection, 1000);
     }
 }
 
@@ -905,97 +870,32 @@ function stopPoseDetection() {
 }
 
 async function handleFaceDetection() {
-    if (!modelsLoaded || !isAccountabilityOn || DOMElements.video.ended || !isCameraActive()) return;
+    if (!modelsLoaded || !isRunning || DOMElements.video.paused || DOMElements.video.ended || !DOMElements.video.srcObject) return;
     
     try {
         const detections = await faceapi.detectAllFaces(
             DOMElements.video, 
-            new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.5 })
+            new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.4 })
         ).withFaceLandmarks(true);
 
         const faceDetected = detections.length > 0;
-        lastFaceDetected = faceDetected;
         handlePresenceDetection(faceDetected);
-        if (faceDetected) {
-            // Seed baseline if not set yet
-            if (!baselineHSV) {
-                try { updateShirtColorActivityWithMP(null); } catch {}
-                try { updateShirtColorActivityWithMoveNet(null); } catch {}
-            }
-            lastActivityTimestamp = Date.now();
-            hideAccountabilityPopup();
-        }
-        // Movement-based inactivity check is evaluated separately (pose detection preferred)
-        checkInactivityAndMaybePause();
     } catch (error) {
         console.error("Face detection error:", error);
     }
 }
 
 async function handlePoseDetection() {
-    if (!isAccountabilityOn || DOMElements.video.ended || !isCameraActive()) return;
-
+    if (!poseDetector || !isRunning || DOMElements.video.paused || DOMElements.video.ended || !DOMElements.video.srcObject) return;
+    
     try {
-        if (useMediaPipePose && mpPoseLandmarker) {
-            lastEngineUsed = 'MediaPipe';
-            const ts = performance.now();
-            const result = mpPoseLandmarker.detectForVideo(DOMElements.video, ts);
-            const landmarksArr = result?.landmarks || [];
-            const personDetected = landmarksArr.length > 0;
-            lastPersonDetected = personDetected;
-
-            if (personDetected) {
-                const curr = landmarksArr[0];
-                // Update shirt color baseline/match using torso ROI
-                updateShirtColorActivityWithMP(curr);
-                let movementDetected = true;
-                if (lastMPLandmarks) {
-                    movementDetected = hasSignificantMovementMP(lastMPLandmarks, curr);
-                }
-                lastMPLandmarks = curr;
-                lastMovementDetected = !!movementDetected;
-                if (movementDetected) {
-                    lastActivityTimestamp = Date.now();
-                    hideAccountabilityPopup();
-                }
-                handlePresenceDetection(true);
-            } else {
-                handlePresenceDetection(false);
-                // Also try shirt color with fallback ROI; typically will not match, aiding absence detection
-                updateShirtColorActivityWithMP(null);
-            }
-        } else if (poseDetector) {
-            lastEngineUsed = 'MoveNet';
-            const poses = await poseDetector.estimatePoses(DOMElements.video);
-            let personDetected = false;
-            if (poses.length > 0) {
-                const visibleCount = poses[0].keypoints.filter(kp => (kp.score || 0) > 0.3).length;
-                personDetected = visibleCount >= 4;
-            }
-            lastPersonDetected = personDetected;
+        const poses = await poseDetector.estimatePoses(DOMElements.video);
+        const personDetected = poses.length > 0 && poses[0].keypoints.some(kp => kp.score > 0.4);
+        
+        // If pose detection finds a person, use that instead of face detection
         if (personDetected) {
-                const currentPose = poses[0];
-                // Update shirt color baseline/match using torso ROI from MoveNet keypoints
-                updateShirtColorActivityWithMoveNet(currentPose);
-                let movementDetected = true;
-                if (lastPose) {
-                    movementDetected = hasSignificantMovement(lastPose, currentPose);
-                }
-                lastPose = currentPose;
-                lastMovementDetected = !!movementDetected;
-                if (movementDetected) {
-                    lastActivityTimestamp = Date.now();
-                    hideAccountabilityPopup();
-                }
-                handlePresenceDetection(true);
-            } else {
-                handlePresenceDetection(false);
-                // Also try shirt color with fallback ROI
-                updateShirtColorActivityWithMoveNet(null);
-            }
+            handlePresenceDetection(true);
         }
-        checkInactivityAndMaybePause();
-        updateAccDebugPanel();
     } catch (error) {
         console.error("Pose detection error:", error);
     }
@@ -1006,20 +906,16 @@ function handlePresenceDetection(presenceDetected) {
         if (!presenceDetected) {
             if (!awayTimerStart) {
                 awayTimerStart = Date.now();
-                showFaceStatusPrompt("Are you there? Timer will pause soon...");
-            } else if (Date.now() - awayTimerStart > INACTIVITY_THRESHOLD_MS) { // pause if no person detected
+                showFaceStatusPrompt("No face detected. Pausing in 15s...");
+            } else if (Date.now() - awayTimerStart > 15000) { // 15 seconds
                 pauseTimer(true);
                 showFaceStatusPrompt("Timer paused. Come back to resume.");
-                showAccountabilityPopup();
             }
         } else {
             if (awayTimerStart) {
                 awayTimerStart = null;
                 hideFaceStatusPrompt();
-            }
-            if (!isRunning && !pauseWasManual) {
-                hideAccountabilityPopup();
-                startTimer(true);
+                if (!isRunning && !pauseWasManual) startTimer(true);
             }
         }
     }
@@ -1032,468 +928,6 @@ function showFaceStatusPrompt(message) {
 
 function hideFaceStatusPrompt() {
     DOMElements.faceStatusPrompt.classList.remove('visible');
-}
-
-// Compute if there is significant movement between poses
-function hasSignificantMovement(prevPose, currPose) {
-    try {
-        const prev = prevPose.keypoints || [];
-        const curr = currPose.keypoints || [];
-        let totalDist = 0;
-        let maxDist = 0;
-        let count = 0;
-        for (let i = 0; i < Math.min(prev.length, curr.length); i++) {
-            const p = prev[i];
-            const c = curr[i];
-            if ((p.score ?? 0) > 0.3 && (c.score ?? 0) > 0.3) {
-                const dx = (p.x - c.x);
-                const dy = (p.y - c.y);
-                const dist = Math.hypot(dx, dy);
-                totalDist += dist;
-                maxDist = Math.max(maxDist, dist);
-                count++;
-            }
-        }
-        // Heuristics: either a keypoint moved notably, or cumulative micro-movements are present
-        return (maxDist > 8) || (count > 0 && totalDist / count > 1.5);
-    } catch {
-        return true; // fail-open to avoid false pauses
-    }
-}
-
-function ensureColorSampleCanvas() {
-    if (!colorSampleCanvas) {
-        colorSampleCanvas = document.createElement('canvas');
-        colorSampleCanvas.width = 160; // small for perf
-        colorSampleCanvas.height = 120;
-        colorSampleCtx = colorSampleCanvas.getContext('2d', { willReadFrequently: true });
-    }
-}
-
-function getTorsoRoiFromMP(landmarks, vw, vh) {
-    if (!landmarks || landmarks.length < 25) return null;
-    const LShoulder = landmarks[11];
-    const RShoulder = landmarks[12];
-    const LHip = landmarks[23];
-    const RHip = landmarks[24];
-    if (!LShoulder || !RShoulder || !LHip || !RHip) return null;
-    const left = Math.min(LShoulder.x, RShoulder.x, LHip.x, RHip.x);
-    const right = Math.max(LShoulder.x, RShoulder.x, LHip.x, RHip.x);
-    const top = Math.min(LShoulder.y, RShoulder.y);
-    const bottom = Math.max(LHip.y, RHip.y);
-    // Expand a bit
-    const padX = 0.05;
-    const padY = 0.05;
-    return {
-        x: Math.max(0, (left - padX) * vw),
-        y: Math.max(0, (top - padY) * vh),
-        w: Math.min(vw, (right - left + 2 * padX) * vw),
-        h: Math.min(vh, (bottom - top + 2 * padY) * vh)
-    };
-}
-
-function getTorsoRoiFromMoveNet(pose, vw, vh) {
-    if (!pose || !pose.keypoints) return null;
-    const kp = pose.keypoints;
-    const idx = {
-        LShoulder: 5, RShoulder: 6, LHip: 11, RHip: 12
-    };
-    const LShoulder = kp[idx.LShoulder];
-    const RShoulder = kp[idx.RShoulder];
-    const LHip = kp[idx.LHip];
-    const RHip = kp[idx.RHip];
-    if (!LShoulder || !RShoulder || !LHip || !RHip) return null;
-    if ((LShoulder.score || 0) < 0.3 || (RShoulder.score || 0) < 0.3 || (LHip.score || 0) < 0.3 || (RHip.score || 0) < 0.3) return null;
-    const left = Math.min(LShoulder.x, RShoulder.x, LHip.x, RHip.x);
-    const right = Math.max(LShoulder.x, RShoulder.x, LHip.x, RHip.x);
-    const top = Math.min(LShoulder.y, RShoulder.y);
-    const bottom = Math.max(LHip.y, RHip.y);
-    const padX = 10; const padY = 10;
-    return {
-        x: Math.max(0, left - padX),
-        y: Math.max(0, top - padY),
-        w: Math.min(vw, (right - left) + 2 * padX),
-        h: Math.min(vh, (bottom - top) + 2 * padY)
-    };
-}
-
-function fallbackTorsoRoi(vw, vh) {
-    // Larger fallback ROI around upper body/chest area
-    const w = Math.max(60, vw * 0.4);
-    const h = Math.max(80, vh * 0.5);
-    return {
-        x: Math.max(0, (vw - w) / 2),
-        y: Math.max(0, vh * 0.2),
-        w,
-        h
-    };
-}
-
-function rgbToHsv(r, g, b) {
-    r /= 255; g /= 255; b /= 255;
-    const max = Math.max(r, g, b), min = Math.min(r, g, b);
-    let h, s, v = max;
-    const d = max - min;
-    s = max === 0 ? 0 : d / max;
-    if (max === min) h = 0; else {
-        switch (max) {
-            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-            case g: h = (b - r) / d + 2; break;
-            case b: h = (r - g) / d + 4; break;
-        }
-        h /= 6;
-    }
-    return { h: h * 360, s, v };
-}
-
-function sampleAvgHSVFromROI(video, roi) {
-    if (!roi || roi.w <= 1 || roi.h <= 1) return null;
-    ensureColorSampleCanvas();
-    const vwEff = video.videoWidth || video.width || 640;
-    const vhEff = video.videoHeight || video.height || 480;
-    lastVideoDims = { w: vwEff, h: vhEff };
-    // Draw video scaled into small canvas to reduce cost
-    try {
-        colorSampleCtx.drawImage(video, 0, 0, colorSampleCanvas.width, colorSampleCanvas.height);
-    } catch {}
-    // Map ROI to sample canvas coords
-    const scaleX = colorSampleCanvas.width / Math.max(1, vwEff);
-    const scaleY = colorSampleCanvas.height / Math.max(1, vhEff);
-    const sx = Math.max(0, Math.floor(roi.x * scaleX));
-    const sy = Math.max(0, Math.floor(roi.y * scaleY));
-    const sw = Math.min(colorSampleCanvas.width - sx, Math.floor(roi.w * scaleX));
-    const sh = Math.min(colorSampleCanvas.height - sy, Math.floor(roi.h * scaleY));
-    lastSampledRoi = { x: sx, y: sy, w: sw, h: sh };
-    if (sw <= 1 || sh <= 1) return null;
-    let img;
-    try {
-        img = colorSampleCtx.getImageData(sx, sy, sw, sh);
-    } catch {
-        return null;
-    }
-    const data = img.data;
-    let sumH = 0, sumS = 0, sumV = 0, count = 0;
-    // Sample every 4th pixel for speed
-    for (let i = 0; i < data.length; i += 16) {
-        const r = data[i], g = data[i + 1], b = data[i + 2];
-        const { h, s, v } = rgbToHsv(r, g, b);
-        sumH += h; sumS += s; sumV += v; count++;
-    }
-    if (count === 0) return null;
-    return { h: sumH / count, s: sumS / count, v: sumV / count };
-}
-
-function hsvMatchesBaseline(curr, base) {
-    if (!curr || !base) return false;
-    let dh = Math.abs(curr.h - base.h);
-    if (dh > 180) dh = 360 - dh; // circular hue distance
-    const ds = Math.abs(curr.s - base.s);
-    const dv = Math.abs(curr.v - base.v);
-    return dh <= SHIRT_HUE_TOL && ds <= SHIRT_S_TOL && dv <= SHIRT_V_TOL;
-}
-
-function computeMotionFromROI(video, roi) {
-    if (!roi || roi.w <= 1 || roi.h <= 1) return 0;
-    ensureColorSampleCanvas();
-    const vwEff = video.videoWidth || video.width || 640;
-    const vhEff = video.videoHeight || video.height || 480;
-    try { colorSampleCtx.drawImage(video, 0, 0, colorSampleCanvas.width, colorSampleCanvas.height); } catch {}
-    const scaleX = colorSampleCanvas.width / Math.max(1, vwEff);
-    const scaleY = colorSampleCanvas.height / Math.max(1, vhEff);
-    const sx = Math.max(0, Math.floor(roi.x * scaleX));
-    const sy = Math.max(0, Math.floor(roi.y * scaleY));
-    const sw = Math.min(colorSampleCanvas.width - sx, Math.floor(roi.w * scaleX));
-    const sh = Math.min(colorSampleCanvas.height - sy, Math.floor(roi.h * scaleY));
-    if (sw <= 1 || sh <= 1) return 0;
-    let img;
-    try { img = colorSampleCtx.getImageData(sx, sy, sw, sh); } catch { return 0; }
-    const data = img.data;
-    let diffSum = 0;
-    let count = 0;
-    if (!lastMotionImage || lastMotionImage.length !== data.length) {
-        lastMotionImage = new Uint8ClampedArray(data); // seed
-        return 0;
-    }
-    // Compare every 4th pixel
-    for (let i = 0; i < data.length; i += 16) {
-        const dr = Math.abs(data[i] - lastMotionImage[i]);
-        const dg = Math.abs(data[i+1] - lastMotionImage[i+1]);
-        const db = Math.abs(data[i+2] - lastMotionImage[i+2]);
-        diffSum += (dr + dg + db) / (3 * 255);
-        count++;
-    }
-    // Update buffer
-    lastMotionImage.set(data);
-    const avg = count ? diffSum / count : 0;
-    motionLevel = MOTION_DECAY * motionLevel + (1 - MOTION_DECAY) * avg;
-    return motionLevel;
-}
-
-function updateShirtColorActivityWithMP(landmarks) {
-    if (!DOMElements.video) return;
-    const vw = DOMElements.video.videoWidth || DOMElements.video.width || 640;
-    const vh = DOMElements.video.videoHeight || DOMElements.video.height || 480;
-    let roi = getTorsoRoiFromMP(landmarks, vw, vh) || fallbackTorsoRoi(vw, vh);
-    const hsv = sampleAvgHSVFromROI(DOMElements.video, roi);
-    const m = computeMotionFromROI(DOMElements.video, roi);
-    lastMovementDetected = m > MOTION_THRESHOLD;
-    if (lastMovementDetected) {
-        lastActivityTimestamp = Date.now();
-        hideAccountabilityPopup();
-    }
-    if (!hsv) return;
-    lastHSVCurrent = hsv;
-    if (!baselineHSV) {
-        baselineHSV = hsv;
-        baselineSetAt = Date.now();
-        return;
-    }
-    const match = hsvMatchesBaseline(hsv, baselineHSV);
-    lastShirtMatch = match;
-    if (match) {
-        lastActivityTimestamp = Date.now();
-        hideAccountabilityPopup();
-        handlePresenceDetection(true);
-    }
-}
-
-function updateShirtColorActivityWithMoveNet(pose) {
-    if (!DOMElements.video) return;
-    const vw = DOMElements.video.videoWidth || DOMElements.video.width || 640;
-    const vh = DOMElements.video.videoHeight || DOMElements.video.height || 480;
-    let roi = getTorsoRoiFromMoveNet(pose, vw, vh) || fallbackTorsoRoi(vw, vh);
-    const hsv = sampleAvgHSVFromROI(DOMElements.video, roi);
-    const m = computeMotionFromROI(DOMElements.video, roi);
-    lastMovementDetected = m > MOTION_THRESHOLD;
-    if (lastMovementDetected) {
-        lastActivityTimestamp = Date.now();
-        hideAccountabilityPopup();
-    }
-    if (!hsv) return;
-    lastHSVCurrent = hsv;
-    if (!baselineHSV) {
-        baselineHSV = hsv;
-        baselineSetAt = Date.now();
-        return;
-    }
-    const match = hsvMatchesBaseline(hsv, baselineHSV);
-    lastShirtMatch = match;
-    if (match) {
-        lastActivityTimestamp = Date.now();
-        hideAccountabilityPopup();
-        handlePresenceDetection(true);
-    }
-}
-
-function hasSignificantMovementMP(prevLandmarks, currLandmarks) {
-    try {
-        // Landmarks are normalized [0..1]; compute average and max movement across a subset (shoulders, elbows, hips)
-        const idxs = [11, 12, 13, 14, 23, 24]; // shoulders, elbows, hips indices for MediaPipe
-        let total = 0;
-        let maxd = 0;
-        let count = 0;
-        for (const i of idxs) {
-            const p = prevLandmarks[i];
-            const c = currLandmarks[i];
-            if (!p || !c) continue;
-            const dx = (p.x - c.x);
-            const dy = (p.y - c.y);
-            const dist = Math.hypot(dx, dy);
-            total += dist;
-            maxd = Math.max(maxd, dist);
-            count++;
-        }
-        return (maxd > 0.01) || (count > 0 && total / count > 0.004);
-    } catch {
-        return true;
-    }
-}
-
-function checkInactivityAndMaybePause() {
-    if (!isAccountabilityOn || !isRunning) return;
-    if (!lastActivityTimestamp) lastActivityTimestamp = Date.now();
-    const inactiveFor = Date.now() - lastActivityTimestamp;
-    if (inactiveFor > INACTIVITY_THRESHOLD_MS) {
-        pauseTimer(true);
-        showAccountabilityPopup();
-    }
-}
-
-function showAccountabilityPopup() {
-    try {
-        if (!accountabilityInactivityModal) {
-            accountabilityInactivityModal = document.createElement('div');
-            accountabilityInactivityModal.className = 'modal visible';
-            accountabilityInactivityModal.innerHTML = `
-                <div class="modal-content" style="max-width:420px;text-align:center;">
-                    <span class="close-btn" style="position:absolute;top:10px;right:18px;font-size:2rem;cursor:pointer;">&times;</span>
-                    <h2 style="margin-top:0;">Stay in Flow ✨</h2>
-                    <p style="margin:1em 0 0.5em 0;font-size:1.05em;">You should be focusing right now! Where are you?</p>
-                    <p style="opacity:0.8;">We paused your timer. Come back into view and we’ll auto-resume.</p>
-                </div>`;
-            document.body.appendChild(accountabilityInactivityModal);
-            accountabilityInactivityModal.querySelector('.close-btn').onclick = () => accountabilityInactivityModal.classList.remove('visible');
-        } else {
-            accountabilityInactivityModal.classList.add('visible');
-        }
-    } catch (e) {
-        console.error('Failed to show accountability popup:', e);
-    }
-}
-
-function hideAccountabilityPopup() {
-    try {
-        if (accountabilityInactivityModal) accountabilityInactivityModal.classList.remove('visible');
-    } catch {}
-}
-
-// ---- Debug Panel Helpers ----
-function initAccountabilityDebugPanel() {
-    if (accDebugEl || !enableAccDebug) return;
-    accDebugEl = document.createElement('div');
-    accDebugEl.id = 'acc-debug-panel';
-    accDebugEl.style.cssText = [
-        'position:fixed','right:12px','bottom:12px','z-index:99999',
-        'background:rgba(20,20,30,0.9)','color:#eaeaea','padding:10px 12px','border-radius:10px',
-        'font-family:ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-        'font-size:12px','line-height:1.4','box-shadow:0 8px 24px rgba(0,0,0,0.35)'
-    ].join(';');
-    accDebugEl.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-            <strong>Accountability Debug</strong>
-            <div>
-                <button id="acc-debug-seed" style="background:#444;border:0;color:#eee;border-radius:6px;padding:2px 6px;margin-right:6px;cursor:pointer;">Set Baseline</button>
-                <button id="acc-debug-close" style="background:#333;border:0;color:#eee;border-radius:6px;padding:2px 6px;cursor:pointer;">×</button>
-            </div>
-        </div>
-        <div id="acc-debug-content" style="white-space:pre"></div>
-        <div style="opacity:0.7;margin-top:6px;">Toggle: Shift+D</div>
-    `;
-    document.body.appendChild(accDebugEl);
-    document.getElementById('acc-debug-close').onclick = () => {
-        accDebugEl.style.display = 'none';
-    };
-    document.getElementById('acc-debug-seed').onclick = () => {
-        baselineHSV = null;
-        baselineSetAt = null;
-        lastMotionImage = null;
-        motionLevel = 0;
-        updateAccDebugPanel();
-    };
-    document.addEventListener('keydown', (e) => {
-        if (e.key.toLowerCase() === 'd' && e.shiftKey) {
-            if (!accDebugEl) return;
-            accDebugEl.style.display = accDebugEl.style.display === 'none' ? 'block' : 'none';
-        }
-    });
-    updateAccDebugPanel();
-}
-
-function formatHSV(hsv) {
-    if (!hsv) return '—';
-    return `H:${Math.round(hsv.h)} S:${(hsv.s*100|0)}% V:${(hsv.v*100|0)}%`;
-}
-
-function hsvDiff(a, b) {
-    if (!a || !b) return { dh:'—', ds:'—', dv:'—' };
-    let dh = Math.abs(a.h - b.h); if (dh > 180) dh = 360 - dh;
-    const ds = Math.abs(a.s - b.s);
-    const dv = Math.abs(a.v - b.v);
-    return { dh: Math.round(dh), ds: Math.round(ds*100), dv: Math.round(dv*100) };
-}
-
-function updateAccDebugPanel() {
-    if (!accDebugEl || !enableAccDebug) return;
-    const content = document.getElementById('acc-debug-content');
-    const cameraActive = isCameraActive();
-    const inactiveFor = lastActivityTimestamp ? (Date.now() - lastActivityTimestamp) : 0;
-    const diff = hsvDiff(baselineHSV, lastHSVCurrent);
-    const gating = {
-        accountabilityOn: !!isAccountabilityOn,
-        workSession: !!isWorkSession,
-        running: !!isRunning,
-        cameraActive: !!cameraActive,
-        modelsLoaded: !!modelsLoaded,
-        mpReady: !!mpPoseLandmarker,
-        movenetReady: !!poseDetector
-    };
-    const lines = [
-        `Engine: ${lastEngineUsed}`,
-        `Camera: ${cameraActive ? 'ON' : 'OFF'}  | Work: ${isWorkSession}  | Running: ${isRunning}`,
-        `Face: ${lastFaceDetected}  | Person: ${lastPersonDetected}  | Move: ${lastMovementDetected} (${motionLevel.toFixed(3)})  | ShirtMatch: ${lastShirtMatch}`,
-        `InactiveFor: ${(inactiveFor/1000).toFixed(1)}s  | Threshold: ${(INACTIVITY_THRESHOLD_MS/1000).toFixed(0)}s`,
-        `BaselineHSV: ${formatHSV(baselineHSV)}`,
-        `CurrentHSV:  ${formatHSV(lastHSVCurrent)}  | ΔH:${diff.dh} ΔS:${diff.ds}% ΔV:${diff.dv}%`,
-        `Video: ${lastVideoDims.w}x${lastVideoDims.h}  ROI: ${lastSampledRoi ? `${lastSampledRoi.w}x${lastSampledRoi.h}@(${lastSampledRoi.x},${lastSampledRoi.y})` : '—'}`,
-        '',
-        `Gating -> accountabilityOn:${gating.accountabilityOn} workSession:${gating.workSession} running:${gating.running} cameraActive:${gating.cameraActive}`,
-        `Models -> face:${modelsLoaded} mp:${gating.mpReady} movenet:${gating.movenetReady}`,
-        !gating.running ? 'Hint: Click Start to begin detection.' : ''
-    ];
-    content.textContent = lines.filter(Boolean).join('\n');
-}
-
-function showAccountabilityPermissionModal() {
-    try {
-        if (!accountabilityPermissionModal) {
-            accountabilityPermissionModal = document.createElement('div');
-            accountabilityPermissionModal.className = 'modal visible';
-            accountabilityPermissionModal.innerHTML = `
-                <div class="modal-content" style="max-width:480px;text-align:center;">
-                    <span class="close-btn" style="position:absolute;top:10px;right:18px;font-size:2rem;cursor:pointer;">&times;</span>
-                    <h2 style="margin-top:0;">Accountability Partner</h2>
-                    <p style="margin:1em 0 0.25em 0;font-size:1.05em;">Camera permission not granted.</p>
-                    <p style="opacity:0.8;margin:0.25em 0 1em 0;">We process video locally in your browser and do not upload it. To use the accountability partner, please allow camera access.</p>
-                    <div style="display:flex;gap:10px;justify-content:center;margin-top:1em;">
-                        <button id="acc-allow-btn" class="timetable-btn primary">Allow Camera</button>
-                        <button id="acc-disable-btn" class="timetable-btn">Disable Accountability</button>
-                    </div>
-                    <div id="acc-error" style="color:var(--danger-color);margin-top:0.75em;display:none;"></div>
-                </div>`;
-            document.body.appendChild(accountabilityPermissionModal);
-            accountabilityPermissionModal.querySelector('.close-btn').onclick = () => accountabilityPermissionModal.classList.remove('visible');
-            accountabilityPermissionModal.querySelector('#acc-allow-btn').onclick = async () => {
-                const errEl = accountabilityPermissionModal.querySelector('#acc-error');
-                errEl.style.display = 'none';
-                try {
-                    await startVideo();
-                    // Remember that permission was granted to avoid re-prompting next sessions
-                    try { localStorage.setItem(ACC_PERMISSION_KEY, 'true'); } catch {}
-                    accountabilityPermissionModal.classList.remove('visible');
-                    const resumeFlag = pendingStartIsResume;
-                    pendingStartIsResume = false;
-                    skipAccountabilityPermissionOnce = true;
-                    startTimer(resumeFlag);
-                    skipAccountabilityPermissionOnce = false;
-                } catch (e) {
-                    errEl.textContent = 'Could not access camera. Please check your browser permissions and try again.';
-                    errEl.style.display = 'block';
-                }
-            };
-            accountabilityPermissionModal.querySelector('#acc-disable-btn').onclick = () => {
-                // Turn off accountability and proceed
-                isAccountabilityOn = false;
-                window.isAccountabilityOn = isAccountabilityOn;
-                if (DOMElements.settings.accountabilityToggle) {
-                    DOMElements.settings.accountabilityToggle.checked = false;
-                }
-                currentUserData.settings = currentUserData.settings || {};
-                currentUserData.settings.isAccountabilityOn = false;
-                try { localStorage.setItem(ACC_PERMISSION_KEY, 'false'); } catch {}
-                saveUserData();
-                accountabilityPermissionModal.classList.remove('visible');
-                const resumeFlag = pendingStartIsResume;
-                pendingStartIsResume = false;
-                skipAccountabilityPermissionOnce = true;
-                startTimer(resumeFlag);
-                skipAccountabilityPermissionOnce = false;
-            };
-        } else {
-            accountabilityPermissionModal.classList.add('visible');
-        }
-    } catch (e) {
-        console.error('Failed to show permission modal:', e);
-    }
 }
 
 // ===================================================================================
@@ -1643,7 +1077,11 @@ async function initializeAppState() {
     loadSettingsFromData();
     updateTimerDisplay();
     updateUIState();
+    normalizeFocusAccounting();
+    normalizeTodos();
     loadTodos();
+    ensureFocusedTaskIndicator();
+    updateFocusedTaskIndicator();
     updateCornerWidget();
     DOMElements.profile.nameDisplay.textContent = currentUserData.profileName || "Floww User";
     loadTheme();
@@ -1655,6 +1093,11 @@ async function initializeAppState() {
     initTimetable();
     initMacDock();
     initYoutubePlayer();
+
+    // If no theme set, default to Chill background video
+    if (!currentUserData.theme || (!currentUserData.theme.backgroundPath && !currentUserData.theme.youtubeVideoId)) {
+        applyTheme('youtube', 'ZHMxuoUaWxM'); // Chill
+    }
     
     // Update streak display
     DOMElements.streak.count.textContent = currentUserData.streakCount || 0;
@@ -1663,6 +1106,7 @@ async function initializeAppState() {
 function loadSettingsFromData() {
     const settings = currentUserData.settings || {};
     workDuration = settings.workDuration || 25 * 60;
+    baseWorkDuration = workDuration;
     shortBreakDuration = settings.shortBreakDuration || 5 * 60;
     longBreakDuration = settings.longBreakDuration || 15 * 60;
     if (!isRunning && !isWorkSession) {
@@ -1675,9 +1119,11 @@ function loadSettingsFromData() {
     document.getElementById('short-break-duration').value = shortBreakDuration / 60;
     document.getElementById('long-break-duration').value = longBreakDuration / 60;
     DOMElements.settings.soundEffects.value = settings.soundProfile || 'indian';
-    DOMElements.settings.accountabilityToggle.checked = settings.isAccountabilityOn || false;
+    // Accountability partner is coming-soon: keep switched off and UI disabled
+    DOMElements.settings.accountabilityToggle.checked = false;
+    DOMElements.settings.accountabilityToggle.disabled = true;
 
-    isAccountabilityOn = settings.isAccountabilityOn || false;
+    isAccountabilityOn = false;
     window.isAccountabilityOn = isAccountabilityOn;
 }
 
@@ -1692,10 +1138,16 @@ function saveSettingsToData() {
         currentUserData.settings.shortBreakDuration = newShort;
         currentUserData.settings.longBreakDuration = newLong;
         currentUserData.settings.soundProfile = DOMElements.settings.soundEffects.value;
-        currentUserData.settings.isAccountabilityOn = DOMElements.settings.accountabilityToggle.checked;
+        // Accountability partner is coming-soon: always off
+        currentUserData.settings.isAccountabilityOn = false;
 
-        isAccountabilityOn = DOMElements.settings.accountabilityToggle.checked;
+        isAccountabilityOn = false;
         window.isAccountabilityOn = isAccountabilityOn;
+
+        // Ensure camera/detection off
+        stopFaceDetection();
+        stopPoseDetection();
+        stopVideo();
 
         saveUserData();
         loadSettingsFromData();
@@ -1714,8 +1166,10 @@ function openStats() {
 }
 function closeStats() { DOMElements.modals.stats.classList.remove('visible'); }
 function updateStatsDisplay() {
-    const totalMinutes = currentUserData.totalFocusMinutes || 0;
-    DOMElements.modals.totalFocusTime.textContent = `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`;
+    const totalSec = (typeof currentUserData.totalFocusSeconds === 'number' ? currentUserData.totalFocusSeconds : (currentUserData.totalFocusMinutes || 0) * 60);
+    const hours = Math.floor(totalSec / 3600);
+    const minutes = Math.floor((totalSec % 3600) / 60);
+    DOMElements.modals.totalFocusTime.textContent = `${hours}h ${minutes}m`;
     DOMElements.modals.totalSessionsCount.textContent = currentUserData.totalSessions || 0;
     DOMElements.modals.currentStreak.textContent = `${currentUserData.streakCount || 0} days`;
     DOMElements.modals.bestStreak.textContent = `${currentUserData.bestStreak || 0} days`;
@@ -1782,7 +1236,46 @@ function playCompleteSound() {
     }
 }
 
+// Focus/time accounting normalization
+function normalizeFocusAccounting() {
+    if (!currentUserData) return;
+    if (typeof currentUserData.totalFocusSeconds !== 'number') {
+        const m = Number(currentUserData.totalFocusMinutes) || 0;
+        currentUserData.totalFocusSeconds = m * 60;
+    }
+    if (!currentUserData.weeklyFocusSeconds) {
+        currentUserData.weeklyFocusSeconds = {};
+        const wf = currentUserData.weeklyFocus || {};
+        Object.keys(wf).forEach(k => {
+            currentUserData.weeklyFocusSeconds[k] = (Number(wf[k]) || 0) * 60;
+        });
+    }
+}
+
 // --- Enhanced To-Do List ---
+function normalizeTodos() {
+    if (!currentUserData.todos) return;
+    currentUserData.todos = currentUserData.todos.map(t => {
+        const estimateMinutes = Number.isFinite(t.estimateMinutes) ? t.estimateMinutes : 0;
+        let loggedSeconds = Number.isFinite(t.loggedSeconds) ? t.loggedSeconds : 0;
+        if (loggedSeconds === 0 && Number.isFinite(t.loggedMinutes) && t.loggedMinutes > 0) {
+            loggedSeconds = t.loggedMinutes * 60; // migrate old minutes to seconds
+        }
+        // Auto-complete if logged meets/exceeds estimate
+        const estSec = estimateMinutes * 60;
+        const completed = (!!t.completed) || (estSec > 0 && loggedSeconds >= estSec);
+        if (completed && estSec > 0 && loggedSeconds > estSec) loggedSeconds = estSec;
+        return {
+            text: t.text,
+            completed,
+            subtasks: Array.isArray(t.subtasks) ? t.subtasks : [],
+            estimateMinutes,
+            loggedSeconds,
+            createdAt: t.createdAt || Date.now()
+        };
+    });
+}
+
 function loadTodos() {
     const todoList = currentUserData.todos || [];
     const listEl = document.getElementById('todo-list');
@@ -1796,6 +1289,8 @@ function loadTodos() {
 function createTodoElement(todo, index) {
     const item = document.createElement('li');
     item.className = 'todo-item' + (todo.completed ? ' completed' : '');
+    if (index === activeTaskIndex) item.classList.add('focused');
+
     // Main row
     const mainRow = document.createElement('div');
     mainRow.className = 'todo-main-row';
@@ -1804,7 +1299,12 @@ function createTodoElement(todo, index) {
     checkbox.type = 'checkbox';
     checkbox.className = 'todo-checkbox';
     checkbox.checked = !!todo.completed;
-    checkbox.addEventListener('change', () => {
+checkbox.addEventListener('change', () => {
+        if (isRunning && activeTaskIndex === index) {
+            alert('Complete the ongoing session first.');
+            loadTodos();
+            return;
+        }
         toggleTodo(index);
     });
     // Label
@@ -1814,18 +1314,95 @@ function createTodoElement(todo, index) {
     // Actions
     const actions = document.createElement('div');
     actions.className = 'todo-actions';
+
+    // Focus button (toggle task-specific session focus)
+    const focusBtn = document.createElement('button');
+    focusBtn.className = 'task-focus-btn';
+    const isFocused = index === activeTaskIndex;
+    focusBtn.innerHTML = '<i class="fas fa-bullseye"></i>';
+    focusBtn.setAttribute('aria-label', isFocused ? 'Focused' : 'Focus');
+    if (isFocused) focusBtn.classList.add('active');
+    // Disable focusing completed tasks
+    if (todo.completed) {
+        focusBtn.disabled = true;
+        focusBtn.title = 'Completed task';
+    } else {
+        focusBtn.title = isFocused ? 'Unfocus this task' : 'Focus this task for the next session';
+    }
+    focusBtn.addEventListener('click', () => {
+        // Do not allow unfocus/switch during an ongoing session (running or paused)
+        if ((isRunning || sessionStartTime !== null) && activeTaskIndex !== null) {
+            alert('Complete the ongoing session first.');
+            return;
+        }
+        // Block focusing completed tasks
+        if (todo.completed) {
+            alert('This task is completed. Please select another task.');
+            return;
+        }
+        if (activeTaskIndex === index) {
+            activeTaskIndex = null;
+        } else {
+            activeTaskIndex = index;
+        }
+        loadTodos();
+        updateFocusedTaskIndicator();
+    });
+
     // Delete button
     const delBtn = document.createElement('button');
     delBtn.className = 'todo-delete-btn';
-    delBtn.innerHTML = '<i class="fas fa-trash"></i>';
-    delBtn.addEventListener('click', () => {
+    delBtn.innerHTML = '<i class=\"fas fa-trash\"></i>';
+delBtn.addEventListener('click', () => {
+        if (isRunning && activeTaskIndex === index) {
+            alert('Complete the ongoing session first.');
+            return;
+        }
         deleteTodo(index);
     });
+
+    actions.appendChild(focusBtn);
     actions.appendChild(delBtn);
+
     mainRow.appendChild(checkbox);
     mainRow.appendChild(label);
     mainRow.appendChild(actions);
+// Disable actions while running if this is the active task
+    if (isRunning && index === activeTaskIndex) {
+        checkbox.disabled = true;
+        delBtn.disabled = true;
+    }
+
     item.appendChild(mainRow);
+
+    // Task meta and progress
+    const meta = document.createElement('div');
+    meta.className = 'task-meta';
+const estMin = Number.isFinite(todo.estimateMinutes) ? todo.estimateMinutes : 0;
+    const estSec = estMin * 60;
+    const spentSec = Number.isFinite(todo.loggedSeconds) ? todo.loggedSeconds : 0;
+    const percent = estSec > 0 ? Math.min(100, Math.round((spentSec / estSec) * 100)) : 0;
+
+    const estSpan = document.createElement('span');
+    estSpan.className = 'task-estimate';
+    estSpan.innerHTML = `⏱ Est: ${formatDurationPretty(estSec)}`;
+
+    const spentSpan = document.createElement('span');
+    spentSpan.className = 'task-spent';
+    spentSpan.innerHTML = `🔥 Spent: ${formatDurationPretty(spentSec)}${estSec>0 ? ` • ${percent}%` : ''}`;
+
+    meta.appendChild(estSpan);
+    meta.appendChild(spentSpan);
+    item.appendChild(meta);
+
+    const prog = document.createElement('div');
+    prog.className = 'task-progress';
+    const bar = document.createElement('div');
+    bar.className = 'task-progress-bar';
+bar.style.width = estSec > 0 ? `${percent}%` : '0%';
+    prog.appendChild(bar);
+    item.appendChild(prog);
+
     // Subtasks
     if (todo.subtasks && todo.subtasks.length > 0) {
         item.appendChild(renderSubtasks(todo.subtasks, index));
@@ -1867,14 +1444,37 @@ function addTodo() {
     const input = document.getElementById('todo-input');
     const text = input.value.trim();
     if (!text) return;
+    // Prompt once for estimated minutes (optional, hidden input not shown)
+    let estVal = 0;
+    try {
+        const ans = prompt('Estimated minutes for this task (optional):', '');
+        if (ans !== null && ans.trim() !== '') {
+            const parsed = parseInt(ans.trim(), 10);
+            if (Number.isFinite(parsed) && parsed > 0) estVal = parsed;
+        }
+    } catch { /* ignore */ }
     if (!currentUserData.todos) currentUserData.todos = [];
-    currentUserData.todos.push({ text, completed: false, subtasks: [] });
+    currentUserData.todos.push({ 
+        text, 
+        completed: false, 
+        subtasks: [],
+        estimateMinutes: estVal,
+        loggedMinutes: 0,
+        createdAt: Date.now()
+    });
     input.value = '';
     saveUserData();
     loadTodos();
+    updateFocusedTaskIndicator();
 }
 
 function toggleTodo(index) {
+    if (isRunning && activeTaskIndex === index) {
+        alert('Complete the ongoing session first.');
+        // Re-render to reset checkbox state
+        loadTodos();
+        return;
+    }
     const todo = currentUserData.todos[index];
     todo.completed = !todo.completed;
     saveUserData();
@@ -1886,9 +1486,16 @@ function toggleTodo(index) {
 }
 
 function deleteTodo(index) {
+    if (isRunning && activeTaskIndex === index) {
+        alert('Complete the ongoing session first.');
+        return;
+    }
     currentUserData.todos.splice(index, 1);
+    if (activeTaskIndex === index) activeTaskIndex = null;
+    else if (activeTaskIndex !== null && activeTaskIndex > index) activeTaskIndex -= 1;
     saveUserData();
     loadTodos();
+    updateFocusedTaskIndicator();
 }
 
 function clearTodos() {
@@ -2359,27 +1966,37 @@ function loadTimetableData() {
 // ===================================================================================
 // MOTIVATIONAL QUOTE OF THE DAY FUNCTIONALITY
 // ===================================================================================
+function getLocalDateKey(d = new Date()) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`; // local timezone date key
+}
+
 function fetchQuoteOfTheDay() {
     const quoteTextEl = document.getElementById('daily-quote');
     const quoteAuthorEl = document.getElementById('quote-author');
     if (!quoteTextEl || !quoteAuthorEl) return;
-    // Use localStorage to cache quote for the day
-    const today = new Date().toISOString().slice(0, 10);
+    // Cache by LOCAL date so it updates at local midnight (not UTC)
+    const today = getLocalDateKey();
     const cached = JSON.parse(localStorage.getItem('quoteOfTheDay') || '{}');
-    if (cached.date === today && cached.text && cached.author) {
+    if (cached.date === today && cached.text && (cached.author !== undefined)) {
         quoteTextEl.textContent = cached.text;
         quoteAuthorEl.textContent = cached.author ? `— ${cached.author}` : '';
         return;
     }
-    fetch('https://api.quotable.io/random?tags=motivational|inspirational')
+    // Add a cache-buster tied to local day to avoid any stale intermediary caching
+    fetch(`https://api.quotable.io/random?tags=motivational|inspirational&ts=${today}`)
         .then(res => res.json())
         .then(data => {
-            quoteTextEl.textContent = data.content;
-            quoteAuthorEl.textContent = data.author ? `— ${data.author}` : '';
+            const text = data?.content || 'Stay motivated and keep flowing!';
+            const author = data?.author || '';
+            quoteTextEl.textContent = text;
+            quoteAuthorEl.textContent = author ? `— ${author}` : '';
             localStorage.setItem('quoteOfTheDay', JSON.stringify({
                 date: today,
-                text: data.content,
-                author: data.author
+                text,
+                author
             }));
         })
         .catch(() => {
@@ -2390,7 +2007,6 @@ function fetchQuoteOfTheDay() {
 
 document.addEventListener('DOMContentLoaded', () => {
     fetchQuoteOfTheDay();
-    // Debug panel disabled
     // Professional interactive motion for quote text
     const quoteTextEl = document.getElementById('daily-quote');
     if (quoteTextEl) {
@@ -2453,41 +2069,41 @@ function navigateToSection(section) {
     
     // Hide all sections first
     document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
-    
-    // Show the selected section
+
+    // Controlled visibility per destination
+    const show = id => { const el = document.getElementById(id); if (el) el.classList.remove('hidden'); };
+    const hide = id => { const el = document.getElementById(id); if (el) el.classList.add('hidden'); };
+
     switch(section) {
         case 'timer':
-            document.getElementById('timer-section').classList.remove('hidden');
-            document.getElementById('features-section').classList.remove('hidden');
-            const lb1 = document.getElementById('leaderboard-section');
-            if (lb1) lb1.classList.remove('hidden');
-            const q1 = document.getElementById('quote-section');
-            if (q1) q1.classList.remove('hidden');
+            show('timer-section');
+            show('features-section');
+            show('leaderboard-section');
+            show('quote-section');
             break;
         case 'todo':
-            document.getElementById('timer-section').classList.remove('hidden');
-            document.getElementById('features-section').classList.remove('hidden');
-            const lb2 = document.getElementById('leaderboard-section');
-            if (lb2) lb2.classList.remove('hidden');
-            const q2 = document.getElementById('quote-section');
-            if (q2) q2.classList.remove('hidden');
-            // Scroll to todo section
+            show('timer-section');
+            show('features-section');
+            show('leaderboard-section');
+            show('quote-section');
             setTimeout(() => {
                 document.getElementById('todo-container').scrollIntoView({ behavior: 'smooth' });
             }, 100);
             break;
         case 'journal':
-            DOMElements.journal.section.classList.remove('hidden');
+            show('journal-section');
+            hide('leaderboard-section');
             break;
         case 'timetable':
-            DOMElements.timetable.section.classList.remove('hidden');
+            show('timetable-section');
+            hide('leaderboard-section');
             break;
         case 'stats':
             openStats();
+            setTimeout(() => switchTab('stats'), 100);
             break;
         case 'settings':
             openStats();
-            // Switch to settings tab
             setTimeout(() => switchTab('settings'), 100);
             break;
     }
@@ -2580,16 +2196,19 @@ function setupEventListeners() {
         DOMElements.focusMode.timer.textContent = DOMElements.timerDisplay.textContent;
     });
     
-    // White noise
-    document.getElementById('noiseBtn').addEventListener('click', () => {
-        if (DOMElements.sounds.whiteNoise.paused) {
-            DOMElements.sounds.whiteNoise.play().catch(e => console.error("Audio play failed:", e));
-            document.getElementById('noiseBtn').textContent = '🔇 Stop Noise';
-        } else {
-            DOMElements.sounds.whiteNoise.pause();
-            document.getElementById('noiseBtn').textContent = '🎧 Play Noise';
-        }
+    // Ambient noise picker
+    setupNoisePicker();
+    document.getElementById('noiseBtn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleNoiseOverlay();
     });
+    // Close overlay on outside click
+    window.addEventListener('click', (e) => {
+        const ov = document.getElementById('noiseOverlay');
+        if (!ov) return;
+        if (!ov.contains(e.target) && e.target.id !== 'noiseBtn') hideNoiseOverlay();
+    });
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideNoiseOverlay(); });
     
     // Tabs in stats modal
     document.querySelectorAll('.tab').forEach(tab => {
@@ -2620,10 +2239,12 @@ function setupEventListeners() {
         uploadBtn.onclick = () => DOMElements.journal.imageUpload.click();
     }
     
-    // Close modals when clicking outside
+    // Close modals when clicking outside (do not close auth modal)
     window.addEventListener('click', (e) => {
-        if (e.target.classList.contains('modal')) {
-            e.target.classList.remove('visible');
+        if (e.target.classList && e.target.classList.contains('modal')) {
+            if (e.target.id !== 'authModal') {
+                e.target.classList.remove('visible');
+            }
         }
     });
     
@@ -2649,6 +2270,105 @@ function setupEventListeners() {
 // ===================================================================================
 // HELPER FUNCTIONS
 // ===================================================================================
+let ambientAudio = null;
+const ambientCache = {};
+let currentAmbientKey = null; // 'sea_waves' | 'fireplace' | 'cafe' | 'nature' | 'thunderstorm' | 'crickets'
+
+function stopAmbientSound() {
+    try { if (ambientAudio) ambientAudio.pause(); } catch {}
+    ambientAudio = null;
+    currentAmbientKey = null;
+    const btn = document.getElementById('noiseBtn');
+    if (btn) btn.textContent = '🎧 Play Noise';
+}
+
+function playAmbientSound(key) {
+    // Map keys to files (sea_waves uses existing whiteNoise element)
+    const map = {
+        sea_waves: { type: 'element', el: DOMElements.sounds.whiteNoise },
+        fireplace: { file: 'fireplace.mp3' },
+        cafe: { file: 'cafe.mp3' },
+        nature: { file: 'nature.mp3' },
+        thunderstorm: { file: 'thunderstorm.mp3' },
+        crickets: { file: 'crickets.mp3' },
+    };
+    const btn = document.getElementById('noiseBtn');
+    const cfg = map[key];
+    if (!cfg) return;
+
+    // Stop current
+    stopAmbientSound();
+
+    if (cfg.type === 'element' && cfg.el) {
+        ambientAudio = cfg.el;
+    } else if (cfg.file) {
+        if (!ambientCache[cfg.file]) {
+            const a = new Audio(`assets/sounds/${cfg.file}`);
+            a.loop = true;
+            ambientCache[cfg.file] = a;
+        }
+        ambientAudio = ambientCache[cfg.file];
+    }
+    currentAmbientKey = key;
+    if (ambientAudio) {
+        ambientAudio.currentTime = 0;
+        ambientAudio.loop = true;
+        ambientAudio.volume = 1.0;
+        ambientAudio.play().catch(e => console.error('Ambient play failed:', e));
+        if (btn) btn.textContent = '🔇 Stop Noise';
+    }
+}
+
+function setupNoisePicker() {
+    if (document.getElementById('noiseOverlay')) return;
+    const ov = document.createElement('div');
+    ov.id = 'noiseOverlay';
+    ov.className = 'noise-overlay hidden';
+    ov.innerHTML = `
+      <div class="noise-card">
+        <div class="noise-title">Pick a sound</div>
+        <div class="noise-grid">
+          <button class="noise-option" data-key="sea_waves">🌊 Sea Waves</button>
+          <button class="noise-option" data-key="fireplace">🔥 Fireplace</button>
+          <button class="noise-option" data-key="cafe">☕ Cafe</button>
+          <button class="noise-option" data-key="nature">🌿 Nature</button>
+          <button class="noise-option" data-key="thunderstorm">⛈️ Thunderstorm</button>
+          <button class="noise-option" data-key="crickets">🦗 Crickets</button>
+        </div>
+        <div class="noise-actions">
+          <button id="noiseStopBtn" class="noise-stop">🔇 Stop</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(ov);
+    ov.querySelectorAll('.noise-option').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const key = e.currentTarget.getAttribute('data-key');
+            playAmbientSound(key);
+            hideNoiseOverlay();
+        });
+    });
+    const stopBtn = ov.querySelector('#noiseStopBtn');
+    if (stopBtn) stopBtn.addEventListener('click', () => { stopAmbientSound(); hideNoiseOverlay(); });
+}
+
+function toggleNoiseOverlay() {
+    const ov = document.getElementById('noiseOverlay');
+    if (!ov) return;
+    positionNoiseOverlay(ov);
+    ov.classList.toggle('hidden');
+}
+function showNoiseOverlay() { const ov = document.getElementById('noiseOverlay'); if (ov) { positionNoiseOverlay(ov); ov.classList.remove('hidden'); } }
+function hideNoiseOverlay() { const ov = document.getElementById('noiseOverlay'); if (ov) ov.classList.add('hidden'); }
+
+function positionNoiseOverlay(ov) {
+    const anchor = document.getElementById('noiseBtn');
+    if (!anchor) return;
+    const r = anchor.getBoundingClientRect();
+    ov.style.position = 'fixed';
+    ov.style.left = `${Math.max(12, r.left)}px`;
+    ov.style.top = `${Math.max(12, r.top - 140)}px`;
+}
 function handleSignUp(e) {
     e.preventDefault();
     const email = document.getElementById('signup-email').value;
@@ -2719,13 +2439,17 @@ function getYoutubeVideoId(url) {
 }
 
 function applyTheme(type, path) {
+    const container = document.getElementById('video-background-container');
     if (type === 'image') {
+        // Clear any previous YouTube background so the image is visible
+        if (container) container.innerHTML = '';
         document.body.style.backgroundImage = `url(${path})`;
         currentUserData.theme = { backgroundPath: path, youtubeVideoId: null };
     } else if (type === 'youtube') {
         document.body.style.backgroundImage = '';
-        const container = document.getElementById('video-background-container');
-        container.innerHTML = `<iframe src="https://www.youtube.com/embed/${path}?autoplay=1&mute=1&loop=1&playlist=${path}&controls=0&modestbranding=1&rel=0" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+        if (container) {
+            container.innerHTML = `<iframe src="https://www.youtube.com/embed/${path}?autoplay=1&mute=1&loop=1&playlist=${path}&controls=0&modestbranding=1&rel=0" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+        }
         currentUserData.theme = { backgroundPath: null, youtubeVideoId: path };
     }
     saveUserData();
@@ -2733,128 +2457,193 @@ function applyTheme(type, path) {
 
 function loadTheme() {
     if (currentUserData.theme) {
+        const container = document.getElementById('video-background-container');
         if (currentUserData.theme.backgroundPath) {
+            // Ensure any previous YouTube iframe is removed
+            if (container) container.innerHTML = '';
             document.body.style.backgroundImage = `url(${currentUserData.theme.backgroundPath})`;
         } else if (currentUserData.theme.youtubeVideoId) {
-            const container = document.getElementById('video-background-container');
-            container.innerHTML = `<iframe src="https://www.youtube.com/embed/${currentUserData.theme.youtubeVideoId}?autoplay=1&mute=1&loop=1&playlist=${currentUserData.theme.youtubeVideoId}&controls=0&modestbranding=1&rel=0" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+            if (container) {
+                container.innerHTML = `<iframe src="https://www.youtube.com/embed/${currentUserData.theme.youtubeVideoId}?autoplay=1&mute=1&loop=1&playlist=${currentUserData.theme.youtubeVideoId}&controls=0&modestbranding=1&rel=0" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+            }
         }
     }
 }
 
 function toggleAmbientEffect(effect) {
-    const btn = document.getElementById(`${effect}Btn`);
+    const snowBtn = document.getElementById('snowBtn');
+    const rainBtn = document.getElementById('rainBtn');
+    const sakuraBtn = document.getElementById('sakuraBtn');
+
+    // Toggle individual effect on/off (multi-mode)
     if (effect === 'snow') {
         isSnowActive = !isSnowActive;
-        btn.classList.toggle('active', isSnowActive);
-        if (isSnowActive) spawnAmbientParticles(effect);
+        if (snowBtn) snowBtn.classList.toggle('active', isSnowActive);
+        if (!isSnowActive && DOMElements.ambientContainer) {
+            DOMElements.ambientContainer.querySelectorAll('.ambient-effect.snowflake').forEach(el => el.remove());
+        }
     } else if (effect === 'rain') {
         isRainActive = !isRainActive;
-        btn.classList.toggle('active', isRainActive);
-        if (isRainActive) spawnAmbientParticles(effect);
+        if (rainBtn) rainBtn.classList.toggle('active', isRainActive);
+        if (!isRainActive && DOMElements.ambientContainer) {
+            DOMElements.ambientContainer.querySelectorAll('.ambient-effect.raindrop, .splash-effect').forEach(el => el.remove());
+        }
     } else if (effect === 'sakura') {
         isSakuraActive = !isSakuraActive;
-        btn.classList.toggle('active', isSakuraActive);
-        if (isSakuraActive) spawnAmbientParticles(effect);
+        if (sakuraBtn) sakuraBtn.classList.toggle('active', isSakuraActive);
+        if (!isSakuraActive && DOMElements.ambientContainer) {
+            DOMElements.ambientContainer.querySelectorAll('.ambient-effect.sakura').forEach(el => el.remove());
+        }
     }
-}
 
-// MediaPipe dynamic loader and initializer
-async function loadScriptOnce(src) {
-    return new Promise((resolve, reject) => {
-        if (document.querySelector(`script[src="${src}"]`)) return resolve();
-        const s = document.createElement('script');
-        s.src = src;
-        s.async = true;
-        s.onload = () => resolve();
-        s.onerror = (e) => reject(e);
-        document.head.appendChild(s);
-    });
-}
-
-async function initMediaPipePoseLandmarker() {
-    if (mpPoseLandmarker) return;
-    // Load vision bundle (FilesetResolver, PoseLandmarker)
-    const bundleUrl = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/vision_bundle.js';
-    await loadScriptOnce(bundleUrl);
-    if (!window.FilesetResolver || !window.PoseLandmarker) {
-        throw new Error('MediaPipe Tasks Vision not available');
+    const anyActive = isSnowActive || isRainActive || isSakuraActive;
+    if (anyActive) {
+        // Start loop if not running
+        if (!animationFrameId) spawnAmbientParticles('multi');
+    } else {
+        // Nothing active: stop loop and clear all nodes
+        if (animationFrameId) cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+        if (DOMElements.ambientContainer) {
+            DOMElements.ambientContainer.querySelectorAll('.ambient-effect, .splash-effect').forEach(el => el.remove());
+        }
     }
-    mpVision = await window.FilesetResolver.forVisionTasks(
-        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm'
-    );
-    mpPoseLandmarker = await window.PoseLandmarker.createFromOptions(mpVision, {
-        baseOptions: {
-            modelAssetPath: 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm/pose_landmarker_full.task'
-        },
-        runningMode: mpPoseRunningMode,
-        numPoses: 1,
-        minPoseDetectionConfidence: 0.4,
-        minPosePresenceConfidence: 0.4,
-        minTrackingConfidence: 0.4
-    });
 }
 
 function spawnAmbientParticles(effect) {
-    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    // Start a unified physics loop that respects all active effects
+    if (animationFrameId) return; // loop already running
+
+    const W = window.innerWidth;
+    const H = window.innerHeight;
     const particles = [];
-    
-    function animate() {
-        const now = Date.now();
-        if (effect === 'snow' && isSnowActive && now - lastSnowSpawn > SNOW_INTERVAL) {
-            createParticle('snowflake');
-            lastSnowSpawn = now;
-        } else if (effect === 'rain' && isRainActive && now - lastRainSpawn > RAIN_INTERVAL) {
-            createParticle('raindrop');
-            lastRainSpawn = now;
-        } else if (effect === 'sakura' && isSakuraActive && now - lastSakuraSpawn > SAKURA_INTERVAL) {
-            createParticle('sakura');
-            lastSakuraSpawn = now;
+    let lastSpawnSnow = 0, lastSpawnRain = 0, lastSpawnSakura = 0;
+
+    function makeParticle(kind) {
+        const el = document.createElement('div');
+        el.className = `ambient-effect ${kind}`;
+        el.style.position = 'absolute';
+        el.style.willChange = 'transform, opacity';
+        el.style.left = '0';
+        el.style.top = '0';
+
+        const p = { el, kind, x: Math.random() * W, y: -20, vx: 0, vy: 0, rot: 0, vr: 0, life: 0, maxLife: 10000 };
+        if (kind === 'snowflake') {
+            const size = 6 + Math.random() * 8;
+            el.style.width = `${size}px`;
+            el.style.height = `${size}px`;
+            el.style.borderRadius = '50%';
+            el.style.background = 'rgba(255,255,255,0.9)';
+            p.vy = 30 + Math.random() * 25; // px/s
+            p.vx = -20 + Math.random() * 40; // gentle drift
+            p.vr = (-0.3 + Math.random() * 0.6);
+            p.maxLife = 20000;
+        } else if (kind === 'raindrop') {
+            const h = 18 + Math.random() * 22;
+            el.style.width = `2px`;
+            el.style.height = `${h}px`;
+            el.style.background = 'linear-gradient(to bottom, rgba(166,192,232,0.8), rgba(166,192,232,0.3))';
+            p.vy = 400 + Math.random() * 300; // fast
+            p.vx = -40 + Math.random() * 80; // wind
+            p.maxLife = 4000;
+        } else if (kind === 'sakura') {
+            const size = 12 + Math.random() * 12;
+            el.style.width = `${size}px`;
+            el.style.height = `${size}px`;
+            el.style.backgroundImage = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 50 50\"><path fill=\"%23FFC0CB\" d=\"M25 38.2c-1-5.1-4.7-9.3-9.5-12.2 4.9-2.9 8.6-7.1 9.5-12.2 1 5.1 4.7 9.3 9.5 12.2-4.9 2.9-8.6 7.1-9.5 12.2z\"/></svg>')";
+            el.style.backgroundSize = 'contain';
+            el.style.backgroundRepeat = 'no-repeat';
+            p.vy = 35 + Math.random() * 25;
+            p.vx = -30 + Math.random() * 60;
+            p.vr = (-1 + Math.random() * 2);
+            p.maxLife = 16000;
         }
-        
-        updateParticles();
-        if (isSnowActive || isRainActive || isSakuraActive) {
-            animationFrameId = requestAnimationFrame(animate);
-        }
+        DOMElements.ambientContainer.appendChild(el);
+        particles.push(p);
+        return p;
     }
-    
-    function createParticle(type) {
-        const particle = document.createElement('div');
-        particle.className = `ambient-effect ${type}`;
-        particle.style.left = `${Math.random() * 100}%`;
-        particle.style.opacity = Math.random() * 0.5 + 0.5;
-        
-        let fallTime, spinFall;
-        if (type === 'snowflake') {
-            particle.style.width = `${Math.random() * 10 + 5}px`;
-            particle.style.height = particle.style.width;
-            fallTime = Math.random() * 10 + 10;
-            spinFall = Math.random() > 0.5;
-        } else if (type === 'raindrop') {
-            particle.style.height = `${Math.random() * 20 + 10}px`;
-            fallTime = Math.random() * 2 + 1;
-        } else if (type === 'sakura') {
-            particle.style.width = `${Math.random() * 15 + 10}px`;
-            particle.style.height = particle.style.width;
-            fallTime = Math.random() * 15 + 10;
-            spinFall = true;
-        }
-        
-        particle.style.animation = `fall ${fallTime}s linear forwards${spinFall ? ', spinFall 20s linear infinite' : ''}`;
-        DOMElements.ambientContainer.appendChild(particle);
-        particles.push({ element: particle, born: Date.now(), lifetime: fallTime * 1000 });
-    }
-    
-    function updateParticles() {
+
+    function update(dt) {
+        const wind = Math.sin(Date.now() * 0.0005) * 20; // px/s wind drift
         for (let i = particles.length - 1; i >= 0; i--) {
-            if (Date.now() - particles[i].born > particles[i].lifetime) {
-                DOMElements.ambientContainer.removeChild(particles[i].element);
+            const p = particles[i];
+            // Remove instantly if effect was turned off
+            if ((p.kind === 'snowflake' && !isSnowActive) ||
+                (p.kind === 'raindrop' && !isRainActive) ||
+                (p.kind === 'sakura' && !isSakuraActive)) {
+                if (p.el && p.el.parentNode) p.el.parentNode.removeChild(p.el);
+                particles.splice(i, 1);
+                continue;
+            }
+            // Physics
+            const g = p.kind === 'raindrop' ? 900 : 50; // gravity px/s^2
+            p.vy += g * dt;
+            p.vx += wind * dt * (p.kind === 'snowflake' ? 0.05 : 0.02);
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+            p.rot += p.vr * dt * 60;
+
+            // Render
+            p.el.style.transform = `translate3d(${p.x}px, ${p.y}px, 0) rotate(${p.rot}deg)`;
+
+            // Bounds & splash for rain
+            if (p.y > H + 40 || p.x < -60 || p.x > W + 60) {
+                // Splash for rain
+                if (p.kind === 'raindrop') {
+                    const splash = document.createElement('div');
+                    splash.className = 'splash-effect';
+                    splash.style.position = 'absolute';
+                    splash.style.left = `${p.x}px`;
+                    splash.style.top = `${H-6}px`;
+                    splash.style.width = '10px';
+                    splash.style.height = '10px';
+                    splash.style.border = '2px solid rgba(166,192,232,0.6)';
+                    splash.style.borderRadius = '50%';
+                    splash.style.opacity = '0.8';
+                    splash.style.transform = 'translate(-50%, -50%)';
+                    DOMElements.ambientContainer.appendChild(splash);
+                    setTimeout(() => { if (splash.parentNode) splash.parentNode.removeChild(splash); }, 180);
+                }
+                // Remove particle
+                if (p.el.parentNode) p.el.parentNode.removeChild(p.el);
                 particles.splice(i, 1);
             }
         }
     }
-    
-    animate();
+
+    let last = performance.now();
+    function loop(ts) {
+        const dt = Math.min(0.05, (ts - last) / 1000);
+        last = ts;
+
+        // Spawn per active effect
+        const now = ts;
+        if (isSnowActive && now - lastSpawnSnow > 50) { // more visible snow
+            lastSpawnSnow = now;
+            makeParticle('snowflake');
+        }
+        if (isRainActive && now - lastSpawnRain > 25) { // denser rain
+            lastSpawnRain = now;
+            makeParticle('raindrop');
+        }
+        if (isSakuraActive && now - lastSpawnSakura > 120) {
+            lastSpawnSakura = now;
+            makeParticle('sakura');
+        }
+
+        update(dt);
+
+        if (isSnowActive || isRainActive || isSakuraActive) {
+            animationFrameId = requestAnimationFrame(loop);
+        } else {
+            // Cleanup when nothing active
+            particles.forEach(p => { if (p.el.parentNode) p.el.parentNode.removeChild(p.el); });
+            particles.length = 0;
+            animationFrameId = null;
+        }
+    }
+
+    animationFrameId = requestAnimationFrame(loop);
 }
 
 function switchTab(tabName) {
@@ -2862,6 +2651,106 @@ function switchTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
     document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add('active');
     document.getElementById(`${tabName}Container`).classList.add('active');
+}
+
+function formatMinutesPretty(totalMinutes) {
+    if (!Number.isFinite(totalMinutes) || totalMinutes <= 0) return '0m';
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    if (h > 0 && m > 0) return `${h}h ${m}m`;
+    if (h > 0) return `${h}h`;
+    return `${m}m`;
+}
+
+function formatDurationPretty(totalSeconds) {
+    if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return '0s';
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    const parts = [];
+    if (h > 0) parts.push(`${h}h`);
+    if (m > 0) parts.push(`${m}m`);
+    if (s > 0 && h === 0) parts.push(`${s}s`); // hide seconds when hours present for brevity
+    return parts.join(' ');
+}
+
+function ensureFocusedTaskIndicator() {
+    if (document.getElementById('focusedTaskIndicator')) return;
+    const indicator = document.createElement('div');
+    indicator.id = 'focusedTaskIndicator';
+    indicator.className = 'focused-task-indicator hidden';
+    const statusEl = document.getElementById('status');
+    if (statusEl && statusEl.parentElement) {
+        statusEl.insertAdjacentElement('afterend', indicator);
+    } else {
+        // Fallback: append to timer section
+        const ts = document.getElementById('timer-section');
+        if (ts) ts.prepend(indicator);
+    }
+}
+
+function updateFocusedTaskIndicator() {
+    const el = document.getElementById('focusedTaskIndicator');
+    if (!el) return;
+    if (activeTaskIndex === null || !currentUserData.todos || !currentUserData.todos[activeTaskIndex]) {
+        el.classList.add('hidden');
+        el.textContent = '';
+        applyTaskTimerOverride();
+        return;
+    }
+    const name = currentUserData.todos[activeTaskIndex].text || 'Selected Task';
+    el.textContent = `Currently focusing on: ${name}`;
+    el.classList.remove('hidden');
+    applyTaskTimerOverride();
+}
+
+function getFocusedTaskRemainingSeconds() {
+    if (activeTaskIndex === null || !currentUserData.todos) return null;
+    const t = currentUserData.todos[activeTaskIndex];
+    if (!t || t.completed) return null;
+    const estMin = Number.isFinite(t.estimateMinutes) ? t.estimateMinutes : 0;
+    const estSec = estMin * 60;
+    const spentSec = Number.isFinite(t.loggedSeconds) ? t.loggedSeconds : 0;
+    const remainingSec = Math.max(0, estSec - spentSec);
+    return remainingSec;
+}
+
+function applyTaskTimerOverride() {
+    const remainingSec = getFocusedTaskRemainingSeconds();
+    if (remainingSec && remainingSec > 0) {
+        // Override work session to remaining time; do not alter break logic until session ends
+        workDuration = remainingSec;
+if (!isRunning && sessionStartTime === null) {
+            // Keep status fixed, only update timer when not in a paused session
+            isWorkSession = true;
+            timeLeft = remainingSec;
+            updateTimerDisplay();
+        }
+    } else {
+        // Restore defaults when no focus or nothing remaining
+        if (baseWorkDuration) workDuration = baseWorkDuration;
+if (!isRunning && isWorkSession && sessionStartTime === null) {
+            timeLeft = workDuration;
+            updateTimerDisplay();
+        }
+    }
+}
+
+function showStreakAnimation(type, count) {
+    // Create overlay lazily
+    let overlay = document.getElementById('streakOverlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'streakOverlay';
+        overlay.className = 'streak-overlay hidden';
+        document.body.appendChild(overlay);
+    }
+    overlay.className = 'streak-overlay ' + (type === 'increase' ? 'streak-up' : 'streak-reset');
+    overlay.innerHTML = type === 'increase'
+        ? `<div class="streak-anim">🔥 Streak Up! <span>${count}</span> day${count===1?'':'s'}</div>`
+        : `<div class="streak-anim">💧 Streak Reset</div>`;
+    // Auto hide
+    setTimeout(() => { if (overlay) overlay.classList.add('hidden'); }, 1800);
 }
 
 function renderCharts() {
