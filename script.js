@@ -244,6 +244,8 @@ function showTeaserOverlay(opts = {}) {
     if (video) {
         // Source is assets/images/video.mp4
         video.src = 'assets/images/video.mp4';
+        // Apply slight zoom only for intro mode to crop watermark
+        if (mode === 'intro') video.classList.add('intro-zoom'); else video.classList.remove('intro-zoom');
         video.muted = shouldMute;
         video.currentTime = 0;
         video.onended = () => hideTeaserOverlay();
