@@ -308,6 +308,10 @@ body.focus-mode #diskPlayerContainer {
 #teaserOverlay .teaser-wrap.fullscreen video {
   object-fit: cover;
 }
+#teaserOverlay .teaser-wrap.fullscreen video.intro-zoom {
+  transform: scale(1.08);
+  transform-origin: center center;
+}
 #teaserOverlay .teaser-close {
   position: absolute;
   top: 8px;
