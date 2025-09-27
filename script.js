@@ -332,6 +332,15 @@ let isSnowActive = false, isRainActive = false, isSakuraActive = false;
 let lastSnowSpawn = 0, lastRainSpawn = 0, lastSakuraSpawn = 0;
 const SNOW_INTERVAL = 200, RAIN_INTERVAL = 50, SAKURA_INTERVAL = 500;
 
+// Warn user before leaving if a timer is running
+window.addEventListener('beforeunload', (e) => {
+    if (isRunning) {
+        e.preventDefault();
+        // Most modern browsers ignore the custom text but require setting returnValue
+        e.returnValue = 'A focus session is currently running. Are you sure you want to leave?';
+    }
+});
+
 // ACCOUNTABILITY AI STATE
 const faceapi = window.faceapi;
 let faceApiInterval = null;
