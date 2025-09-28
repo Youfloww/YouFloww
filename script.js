@@ -204,6 +204,23 @@ function showTeaserOverlay(opts = {}) {
         skipBtn.style.display = 'none';
     }
 
+    // Intro logo above Skip button
+    if (mode === 'intro') {
+        let logo = overlay.querySelector('.teaser-logo');
+        if (!logo) {
+            logo = document.createElement('img');
+            logo.className = 'teaser-logo';
+            logo.src = 'assets/images/disk.png';
+            logo.alt = 'YouFloww Logo';
+            wrap.appendChild(logo);
+        } else {
+            logo.style.display = 'block';
+        }
+    } else {
+        const logo = overlay.querySelector('.teaser-logo');
+        if (logo) logo.style.display = 'none';
+    }
+
     // Ensure sound toggle exists when needed (for intro mode)
     let soundBtn = overlay.querySelector('.teaser-sound');
     if (showSound) {
