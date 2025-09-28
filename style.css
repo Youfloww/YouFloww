@@ -359,6 +359,19 @@ body.focus-mode #diskPlayerContainer {
   z-index: 6;
 }
 #teaserOverlay .teaser-sound:hover { filter: brightness(1.1); }
+/* Intro overlay centered logo above Skip */
+#teaserOverlay .teaser-logo {
+  position: absolute;
+  left: 50%;
+  bottom: 86px; /* above Skip which is bottom:28px */
+  transform: translateX(-50%);
+  width: 90px;
+  height: 90px;
+  object-fit: contain;
+  z-index: 6;
+  pointer-events: none; /* do not block click-to-unmute */
+  filter: drop-shadow(0 0 16px rgba(247,160,71,0.5));
+}
 #glowPillBtn.glow {
     box-shadow: 0 0 24px 8px #f7a047, 0 0 60px 16px #ffe0b2;
     background: linear-gradient(90deg, #fffbe6 0%, #ffe0b2 100%);
