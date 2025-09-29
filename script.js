@@ -900,8 +900,10 @@ function resetTimer() {
     sessionStartTime = null;
     totalAwayTime = 0;
     updateTimerDisplay();
-updateUIState();
-updateFocusedTaskIndicator();
+    updateUIState();
+    updateFocusedTaskIndicator();
+    // Re-render todos so their controls are re-enabled and focus state is correct
+    loadTodos();
 }
 
 function endSession() {
@@ -909,6 +911,7 @@ function endSession() {
     handleEndOfWorkSession(sessionSeconds, false);
     // Only play bad meme on early end of a WORK session
     if (isWorkSession) playRandomSound('bad');
+    // Always show session review after any manual end
     showSessionReview();
     resetTimer();
 }
@@ -921,7 +924,8 @@ function handleSessionCompletion() {
         // Only play good meme for work completion
         playRandomSound('good');
         showCompletionPopup();
-        if (isAccountabilityOn) showSessionReview();
+        // Always show session review after an auto-completed work session
+        showSessionReview();
         sessionCount++;
         isWorkSession = false;
         timeLeft = (sessionCount % 4 === 0) ? longBreakDuration : shortBreakDuration;
@@ -963,19 +967,36 @@ function handleEndOfWorkSession(sessionSeconds, sessionCompleted) {
         if (estSec > 0 && t.loggedSeconds >= estSec) {
             t.loggedSeconds = estSec; // cap to estimate
             t.completed = true;
+            // Clear focus when task is completed
+            activeTaskIndex = null;
             // Celebrate auto-complete just like manual completion
             try { playCompleteSound(); } catch {}
             try { showConfetti(); } catch {}
         }
-        // Clear focus after ending a session
-        activeTaskIndex = null;
-        // Persist and refresh UI/progress
+        
+        // Persist and refresh UI/progress for task logging updates
         saveUserData();
         loadTodos();
         updateFocusedTaskIndicator();
     }
 
-const secondsFocused = Math.max(0, Math.round(sessionSeconds));
+    // New behavior: when a session is manually ended (not auto-completed),
+    // clear the focused task and restore default timer settings for the next session.
+    if (!sessionCompleted) {
+        activeTaskIndex = null;
+        // Restore defaults immediately to avoid showing leftover remaining time
+        if (typeof baseWorkDuration === 'number' && baseWorkDuration > 0) {
+            workDuration = baseWorkDuration;
+            if (isWorkSession) {
+                timeLeft = workDuration;
+                updateTimerDisplay();
+            }
+        }
+        updateFocusedTaskIndicator();
+        saveUserData();
+    }
+
+    const secondsFocused = Math.max(0, Math.round(sessionSeconds));
     const minutesFocused = Math.floor(secondsFocused / 60);
     if (secondsFocused > 0) {
         currentUserData.totalFocusSeconds = (currentUserData.totalFocusSeconds || 0) + secondsFocused;
@@ -983,7 +1004,7 @@ const secondsFocused = Math.max(0, Math.round(sessionSeconds));
         currentUserData.totalSessions = (currentUserData.totalSessions || 0) + 1;
         
         // Update today's sessions count
-const today = getLocalDateKey();
+        const today = getLocalDateKey();
         if (!currentUserData.weeklyFocusSeconds) currentUserData.weeklyFocusSeconds = {};
         currentUserData.weeklyFocusSeconds[today] = (currentUserData.weeklyFocusSeconds[today] || 0) + secondsFocused;
         if (!currentUserData.weeklyFocus) currentUserData.weeklyFocus = {};
@@ -1589,17 +1610,20 @@ checkbox.addEventListener('change', () => {
     focusBtn.innerHTML = '<i class="fas fa-bullseye"></i>';
     focusBtn.setAttribute('aria-label', isFocused ? 'Focused' : 'Focus');
     if (isFocused) focusBtn.classList.add('active');
-    // Disable focusing completed tasks
+    // Disable focusing completed tasks or during active sessions
     if (todo.completed) {
         focusBtn.disabled = true;
         focusBtn.title = 'Completed task';
+    } else if (isRunning || sessionStartTime !== null) {
+        focusBtn.disabled = true;
+        focusBtn.title = 'Cannot change task focus during active session';
     } else {
         focusBtn.title = isFocused ? 'Unfocus this task' : 'Focus this task for the next session';
     }
     focusBtn.addEventListener('click', () => {
-        // Do not allow unfocus/switch during an ongoing session (running or paused)
-        if ((isRunning || sessionStartTime !== null) && activeTaskIndex !== null) {
-            alert('Complete the ongoing session first.');
+        // Prevent ANY task selection/deselection during active sessions (running OR paused)
+        if (isRunning || sessionStartTime !== null) {
+            alert('You cannot select or change tasks during an active session. Please complete or end the current session first.');
             return;
         }
         // Block focusing completed tasks
@@ -1743,10 +1767,29 @@ function toggleTodo(index) {
         return;
     }
     const todo = currentUserData.todos[index];
+    const wasCompleted = todo.completed;
     todo.completed = !todo.completed;
+    
+    // When marking as completed or uncompleted, clear focus if this task was focused
+    if (activeTaskIndex === index) {
+        activeTaskIndex = null;
+    }
+    
+    // If task is being marked as completed, preserve its logged progress.
+    // We keep loggedSeconds as-is to reflect actual time spent, and the task will show as completed.
+    // Overall stats are accounted for via session logging.
+    if (todo.completed && !wasCompleted) {
+        // Optionally cap to estimate visually (do not inflate):
+        const estSec = (Number.isFinite(todo.estimateMinutes) ? todo.estimateMinutes : 0) * 60;
+        if (estSec > 0 && Number.isFinite(todo.loggedSeconds)) {
+            todo.loggedSeconds = Math.min(todo.loggedSeconds, estSec);
+        }
+    }
+    
     saveUserData();
     loadTodos();
-    if (todo.completed) {
+    updateFocusedTaskIndicator();
+    if (todo.completed && !wasCompleted) {
         playCompleteSound();
         showConfetti();
     }
@@ -1757,9 +1800,14 @@ function deleteTodo(index) {
         alert('Complete the ongoing session first.');
         return;
     }
+    
+    // The time spent on this task has already been added to overall stats during sessions
+    // So we can safely delete the task without affecting total focus time
     currentUserData.todos.splice(index, 1);
+    
     if (activeTaskIndex === index) activeTaskIndex = null;
     else if (activeTaskIndex !== null && activeTaskIndex > index) activeTaskIndex -= 1;
+    
     saveUserData();
     loadTodos();
     updateFocusedTaskIndicator();
@@ -2983,20 +3031,22 @@ function getFocusedTaskRemainingSeconds() {
 }
 
 function applyTaskTimerOverride() {
+    // Only apply timer override when no session is active (not running AND not paused)
+    if (isRunning || sessionStartTime !== null) {
+        return; // Don't change timer during active sessions
+    }
+    
     const remainingSec = getFocusedTaskRemainingSeconds();
     if (remainingSec && remainingSec > 0) {
-        // Override work session to remaining time; do not alter break logic until session ends
+        // Override work session to remaining time only when no session is active
         workDuration = remainingSec;
-if (!isRunning && sessionStartTime === null) {
-            // Keep status fixed, only update timer when not in a paused session
-            isWorkSession = true;
-            timeLeft = remainingSec;
-            updateTimerDisplay();
-        }
+        isWorkSession = true;
+        timeLeft = remainingSec;
+        updateTimerDisplay();
     } else {
         // Restore defaults when no focus or nothing remaining
         if (baseWorkDuration) workDuration = baseWorkDuration;
-if (!isRunning && isWorkSession && sessionStartTime === null) {
+        if (isWorkSession) {
             timeLeft = workDuration;
             updateTimerDisplay();
         }
