@@ -144,6 +144,11 @@
                 <button type="submit">Log In</button>
                 <p class="auth-switch">Don't have an account? <a href="#" id="show-signup">Sign Up</a></p>
             </form>
+            <div class="oauth-divider"><span>or</span></div>
+            <button id="googleSignInBtn" class="google-btn" type="button">
+                <span class="g-logo">G</span>
+                Continue with Google
+            </button>
             <!-- Guest Mode Button and Warning -->
             <button id="continueWithoutSignupBtn" class="auth-btn-guest" type="button">
                 Continue without signing up
@@ -164,15 +169,16 @@
             <span id="profileNameDisplay">Floww User</span>
             <button id="changeNameBtn" class="btn-icon" aria-label="Change Name">✏️</button>
         </div>
-        <div class="header-controls">
-            <a href="https://docs.google.com/forms/d/e/1FAIpQLScLU0kaf55JTMKH2XaavMzygMUJQZGeZAqgKxrAC8PXrYtuQA/viewform?usp=header" target="_blank" id="feedback-link" class="header-btn">
-                Feedback 📝
-            </a>
+<div class="header-controls">
             <div id="streak-counter">
                 <span id="streak-emoji">🔥</span>
                 <span id="streak-count">0</span>
             </div>
             <button id="statsBtn" class="header-btn">Customize</button>
+            <div id="livePresence" class="live-presence" title="People currently using YouFloww">
+                <span class="dot" aria-hidden="true"></span>
+<span class="label"><span id="liveCount" class="flip-number" aria-live="polite">0</span> Flowwies Focusing</span>
+            </div>
             <button id="logoutBtn" class="header-btn btn-danger">Logout</button>
         </div>
     </header>
@@ -356,10 +362,9 @@
 <div id="statsModal" class="modal">
     <div class="modal-content stats-modal">
         <span class="close-btn">&times;</span>
-        <h2>Your Progress 📈</h2>
-        <a href="https://www.buymeacoffee.com/YouFloww" target="_blank" class="coffee-link">
-            <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee">
-        </a>
+<h2>Your Progress 📈</h2>
+<button id="shareStatsBtn" class="btn-share-mini share-left"><i class="fas fa-share-nodes" style="margin-right:6px;"></i><span>Share My Stats</span></button>
+<a href="#" id="openSupportQRBtn" class="support-cta support-btn"><i class="fas fa-qrcode"></i> Support us ❤️</a>
         <div class="tabs">
             <div class="tab active" data-tab="stats">📈 Stats</div>
             <div class="tab" data-tab="store">🛒 Themes</div>
@@ -424,6 +429,33 @@
                     <p class="stat-value" id="todaySessions">0</p>
                     <p class="stat-subtext">Daily progress</p>
                 </div>
+
+                <div class="stat-card weekly-hours-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-hourglass-half"></i>
+                    </div>
+                    <h3>Weekly Focus</h3>
+                    <p class="stat-value" id="weeklyFocusHours">0h</p>
+                    <p class="stat-subtext">Total hours in last 7 days</p>
+                </div>
+
+                <div class="stat-card weekly-sessions-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-calendar-week"></i>
+                    </div>
+                    <h3>Weekly Sessions</h3>
+                    <p class="stat-value" id="weeklySessionsCount">0</p>
+                    <p class="stat-subtext">Completed sessions (7d)</p>
+                </div>
+
+                <div class="stat-card avg-session-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-stopwatch"></i>
+                    </div>
+                    <h3>Avg Session Length</h3>
+                    <p class="stat-value" id="avgSessionLength">0m</p>
+                    <p class="stat-subtext">Across all sessions</p>
+                </div>
             </div>
             
             <div class="charts-container">
@@ -474,7 +506,10 @@
             </div>
         </div>
         <div id="settingsContainer" class="tab-content">
-            <h3>⏱️ Timer Durations (minutes)</h3>
+<h3>⏱️ Timer Durations (minutes)</h3>
+            <div class="settings-group">
+                <a href="https://docs.google.com/forms/d/e/1FAIpQLScLU0kaf55JTMKH2XaavMzygMUJQZGeZAqgKxrAC8PXrYtuQA/viewform?usp=header" target="_blank" class="header-btn">Feedback 📝</a>
+            </div>
             <div class="settings-grid">
                 <label for="work-duration">Work:</label>
                 <input type="number" id="work-duration" min="1">
@@ -525,10 +560,11 @@
                 </div>
             </div>
         </div>
-        <div id="timetableContainer" class="tab-content">
+<div id="timetableContainer" class="tab-content">
             <div class="timetable-tab-content">
                 <h3>Your Weekly Schedule</h3>
-                <p>View and manage your timetable from the main timetable section.</p>
+                <div id="customize-timetable-list" class="customize-timetable-list"></div>
+                <p class="timetable-note">Tip: Manage slots in the main Timetable from the dock. You can also delete slots here.</p>
             </div>
         </div>
     </div>
@@ -557,6 +593,47 @@
         <p id="completion-message">Great work! Keep the momentum going.</p>
         <button id="closeCompletionModalBtn">Awesome!</button>
     </div>
+</div>
+<!-- Buy Me a Coffee Modal -->
+<div id="bmcModal" class="modal">
+  <div class="modal-content bmc-modal">
+    <span class="close-btn" id="closeBmcModalBtn">&times;</span>
+    <iframe src="https://www.buymeacoffee.com/widget/page/YouFloww" title="Support YouFloww" style="width:100%;height:72vh;border:0;border-radius:12px; background:#fff;"></iframe>
+  </div>
+</div>
+
+<!-- Share configuration modal -->
+<div id="shareConfigModal" class="modal">
+  <div class="modal-content share-modal">
+    <span class="close-btn" id="closeShareConfigBtn">&times;</span>
+    <h3 style="margin:0 0 8px 0;">Share Your Stats</h3>
+    <p class="share-hint">Choose up to 4 stats to include</p>
+    <div class="share-grid">
+      <label><input type="checkbox" value="totalHours" checked> Total Focus</label>
+      <label><input type="checkbox" value="totalSessions"> Total Sessions</label>
+      <label><input type="checkbox" value="currentStreak" checked> Current Streak</label>
+      <label><input type="checkbox" value="bestStreak" checked> Best Streak</label>
+      <label><input type="checkbox" value="longestSession"> Longest Session</label>
+      <label><input type="checkbox" value="todaySessions"> Today’s Sessions</label>
+      <label><input type="checkbox" value="weeklyFocusHours" checked> Weekly Focus</label>
+      <label><input type="checkbox" value="weeklySessionsCount"> Weekly Sessions</label>
+      <label><input type="checkbox" value="avgSessionLength"> Avg Session Length</label>
+    </div>
+    <label class="share-checkbox"><input type="checkbox" id="includeWeeklyGraph"> Include weekly mini graph</label>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:10px;">
+<button id="createStatsCardBtn" class="share-primary-btn">Create Card</button>
+    </div>
+  </div>
+</div>
+<!-- Support QR Modal -->
+<div id="supportQRModal" class="modal">
+  <div class="modal-content support-modal">
+    <span class="close-btn" id="closeSupportQRBtn">&times;</span>
+    <h3 style="margin-top:0;">Support YouFloww ❤️</h3>
+    <p class="support-copy">Your support helps me keep YouFloww running — covering database storage, servers, and ongoing improvements. If YouFloww helps you focus, a small contribution makes a big difference.</p>
+<img src="assets/images/qr.png" alt="Support via QR" class="support-qr"/>
+    <p class="support-thanks">Thank you for being a part of the flow. You keep this project alive. ✨</p>
+  </div>
 </div>
 <!-- New Session Review Modal with animated assistant -->
 <div id="reviewModal" class="modal">
@@ -685,16 +762,6 @@
 <audio class="bad-meme-non-indian" src="assets/sounds/bad-nonindian-3.mp3"></audio>
 <audio class="bad-meme-non-indian" src="assets/sounds/bad-nonindian-4.mp3"></audio>
 
-<!-- Custom Gravity Loader Overlay (no Framer) -->
-<div id="gravity-loader-overlay">
-  <canvas id="gravity-particles-canvas"></canvas>
-  <canvas id="star-trail-canvas"></canvas>
-  <div id="gravity-loader-content">
-    <img src="assets/images/disk.png" alt="Disk" id="loader-disk-img" style="width:90px;height:90px;margin-bottom:1.2em;filter:drop-shadow(0 0 16px #f7a04788);user-select:none;pointer-events:none;" draggable="false" />
-    <h1 id="glowy-title">YouFloww</h1>
-    <div id="loader-counter">0%</div>
-  </div>
-</div>
 <script>
 // --- Gravity Particles (lighter version) ---
 (function() {
@@ -896,9 +963,8 @@ window.addEventListener('DOMContentLoaded', function() {
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
 <script src="https://www.youtube.com/iframe_api"></script>
 <script src="script.js" type="module"></script>
-<a href="https://www.buymeacoffee.com/YouFloww" target="_blank" style="position: fixed; bottom: 20px; left: 20px; z-index: 1000;">
+<a href="#" id="openBmcSticky" style="position: fixed; bottom: 20px; left: 20px; z-index: 1000;">
     <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 30px !important;width: 108px !important;" >
 </a>
 </body>
 </html>
-
