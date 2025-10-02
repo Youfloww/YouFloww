@@ -334,43 +334,11 @@ function hideTeaserOverlay() {
 }
 // FIREBASE SDKs - Imported from index.html
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, collection, query, where, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup, signInAnonymously } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, collection, query, where, orderBy, limit, getDocs, onSnapshot, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-analytics.js";
 
-// ============ Minimalist Animated Intro Logic ============
-function playMinimalistIntro() {
-    const overlay = document.getElementById('introOverlay');
-    if (!overlay) return; // Guard if this overlay isn't present
-    const sparkle = overlay.querySelector('.sparkle');
-    for (let i = 0; i < 12; i++) {
-        const dot = document.createElement('div');
-        dot.className = 'sparkle-dot';
-        dot.style.left = `${60 + Math.random()*90}px`;
-        dot.style.top = `${80 + Math.random()*60}px`;
-        dot.style.animationDelay = `${Math.random()*2.2}s`;
-        dot.style.background = `linear-gradient(135deg,#f7a047 0%,#6c63ff 100%)`;
-        sparkle.appendChild(dot);
-    }
-    setTimeout(() => {
-        overlay.classList.add('fade-out');
-        setTimeout(() => { overlay.style.display = 'none'; }, 1200);
-    }, 3400);
-}
-window.addEventListener('DOMContentLoaded', playMinimalistIntro);
 
-// For testing: show full-screen teaser video (muted autoplay) with click-to-unmute and centered Skip; hide gravity loader overlay
-document.addEventListener('DOMContentLoaded', () => {
-    try {
-        showTeaserOverlay({ mode: 'intro', muted: true, fullscreen: true, showClose: false, showSkip: true, showSound: false });
-    } catch {}
-    const grav = document.getElementById('gravity-loader-overlay');
-    if (grav) {
-        grav.style.opacity = '0';
-        grav.style.pointerEvents = 'none';
-        grav.style.display = 'none';
-    }
-});
 
 // ============ NEW: Guest Mode State ============
 let isGuestMode = false;
@@ -587,6 +555,120 @@ function stopLeaderboard() {
 }
 
 // ===================================================================================
+// PRESENCE (Flowwies Live)
+// ===================================================================================
+let presenceSessionId = null;
+let presenceDocRef = null;
+
+async function ensurePresenceAuth() {
+    if (!auth.currentUser) {
+        try {
+            await signInAnonymously(auth);
+        } catch (e) {
+            console.warn('Anonymous auth for presence failed:', e);
+        }
+    }
+}
+let presenceHeartbeatInterval = null;
+let presenceUnsub = null;
+let lastLiveCount = 0;
+
+function genSessionId() {
+    if (crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'sess_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+function getIsFocusing() {
+    return !!(isRunning && isWorkSession);
+}
+
+async function startPresence() {
+    try {
+        stopPresence();
+        // Ensure we have an auth user (anonymous is fine) so Firestore rules permit writes
+        await ensurePresenceAuth();
+        presenceSessionId = genSessionId();
+        presenceDocRef = doc(db, 'presence', presenceSessionId);
+        const base = {
+            uid: auth.currentUser ? auth.currentUser.uid : null,
+            createdAt: serverTimestamp(),
+            lastActive: serverTimestamp(),
+            lastActiveMs: Date.now(),
+            isFocusing: getIsFocusing(),
+            userAgent: navigator.userAgent || ''
+        };
+        await setDoc(presenceDocRef, base, { merge: true });
+        // Heartbeat every 25s
+        presenceHeartbeatInterval = setInterval(async () => {
+            try {
+                if (!presenceDocRef) return;
+                await updateDoc(presenceDocRef, {
+                    lastActive: serverTimestamp(),
+                    lastActiveMs: Date.now(),
+                    isFocusing: getIsFocusing()
+                });
+            } catch (e) { /* ignore transient */ }
+        }, 25000);
+        // Live watcher
+        const collRef = collection(db, 'presence');
+        presenceUnsub = onSnapshot(collRef, (snap) => {
+            const now = Date.now();
+            let count = 0;
+            snap.forEach(d => {
+                const data = d.data() || {};
+                if (typeof data.lastActiveMs === 'number' && (now - data.lastActiveMs) <= 60000) {
+                    count++;
+                }
+            });
+            updateLiveCount(count);
+        });
+        // Cleanup on unload
+        window.addEventListener('beforeunload', cleanupPresenceOnce, { once: true });
+        document.addEventListener('visibilitychange', () => {
+            // quick ping when tab becomes visible
+            if (!document.hidden && presenceDocRef) {
+                updateDoc(presenceDocRef, { lastActive: serverTimestamp(), lastActiveMs: Date.now(), isFocusing: getIsFocusing() }).catch(()=>{});
+            }
+        });
+    } catch (e) {
+        console.error('startPresence failed:', e);
+    }
+}
+
+function updateLiveCount(n) {
+    const el = document.getElementById('liveCount');
+    if (!el) return;
+    if (n !== lastLiveCount) {
+        el.textContent = String(n);
+        el.classList.remove('flip');
+        // force reflow for animation restart
+        void el.offsetWidth;
+        el.classList.add('flip');
+        lastLiveCount = n;
+    }
+}
+
+async function stopPresence() {
+    try {
+        if (presenceHeartbeatInterval) clearInterval(presenceHeartbeatInterval);
+        presenceHeartbeatInterval = null;
+        if (presenceUnsub) { try { presenceUnsub(); } catch {} }
+        presenceUnsub = null;
+        presenceSessionId = null;
+        presenceDocRef = null;
+    } catch {}
+}
+
+async function cleanupPresenceOnce() {
+    try {
+        if (presenceDocRef) {
+            // best-effort delete to reduce stale docs; count logic already filters stales
+            await deleteDoc(presenceDocRef).catch(()=>{});
+        }
+    } catch {}
+}
+
+// ===================================================================================
 // GLOBAL STATE & VARIABLES
 // ===================================================================================
 let timerInterval, isRunning = false, isWorkSession = true, sessionCount = 0;
@@ -678,7 +760,10 @@ const DOMElements = {
         currentStreak: document.getElementById("currentStreak"),
         bestStreak: document.getElementById("bestStreak"),
         longestSession: document.getElementById("longestSession"),
-        todaySessions: document.getElementById("todaySessions")
+        todaySessions: document.getElementById("todaySessions"),
+        weeklyFocusHours: document.getElementById("weeklyFocusHours"),
+        weeklySessionsCount: document.getElementById("weeklySessionsCount"),
+        avgSessionLength: document.getElementById("avgSessionLength")
     },
     profile: {
         nameDisplay: document.getElementById("profileNameDisplay"),
@@ -753,6 +838,9 @@ onAuthStateChanged(auth, user => {
         loadUserData();
         startLeaderboard();
     } else if (!isGuestMode) {
+        // Fully reset in-memory state on logout to prevent cross-account leakage
+        currentUserData = getDefaultUserData();
+        userDataRef = null;
         DOMElements.appContainer.classList.add('hidden');
         DOMElements.authModal.classList.add('visible');
         if (timerInterval) clearInterval(timerInterval);
@@ -775,11 +863,12 @@ function loadUserData() {
     } else if (userDataRef) {
         getDoc(userDataRef).then(docSnap => {
             if (docSnap.exists()) {
-                currentUserData = docSnap.data();
-                // Initialize missing properties for backward compatibility
-                if (currentUserData.bestStreak === undefined) currentUserData.bestStreak = 0;
-                if (currentUserData.longestSession === undefined) currentUserData.longestSession = 0;
-                if (currentUserData.todaySessions === undefined) currentUserData.todaySessions = 0;
+                // Merge with defaults to ensure required keys exist
+                currentUserData = { ...getDefaultUserData(), ...docSnap.data() };
+            } else {
+                // New account: start clean for this user, not with prior user's data
+                currentUserData = getDefaultUserData();
+                setDoc(userDataRef, currentUserData).catch(e => console.error('Failed to init user doc:', e));
             }
             initializeAppState();
             updatePublicUserDoc();
@@ -811,9 +900,15 @@ function updateUIState() {
     DOMElements.statusDisplay.classList.toggle('glow-work', isRunning && isWorkSession);
     DOMElements.statusDisplay.classList.toggle('glow-break', isRunning && !isWorkSession);
 
+    // Robustly toggle main play/pause icons (class + inline style fallback)
     DOMElements.playIcon.classList.toggle('hidden', isRunning);
     DOMElements.pauseIcon.classList.toggle('hidden', !isRunning);
+    DOMElements.playIcon.style.display = isRunning ? 'none' : 'block';
+    DOMElements.pauseIcon.style.display = isRunning ? 'block' : 'none';
     DOMElements.playPauseBtn.setAttribute('aria-label', isRunning ? 'Pause Timer' : 'Start Timer');
+    // Also reflect paused state on the button (for accessibility/themes)
+    DOMElements.playPauseBtn.classList.toggle('paused', !isRunning);
+
     DOMElements.resetBtn.disabled = isRunning;
     DOMElements.endSessionBtn.disabled = !isRunning;
     DOMElements.focusMode.playPauseBtn.classList.toggle('paused', !isRunning);
@@ -833,6 +928,8 @@ function playRandomSound(type) {
 function startTimer(isResume = false) {
     if (isRunning) return;
     isRunning = true;
+    // Update presence focusing status immediately
+    try { if (presenceDocRef) updateDoc(presenceDocRef, { isFocusing: getIsFocusing(), lastActive: serverTimestamp(), lastActiveMs: Date.now() }); } catch {}
     enableLeaveWarning();
     if (isWorkSession) {
         if (isResume) {
@@ -871,12 +968,14 @@ function startTimer(isResume = false) {
     }
 }
 
-function pauseTimer(isAuto = false) {
+function pauseTimer(userInitiated = true) {
+    // Update presence focusing status immediately when pausing
+    try { if (presenceDocRef) updateDoc(presenceDocRef, { isFocusing: false, lastActive: serverTimestamp(), lastActiveMs: Date.now() }); } catch {}
     if (!isRunning) return;
     clearInterval(timerInterval);
     isRunning = false;
     disableLeaveWarning();
-    if (!isAuto) {
+    if (userInitiated) {
         pauseWasManual = true;
         DOMElements.sounds.pauseAlert.play();
         stopFaceDetection();
@@ -907,13 +1006,34 @@ function resetTimer() {
 }
 
 function endSession() {
-    const sessionSeconds = Math.max(0, Math.round(workDuration - timeLeft));
-    handleEndOfWorkSession(sessionSeconds, false);
-    // Only play bad meme on early end of a WORK session
-    if (isWorkSession) playRandomSound('bad');
-    // Always show session review after any manual end
-    showSessionReview();
-    resetTimer();
+    // Presence focusing off at end
+    try { if (presenceDocRef) updateDoc(presenceDocRef, { isFocusing: false, lastActive: serverTimestamp(), lastActiveMs: Date.now() }); } catch {}
+
+    if (isWorkSession) {
+        // Manual end of a WORK session → log stats and show review
+        const sessionSeconds = Math.max(0, Math.round(workDuration - timeLeft));
+        handleEndOfWorkSession(sessionSeconds, false);
+        // Only play bad meme on early end of a WORK session
+        playRandomSound('bad');
+        // Show review for work sessions only
+        showSessionReview();
+        resetTimer();
+    } else {
+        // Manual end of a BREAK → do NOT record stats or play memes
+        clearInterval(timerInterval);
+        isRunning = false;
+        disableLeaveWarning();
+        stopFaceDetection();
+        stopPoseDetection();
+        // Switch back to work
+        isWorkSession = true;
+        sessionStartTime = null;
+        totalAwayTime = 0;
+        const remainingSec = getFocusedTaskRemainingSeconds();
+        timeLeft = (remainingSec && remainingSec > 0) ? remainingSec : workDuration;
+        updateTimerDisplay();
+        updateUIState();
+    }
 }
 
 function handleSessionCompletion() {
@@ -1016,6 +1136,9 @@ function handleEndOfWorkSession(sessionSeconds, sessionCompleted) {
         } else {
             currentUserData.todaySessions = (currentUserData.todaySessions || 0) + 1;
         }
+        // Track weekly sessions by day for 7d stats
+        if (!currentUserData.weeklySessions) currentUserData.weeklySessions = {};
+        currentUserData.weeklySessions[today] = (currentUserData.weeklySessions[today] || 0) + 1;
         
         // Update longest session (in minutes)
         if (minutesFocused > currentUserData.longestSession) {
@@ -1389,6 +1512,9 @@ async function initializeAppState() {
     // Ensure daily rollovers on load and start day boundary watcher
     ensureDailyRollovers();
     startDayBoundaryWatcher();
+
+    // Start live presence once app UI is ready
+    try { startPresence(); } catch (e) { console.warn('Presence init failed', e); }
 }
 
 function loadSettingsFromData() {
@@ -1453,6 +1579,10 @@ function openStats() {
     updateStatsDisplay(); 
 }
 function closeStats() { DOMElements.modals.stats.classList.remove('visible'); }
+function openBmcModal() { const m = document.getElementById('bmcModal'); if (m) m.classList.add('visible'); }
+function closeBmcModal() { const m = document.getElementById('bmcModal'); if (m) m.classList.remove('visible'); }
+function openSupportQRModal() { const m = document.getElementById('supportQRModal'); if (m) m.classList.add('visible'); }
+function closeSupportQRModal() { const m = document.getElementById('supportQRModal'); if (m) m.classList.remove('visible'); }
 function updateStatsDisplay() {
     const totalSec = (typeof currentUserData.totalFocusSeconds === 'number' ? currentUserData.totalFocusSeconds : (currentUserData.totalFocusMinutes || 0) * 60);
     const hours = Math.floor(totalSec / 3600);
@@ -1460,6 +1590,31 @@ function updateStatsDisplay() {
     DOMElements.modals.totalFocusTime.textContent = `${hours}h ${minutes}m`;
     DOMElements.modals.totalSessionsCount.textContent = currentUserData.totalSessions || 0;
     DOMElements.modals.currentStreak.textContent = `${currentUserData.streakCount || 0} days`;
+
+    // Weekly totals (7d) from weeklyFocusSeconds and weeklySessions
+    const wk = currentUserData.weeklyFocusSeconds || {};
+    const ws = currentUserData.weeklySessions || {};
+    const keys = [];
+    const today = getLocalDateKey();
+    const baseDate = dateKeyToLocalDate(today);
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() - i);
+        keys.push(getLocalDateKey(d));
+    }
+    let weeklySec = 0;
+    let weeklySessions = 0;
+    keys.forEach(k => {
+        weeklySec += Math.max(0, wk[k] || 0);
+        weeklySessions += Math.max(0, ws[k] || 0);
+    });
+    const weeklyMinutes = Math.floor(weeklySec / 60);
+    if (DOMElements.modals.weeklyFocusHours) DOMElements.modals.weeklyFocusHours.textContent = formatMinutesPretty(weeklyMinutes);
+    if (DOMElements.modals.weeklySessionsCount) DOMElements.modals.weeklySessionsCount.textContent = weeklySessions;
+
+    // Average session length (lifetime)
+    const totalSessions = currentUserData.totalSessions || 0;
+    const avgMinutes = totalSessions > 0 ? Math.round((totalSec / 60) / totalSessions) : 0;
+    if (DOMElements.modals.avgSessionLength) DOMElements.modals.avgSessionLength.textContent = formatMinutesPretty(avgMinutes);
     DOMElements.modals.bestStreak.textContent = `${currentUserData.bestStreak || 0} days`;
     DOMElements.modals.longestSession.textContent = `${currentUserData.longestSession || 0}m`;
     DOMElements.modals.todaySessions.textContent = currentUserData.todaySessions || 0;
@@ -2281,6 +2436,30 @@ function loadTimetableData() {
 // ===================================================================================
 // MOTIVATIONAL QUOTE OF THE DAY FUNCTIONALITY
 // ===================================================================================
+function getCuratedQuotes() {
+    return [
+        { text: 'The secret of getting ahead is getting started.', author: 'Mark Twain' },
+        { text: 'It always seems impossible until it’s done.', author: 'Nelson Mandela' },
+        { text: 'Quality is not an act, it is a habit.', author: 'Aristotle' },
+        { text: 'We are what we repeatedly do. Excellence, then, is not an act but a habit.', author: 'Will Durant' },
+        { text: 'The only way to do great work is to love what you do.', author: 'Steve Jobs' },
+        { text: 'Don’t watch the clock; do what it does. Keep going.', author: 'Sam Levenson' },
+        { text: 'If you can dream it, you can do it.', author: 'Walt Disney' },
+        { text: 'Start where you are. Use what you have. Do what you can.', author: 'Arthur Ashe' },
+        { text: 'Action is the foundational key to all success.', author: 'Pablo Picasso' },
+        { text: 'Success is the sum of small efforts, repeated day in and day out.', author: 'Robert Collier' },
+        { text: 'Your future is created by what you do today, not tomorrow.', author: 'Robert Kiyosaki' },
+        { text: 'The best time to plant a tree was 20 years ago. The second best time is now.', author: 'Chinese Proverb' },
+        { text: 'Dream big. Start small. Act now.', author: '' },
+        { text: 'Discipline is choosing what you want most over what you want now.', author: '' },
+        { text: 'Push yourself, because no one else is going to do it for you.', author: '' },
+    ];
+}
+function hashString(s) {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = ((h << 5) - h) + s.charCodeAt(i) | 0;
+    return h;
+}
 function getLocalDateKey(d = new Date()) {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -2315,8 +2494,13 @@ function fetchQuoteOfTheDay() {
             }));
         })
         .catch(() => {
-            quoteTextEl.textContent = 'Stay motivated and keep flowing!';
-            quoteAuthorEl.textContent = '';
+            // Offline or API failed: pick a deterministic quote from curated list based on local date
+            const curated = getCuratedQuotes();
+            const idx = Math.abs(hashString(today)) % curated.length;
+            const { text, author } = curated[idx];
+            quoteTextEl.textContent = text;
+            quoteAuthorEl.textContent = author ? `— ${author}` : '';
+            localStorage.setItem('quoteOfTheDay', JSON.stringify({ date: today, text, author }));
         });
 }
 
@@ -2359,6 +2543,475 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+// ===================================================================================
+// STATS CARD SHARE (SVG -> PNG)
+// ===================================================================================
+function buildStatsSvgTemplate(opts) {
+    const width = 1080, height = 1350; // portrait for better share reach
+    const {
+        name = 'Floww User',
+        weeklyMinutes = 0,
+        avgMinutes = 0,
+        streak = 0,
+        series = [],
+        dateStr = ''
+    } = opts || {};
+    const weeklyHoursStr = `${(weeklyMinutes/60).toFixed(2)}h`;
+    const avgStr = (avgMinutes && avgMinutes > 0) ? `${avgMinutes}m` : '0m';
+    return `
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#0b1223"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#22c55e"/>
+      <stop offset="100%" stop-color="#16a34a"/>
+    </linearGradient>
+    <style>
+      .title { font: 900 64px 'Inter', system-ui, -apple-system; fill: #e5e7eb; }
+      .tagline { font: 900 44px 'Inter', system-ui; letter-spacing: 0.02em; fill: #a7f3d0; }
+      .sub   { font: 700 34px 'Inter', system-ui; fill: #cbd5e1; }
+      .stat  { font: 800 112px 'Inter', system-ui; fill: #ffffff; }
+      .label { font: 700 28px 'Inter', system-ui; fill: #a7f3d0; }
+      .chip  { font: 700 28px 'Inter', system-ui; fill: #0b0b0b; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="${width}" height="${height}" fill="url(#bg)"/>
+
+  <!-- Tagline and date -->
+  <text x="${width/2}" y="120" class="tagline" text-anchor="middle">This Week's FlowwStats</text>
+  <text x="${width-80}" y="170" class="sub" text-anchor="end">${dateStr}</text>
+
+  <!-- Name chip -->
+  <g transform="translate(80,200)">
+    <rect x="0" y="0" rx="18" ry="18" width="520" height="56" fill="#a7f3d0"/>
+    <text x="24" y="38" class="chip">👤 ${name}</text>
+  </g>
+
+  <!-- Left column -->
+  <text x="80" y="340" class="label">Total hours focused this week</text>
+  <text x="80" y="440" class="stat">${weeklyHoursStr}</text>
+
+  <text x="80" y="540" class="label">Average Session Length</text>
+  <text x="80" y="620" class="sub">${avgStr}</text>
+
+  <!-- Right column -->
+  <text x="${width/2 + 40}" y="340" class="label">Current Streak</text>
+  <text x="${width/2 + 40}" y="440" class="stat" style="font-size:96px">${streak} days</text>
+
+  <!-- Chart label (bars are drawn in canvas overlay for fidelity) -->
+  <text x="${width/2 + 40}" y="540" class="label">Weekly mini chart</text>
+</svg>`;
+}
+
+async function svgStringToPngBlob(svgString, scale = 2) {
+    const svgBlob = new Blob([svgString], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(svgBlob);
+    const img = new Image();
+    img.decoding = 'async';
+    img.src = url;
+    await img.decode();
+    const w = img.naturalWidth, h = img.naturalHeight;
+    const canvas = document.createElement('canvas');
+    canvas.width = w * scale; canvas.height = h * scale;
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+    return new Promise(res => canvas.toBlob(b => res(b), 'image/png', 0.95));
+}
+
+async function generateAndDownloadStatsCard(cfg = {}) {
+    const dateStr = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: '2-digit' });
+    const name = currentUserData.profileName || 'Floww User';
+    const totalMinutes = typeof currentUserData.totalFocusSeconds === 'number'
+        ? currentUserData.totalFocusSeconds / 60
+        : (currentUserData.totalFocusMinutes || 0);
+    const weekly = computeWeeklyRollups();
+    const totalSec = (typeof currentUserData.totalFocusSeconds === 'number' ? currentUserData.totalFocusSeconds : (currentUserData.totalFocusMinutes || 0) * 60);
+    const totalSessions = currentUserData.totalSessions || 0;
+    const avgMinutes = totalSessions > 0 ? Math.round((totalSec/60)/totalSessions) : 0;
+    const opts = {
+        name,
+        weeklyMinutes: weekly.minutes,
+        avgMinutes,
+        streak: currentUserData.streakCount || 0,
+        series: weekly.series,
+        dateStr
+    };
+    // Build card using fixed template
+    
+    const svg = buildStatsSvgTemplate(opts);
+    // Render SVG to canvas then overlay logo and optional weekly graph
+    let outBlob = null;
+    try {
+        const svgBlob = new Blob([svg], { type: 'image/svg+xml' });
+        const svgUrl = URL.createObjectURL(svgBlob);
+        const baseImg = new Image();
+        baseImg.src = svgUrl;
+        await new Promise((resolve, reject) => { baseImg.onload = resolve; baseImg.onerror = reject; });
+        const w = baseImg.naturalWidth, h = baseImg.naturalHeight;
+        const scale = 2;
+        const canvas = document.createElement('canvas');
+        canvas.width = w * scale; canvas.height = h * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.setTransform(scale, 0, 0, scale, 0, 0);
+        ctx.drawImage(baseImg, 0, 0);
+        URL.revokeObjectURL(svgUrl);
+
+        // Always draw weekly mini graph for the card
+        try { drawWeeklyMiniGraph(ctx, w, h, weekly.series); } catch {}
+        // Overlay YouFloww logo (card.png) top-left
+        try { await drawLogoOverlay(ctx, w, h); } catch {}
+
+        outBlob = await new Promise(res => canvas.toBlob(b => res(b), 'image/png', 0.95));
+    } catch (e) {
+        console.error('PNG render failed, falling back to SVG download:', e);
+    }
+
+    if (outBlob) {
+        const file = new File([outBlob], 'youfloww-stats.png', { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            try { await navigator.share({ files: [file], title: 'YouFloww Stats' }); return; } catch {}
+        }
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(outBlob);
+        a.download = 'youfloww-stats.png';
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(a.href);
+    } else {
+        // Fallback: offer SVG for download so the user still gets a card
+        const svgBlob = new Blob([svg], { type: 'image/svg+xml' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(svgBlob);
+        a.download = 'youfloww-stats.svg';
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(a.href);
+    }
+}
+
+function computeWeeklyRollups() {
+    const wk = currentUserData.weeklyFocusSeconds || {};
+    const ws = currentUserData.weeklySessions || {};
+    const keys = [];
+    const today = getLocalDateKey();
+    const baseDate = dateKeyToLocalDate(today);
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() - i);
+        keys.push(getLocalDateKey(d));
+    }
+    let totalSec = 0, sessions = 0;
+    const series = [];
+    keys.forEach(k => {
+        const sec = Math.max(0, wk[k] || 0);
+        totalSec += sec;
+        series.push(Math.floor(sec/60));
+        sessions += Math.max(0, ws[k] || 0);
+    });
+    // Fallback estimate if needed will be handled by caller
+    return { minutes: Math.floor(totalSec/60), sessions, series };
+}
+
+async function drawLogoOverlay(ctx, w, h) {
+    return new Promise((resolve) => {
+        const logo = new Image();
+        logo.onload = () => {
+            const size = 180; // px
+            const pad = 40;
+            ctx.globalAlpha = 0.95;
+            ctx.drawImage(logo, w - size - pad, pad, size, size);
+            ctx.globalAlpha = 1;
+            resolve();
+        };
+        logo.onerror = () => resolve();
+        logo.src = 'assets/images/card.png';
+    });
+}
+
+function drawWeeklyMiniGraph(ctx, w, h, series) {
+    // Draw in bottom area
+    const gx = 80, gy = h - 220, gw = w - 160, gh = 140;
+    // background box
+    ctx.fillStyle = 'rgba(34,197,94,0.08)';
+    roundRect(ctx, gx-10, gy-10, gw+20, gh+20, 14, true, false);
+    // grid lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    for (let i=1;i<=3;i++){ const y = gy + gh * (i/4); ctx.beginPath(); ctx.moveTo(gx, y); ctx.lineTo(gx+gw, y); ctx.stroke(); }
+    // bars
+    const n = 7; const gap = 20; const barW = (gw - gap*(n-1)) / n;
+    const max = Math.max(30, ...series); // ensure some scale
+    for (let i=0;i<n;i++){
+        const val = series[i] || 0;
+        const hpx = (val / max) * gh;
+        const x = gx + i * (barW + gap);
+        const y = gy + gh - hpx;
+        const grad = ctx.createLinearGradient(0, y, 0, y + hpx);
+        grad.addColorStop(0, '#22c55e'); grad.addColorStop(1, '#16a34a');
+        ctx.fillStyle = grad;
+        roundRect(ctx, x, y, barW, hpx, 8, true, false);
+    }
+}
+
+function roundRect(ctx, x, y, w, h, r, fill, stroke) {
+    if (w < 2 * r) r = w / 2; if (h < 2 * r) r = h / 2;
+    ctx.beginPath();
+    ctx.moveTo(x+r, y);
+    ctx.arcTo(x+w, y, x+w, y+h, r);
+    ctx.arcTo(x+w, y+h, x, y+h, r);
+    ctx.arcTo(x, y+h, x, y, r);
+    ctx.arcTo(x, y, x+w, y, r);
+    ctx.closePath();
+    if (fill) ctx.fill(); if (stroke) ctx.stroke();
+}
+
+// ===================================================================================
+// FLOWWWRAP IMAGE (9:16) GENERATOR
+// ===================================================================================
+async function generateFlowwWrapImage() {
+    const W = 1080, H = 1920; // 9:16 portrait
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+
+    // Background: stronger diagonal gradient + bright halo under logo + subtle vignette
+    const grad = ctx.createLinearGradient(0, 0, W, H);
+    grad.addColorStop(0, '#101a33');
+    grad.addColorStop(0.55, '#0b1327');
+    grad.addColorStop(1, '#070d1a');
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+    // Bright halo to improve readability of transparent logo with black text
+    const halo = ctx.createRadialGradient(W/2, 140, 20, W/2, 140, 360);
+    halo.addColorStop(0, 'rgba(255,255,255,0.28)');
+    halo.addColorStop(0.45, 'rgba(167,243,208,0.16)');
+    halo.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(W/2, 140, 360, 0, Math.PI*2); ctx.fill();
+    // Subtle edge vignette
+    const vignette = ctx.createRadialGradient(W/2, H*0.6, H*0.1, W/2, H*0.6, H*0.9);
+    vignette.addColorStop(0, 'rgba(0,0,0,0)');
+    vignette.addColorStop(1, 'rgba(0,0,0,0.35)');
+    ctx.fillStyle = vignette; ctx.fillRect(0, 0, W, H);
+
+    // Data
+    const name = currentUserData.profileName || 'Floww User';
+    const weekly = computeWeeklyRollups();
+    const weeklyHoursStr = (weekly.minutes/60).toFixed(2) + 'h';
+    const totalSec = (typeof currentUserData.totalFocusSeconds === 'number' ? currentUserData.totalFocusSeconds : (currentUserData.totalFocusMinutes || 0) * 60);
+    const totalSessions = currentUserData.totalSessions || 0;
+    const avgMinutes = totalSessions > 0 ? Math.round((totalSec/60)/totalSessions) : 0;
+    const streak = currentUserData.streakCount || 0;
+    const longest = currentUserData.longestSession || 0;
+    const dateStr = new Date().toLocaleDateString(undefined,{month:'short', day:'2-digit', year:'numeric'});
+
+    // Logo top, then title
+    await drawLogoTopCenter(ctx, W, H, { size: 180, y: 40 });
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#a7f3d0'; ctx.font = '900 58px Inter, system-ui, -apple-system';
+    ctx.fillText("Week's FlowwWrap", W/2, 260);
+
+    // Name chip (left) and Date chip (right) in same row
+    ctx.textAlign = 'left';
+    drawRounded(ctx, 60, 300, 520, 56, 18, '#a7f3d0');
+    ctx.fillStyle = '#0b0b0b'; ctx.font = '700 28px Inter, system-ui';
+    ctx.fillText(`👤 ${name}`, 84, 338);
+    // Date chip right-aligned
+    ctx.font = '700 26px Inter, system-ui';
+    const tW = ctx.measureText(dateStr).width;
+    const chipPadX = 16; const chipW = Math.ceil(tW) + chipPadX*2; const chipH = 48;
+    const chipX = W - 60 - chipW; const chipY = 304;
+    ctx.fillStyle = 'rgba(148,163,184,0.18)'; ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+    roundRect(ctx, chipX, chipY, chipW, chipH, 14, true, true);
+    ctx.fillStyle = '#cbd5e1'; ctx.textAlign = 'left'; ctx.fillText(dateStr, chipX + chipPadX, chipY + 32);
+
+    // Stat cards: 2 columns x 2 rows (remove Weekly Sessions & Best Streak)
+    const gapX = 40, gapY = 30;
+    const startX = 60, startY = 380;
+    const cardW = Math.floor((W - startX*2 - gapX) / 2);
+    const cardH = 220;
+    const cards = [
+        { title: 'Weekly Focus', value: weeklyHoursStr, sub: 'Total hours (7d)' },
+        { title: 'Avg Session', value: (avgMinutes||0)+'m', sub: 'Lifetime avg' },
+        { title: 'Current Streak', value: `${streak}d`, sub: 'Keep it going!' },
+        { title: 'Longest Session', value: (longest||0)+'m', sub: 'Deepest focus' },
+    ];
+    for (let i=0;i<cards.length;i++) {
+        const col = i%2, row = Math.floor(i/2);
+        const x = startX + col*(cardW+gapX);
+        const y = startY + row*(cardH+gapY);
+        drawStatCard(ctx, x, y, cardW, cardH, cards[i]);
+    }
+
+    // Weekly bar chart with axes & labels
+    const chartY = startY + 2*(cardH+gapY) + 50;
+    drawWeeklyBarChartWithAxes(ctx, 60, chartY, W-120, 360, weekly.series);
+
+    // Download
+    await downloadCanvasAsPNG(canvas, 'youfloww-wrap.png');
+}
+
+function drawRounded(ctx, x,y,w,h,r, fillColor) {
+    ctx.fillStyle = fillColor;
+    if (w < 2*r) r = w/2; if (h < 2*r) r = h/2;
+    ctx.beginPath(); ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath(); ctx.fill();
+}
+
+function drawStatCard(ctx, x,y,w,h, {title,value,sub}) {
+    // Card bg
+    ctx.fillStyle = '#2a2a2a'; drawRounded(ctx,x,y,w,h,12,'#2a2a2a');
+    // Border
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1; ctx.strokeRect(x+0.5,y+0.5,w-1,h-1);
+    // Top gradient bar
+    const g = ctx.createLinearGradient(x,y,x+w,y);
+    g.addColorStop(0,'#6c63ff'); g.addColorStop(1,'#f7a047');
+    ctx.fillStyle = g; ctx.fillRect(x,y, w, 6);
+    // Texts
+    ctx.fillStyle = '#a7f3d0'; ctx.font = '700 24px Inter, system-ui'; ctx.textAlign='left';
+    ctx.fillText(title, x+16, y+40);
+    ctx.fillStyle = '#ffffff'; ctx.font = '800 48px Inter, system-ui';
+    ctx.fillText(value, x+16, y+100);
+    ctx.fillStyle = '#cbd5e1'; ctx.font = '700 18px Inter, system-ui';
+    ctx.fillText(sub, x+16, y+140);
+}
+
+function drawMiniGraphWide(ctx, x,y,w,h, series) {
+    // Deprecated by drawWeeklyBarChartWithAxes, kept for backward-compat
+    ctx.fillStyle = 'rgba(34,197,94,0.08)'; drawRounded(ctx,x,y,w,h,14,'rgba(34,197,94,0.08)');
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
+    for (let i=1;i<=3;i++){ const yy = y + h*(i/4); ctx.beginPath(); ctx.moveTo(x,yy); ctx.lineTo(x+w,yy); ctx.stroke(); }
+    const n=7, gap=20, barW=(w-gap*(n-1))/n, max=Math.max(30, ...(series||[]));
+    for (let i=0;i<n;i++) {
+        const val = Math.max(0, (series||[])[i]||0);
+        const hpx = (val/max)* (h-20);
+        const xx = x + i*(barW+gap);
+        const yy = y + h - hpx - 10;
+        const g = ctx.createLinearGradient(0,yy,0,yy+hpx);
+        g.addColorStop(0,'#22c55e'); g.addColorStop(1,'#16a34a');
+        ctx.fillStyle = g; drawRounded(ctx, xx, yy, barW, hpx, 8, g);
+    }
+}
+
+// New: weekly bar chart with axes, day labels and nicer spacing
+function drawWeeklyBarChartWithAxes(ctx, x, y, w, h, series = []) {
+    // Layout paddings
+    const padTop = 20, padRight = 18, padBottom = 46, padLeft = 76; // reserve space for y-axis labels
+    // Container
+    const containerFill = ctx.createLinearGradient(x, y, x, y+h);
+    containerFill.addColorStop(0, 'rgba(34,197,94,0.06)');
+    containerFill.addColorStop(1, 'rgba(34,197,94,0.03)');
+    drawRounded(ctx, x, y, w, h, 16, containerFill);
+
+    const cx = x + padLeft, cy = y + padTop, cw = w - padLeft - padRight, ch = h - padTop - padBottom;
+
+    // Axes
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1.25;
+    // y-axis
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx, cy+ch); ctx.stroke();
+    // x-axis
+    ctx.beginPath(); ctx.moveTo(cx, cy+ch); ctx.lineTo(cx+cw, cy+ch); ctx.stroke();
+
+    // Grid and Y labels in hours
+    const minutesMax = Math.max(30, ...series);
+    const hoursMax = Math.max(1, Math.ceil(minutesMax/60));
+    const stepHours = Math.max(1, Math.ceil(hoursMax/4));
+    const ticks = [];
+    for (let v = 0; v <= stepHours*4; v += stepHours) ticks.push(v);
+
+    ctx.fillStyle = '#a7f3d0';
+    ctx.font = '700 24px Inter, system-ui';
+    ctx.textAlign = 'right';
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    ticks.forEach(t => {
+        const ty = cy + ch - (t*60/minutesMax)*ch * (minutesMax>0 ? 1 : 0);
+        ctx.beginPath(); ctx.moveTo(cx, ty); ctx.lineTo(cx+cw, ty); ctx.stroke();
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText(`${t}h`, cx - 10, ty + 6);
+    });
+
+    // Bars
+    const n = 7; const dayGap = 20; // tighter spacing
+    const barW = Math.min(44, (cw - dayGap*(n-1) - 8) / n);
+    const leftOffset = 8; // keep first bar close to y-axis
+    const totalBarsWidth = barW*n + dayGap*(n-1);
+    const offset = Math.max(0, Math.min(leftOffset, cw - totalBarsWidth)); // respect bounds
+    const barGradient = (yy, hh) => {
+        const g = ctx.createLinearGradient(0, yy, 0, yy+hh);
+        g.addColorStop(0, '#34d399');
+        g.addColorStop(1, '#059669');
+        return g;
+    };
+
+    // X labels (last 7 days)
+    const dayNames = (() => {
+        const names = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        const out = [];
+        const base = new Date();
+        for (let i=6;i>=0;i--) { const d = new Date(base.getFullYear(), base.getMonth(), base.getDate()-i); out.push(names[d.getDay()]); }
+        return out;
+    })();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '700 20px Inter, system-ui';
+
+    const max = Math.max(1, minutesMax);
+    for (let i=0;i<n;i++) {
+        const val = Math.max(0, series[i]||0);
+        const hh = (val/max) * (ch - 6);
+        const xx = cx + offset + i*(barW + dayGap);
+        const yy = cy + ch - hh;
+        ctx.fillStyle = barGradient(yy, hh);
+        drawRounded(ctx, xx, yy, barW, hh, 10, ctx.fillStyle);
+        // x label
+        ctx.fillStyle = '#8ea0b5';
+        ctx.fillText(dayNames[i], xx + barW/2, cy + ch + 28);
+    }
+}
+
+async function drawLogoTopCenter(ctx, W, H, opts = {}) {
+    const { size = 160, y = 20 } = opts;
+    // Try multiple candidate paths to avoid path mismatches across builds
+    const candidates = [
+        window.__flowwCardLogoSrc || 'assets/images/card.png',
+        'images/card.png',
+        '/assets/images/card.png',
+        '/images/card.png'
+    ];
+    return new Promise((resolve)=>{
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        let idx = 0;
+        const tryNext = () => {
+            if (idx >= candidates.length) { resolve(); return; }
+            img.src = candidates[idx++];
+        };
+        const drawIt = () => {
+            window.__flowwCardLogo = img;
+            window.__flowwCardLogoSrc = img.src;
+            ctx.globalAlpha = 0.98;
+            ctx.drawImage(img, (W - size)/2, y, size, size);
+            ctx.globalAlpha = 1;
+            resolve();
+        };
+        img.onload = drawIt;
+        img.onerror = tryNext;
+        tryNext();
+    });
+}
+
+async function downloadCanvasAsPNG(canvas, filename) {
+    return new Promise((resolve)=>{
+        canvas.toBlob((b)=>{ const a=document.createElement('a'); const url=URL.createObjectURL(b); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); resolve(); }, 'image/png', 0.95);
+    });
+}
+
 // macOS DOCK FUNCTIONALITY
 // ===================================================================================
 // ===================================================================================
@@ -2441,9 +3094,28 @@ function setupEventListeners() {
     document.getElementById('show-login').addEventListener('click', (e) => { e.preventDefault(); showLoginForm(); });
     document.getElementById('show-signup').addEventListener('click', (e) => { e.preventDefault(); showSignupForm(); });
     document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+
+    const googleBtn = document.getElementById('googleSignInBtn');
+    if (googleBtn) googleBtn.addEventListener('click', handleGoogleSignIn);
     
     // Modal controls
     document.getElementById('statsBtn').addEventListener('click', openStats);
+
+    const shareBtn = document.getElementById('shareStatsBtn');
+    if (shareBtn) shareBtn.addEventListener('click', async () => {
+        try { await generateFlowwWrapImage(); } catch (e) { console.error('Share failed:', e); alert('Could not generate image.'); }
+    });
+
+    // Buy Me a Coffee in-app modal
+    const bmcSticky = document.getElementById('openBmcSticky');
+    if (bmcSticky) bmcSticky.addEventListener('click', (e) => { e.preventDefault(); openBmcModal(); });
+    const bmcClose = document.getElementById('closeBmcModalBtn');
+    if (bmcClose) bmcClose.addEventListener('click', closeBmcModal);
+
+    const qrBtn = document.getElementById('openSupportQRBtn');
+    if (qrBtn) qrBtn.addEventListener('click', (e) => { e.preventDefault(); openSupportQRModal(); });
+    const qrClose = document.getElementById('closeSupportQRBtn');
+    if (qrClose) qrClose.addEventListener('click', closeSupportQRModal);
     document.getElementById('closeCompletionModalBtn').addEventListener('click', () => { DOMElements.modals.completion.classList.remove('visible'); });
     document.getElementById('closeReviewModalBtn').addEventListener('click', () => { DOMElements.modals.review.classList.remove('visible'); });
     document.querySelector('.close-btn').addEventListener('click', closeStats);
@@ -2526,10 +3198,12 @@ function setupEventListeners() {
     window.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideNoiseOverlay(); });
     
     // Tabs in stats modal
-    document.querySelectorAll('.tab').forEach(tab => {
+document.querySelectorAll('.tab').forEach(tab => {
         tab.addEventListener('click', () => {
             const tabName = tab.dataset.tab;
             switchTab(tabName);
+            if (tabName === 'timetable') { try { renderTimetableTabEntries(); } catch {} }
+            if (tabName === 'journal') { try { renderJournalTabEntries(); } catch {} }
         });
     });
     
@@ -2710,9 +3384,23 @@ function handleLogin(e) {
 }
 
 function handleLogout() {
+    // Stop presence before signing out
+    try { stopPresence(); } catch {}
     signOut(auth).catch((error) => {
         console.error("Logout error:", error);
     });
+}
+
+async function handleGoogleSignIn() {
+    try {
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: 'select_account' });
+        await signInWithPopup(auth, provider);
+        // onAuthStateChanged will load the correct user's data or initialize a fresh doc
+    } catch (e) {
+        console.error('Google sign-in failed:', e);
+        if (DOMElements.authError) DOMElements.authError.textContent = e.message || 'Google sign-in failed. Please try again.';
+    }
 }
 
 function showLoginForm() {
@@ -2727,24 +3415,32 @@ function showSignupForm() {
 
 function updateCornerWidget() {
     const now = new Date();
+
+    // Start boundaries (local time)
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfYear = new Date(now.getFullYear(), 0, 1);
+
+    // End boundaries are exclusive (start of next period) to avoid >100%
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    const endOfYear = new Date(now.getFullYear() + 1, 0, 0);
-    
-    const dayProgress = (now - startOfDay) / (endOfDay - startOfDay) * 100;
-    const monthProgress = (now - startOfMonth) / (endOfMonth - startOfMonth) * 100;
-    const yearProgress = (now - startOfYear) / (endOfYear - startOfYear) * 100;
-    
-    document.getElementById('dayProgressBar').style.width = `${dayProgress}%`;
-    document.getElementById('monthProgressBar').style.width = `${monthProgress}%`;
-    document.getElementById('yearProgressBar').style.width = `${yearProgress}%`;
-    
-    document.getElementById('dayProgressPercent').textContent = `${Math.round(dayProgress)}%`;
-    document.getElementById('monthProgressPercent').textContent = `${Math.round(monthProgress)}%`;
-    document.getElementById('yearProgressPercent').textContent = `${Math.round(yearProgress)}%`;
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const endOfYear = new Date(now.getFullYear() + 1, 0, 1);
+
+    const clamp01 = (v) => Math.max(0, Math.min(1, v));
+
+    const dayP = clamp01((now - startOfDay) / (endOfDay - startOfDay)) * 100;
+    const monthP = clamp01((now - startOfMonth) / (endOfMonth - startOfMonth)) * 100;
+    const yearP = clamp01((now - startOfYear) / (endOfYear - startOfYear)) * 100;
+
+    // Apply widths (cap at 100%)
+    document.getElementById('dayProgressBar').style.width = `${dayP}%`;
+    document.getElementById('monthProgressBar').style.width = `${monthP}%`;
+    document.getElementById('yearProgressBar').style.width = `${yearP}%`;
+
+    // Display whole percentages
+    document.getElementById('dayProgressPercent').textContent = `${Math.round(dayP)}%`;
+    document.getElementById('monthProgressPercent').textContent = `${Math.round(monthP)}%`;
+    document.getElementById('yearProgressPercent').textContent = `${Math.round(yearP)}%`;
 }
 
 function getYoutubeVideoId(url) {
@@ -3249,50 +3945,63 @@ function renderJournalTabEntries() {
     });
     // Add delete event listeners
     container.querySelectorAll('.delete-journal-entry-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        btn.addEventListener('click', async () => {
             const date = btn.getAttribute('data-date');
-            if (confirm('Delete this journal entry?')) {
-                delete currentUserData.journalEntries[date];
-                saveUserData();
-                renderJournalTabEntries();
-                // Also update main journal/history if open
-                if (typeof loadPreviousJournalEntries === 'function') loadPreviousJournalEntries();
-            }
+            if (!confirm('Delete this journal entry?')) return;
+            try {
+                if (isGuestMode) {
+                    if (currentUserData.journalEntries) delete currentUserData.journalEntries[date];
+                    saveUserData();
+                } else if (userDataRef) {
+                    const next = { ...(currentUserData.journalEntries || {}) };
+                    delete next[date];
+                    await updateDoc(userDataRef, { journalEntries: next });
+                    currentUserData.journalEntries = next;
+                }
+            } catch (e) { console.error('Failed to delete journal entry:', e); }
+            renderJournalTabEntries();
+            if (typeof loadPreviousJournalEntries === 'function') loadPreviousJournalEntries();
         });
     });
     container.querySelectorAll('.delete-journal-image-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        btn.addEventListener('click', async () => {
             const date = btn.getAttribute('data-date');
-            if (currentUserData.journalEntries[date]) {
-                currentUserData.journalEntries[date].image = null;
-                saveUserData();
-                renderJournalTabEntries();
-                // Also update main journal/history if open
-                if (typeof loadPreviousJournalEntries === 'function') loadPreviousJournalEntries();
-            }
+            try {
+                if (isGuestMode) {
+                    if (currentUserData.journalEntries[date]) currentUserData.journalEntries[date].image = null;
+                    saveUserData();
+                } else if (userDataRef) {
+                    const next = { ...(currentUserData.journalEntries || {}) };
+                    if (next[date]) next[date] = { ...(next[date]), image: null };
+                    await updateDoc(userDataRef, { journalEntries: next });
+                    currentUserData.journalEntries = next;
+                }
+            } catch (e) { console.error('Failed to delete journal image:', e); }
+            renderJournalTabEntries();
+            if (typeof loadPreviousJournalEntries === 'function') loadPreviousJournalEntries();
         });
     });
 }
 
 // Render all timetable slots in the Customize modal's Timetable tab
 function renderTimetableTabEntries() {
-    const container = document.querySelector('#timetableContainer .timetable-tab-content');
+    const container = document.getElementById('customize-timetable-list');
     if (!container) return;
     let html = '';
     if (!currentUserData.timetable || Object.keys(currentUserData.timetable).length === 0) {
-        html = '<p>No timetable slots added yet.</p>';
+        html = '<p class="timetable-note">No timetable slots added yet.</p>';
     } else {
         // Group by day
         const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
         days.forEach(day => {
             const slots = Object.entries(currentUserData.timetable).filter(([id, slot]) => slot.day === day);
             if (slots.length > 0) {
-                html += `<div class="timetable-day-group"><h4>${day.charAt(0).toUpperCase() + day.slice(1)}</h4>`;
+                html += `<div class=\"timetable-day-group\"><h4>${day.charAt(0).toUpperCase() + day.slice(1)}</h4>`;
                 slots.sort((a, b) => a[1].start.localeCompare(b[1].start)).forEach(([id, slot]) => {
-                    html += `<div class="timetable-slot-item">`;
-                    html += `<span class="timetable-slot-time">${slot.start} - ${slot.end}</span> `;
-                    html += `<span class="timetable-slot-activity">${slot.activity}</span> `;
-                    html += `<button class="delete-timetable-slot-btn" data-id="${id}"><i class="fas fa-trash"></i></button>`;
+                    html += `<div class=\"timetable-slot-item\">`;
+                    html += `<span class=\"timetable-slot-time\">${slot.start} - ${slot.end}</span>`;
+                    html += `<span class=\"timetable-slot-activity\">${slot.activity}</span>`;
+                    html += `<button class=\"delete-timetable-slot-btn\" data-id=\"${id}\"><i class=\"fas fa-trash\"></i></button>`;
                     html += `</div>`;
                 });
                 html += `</div>`;
@@ -3309,6 +4018,10 @@ function renderTimetableTabEntries() {
                     delete currentUserData.timetable[id];
                     saveUserData();
                     renderTimetableTabEntries();
+                    const activeDay = document.querySelector('.day-tab.active');
+                    if (activeDay && typeof loadTimetableForDay === 'function') {
+                        loadTimetableForDay(activeDay.dataset.day);
+                    }
                 }
             }
         });
