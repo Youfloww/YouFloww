@@ -456,8 +456,9 @@ function onNewLocalDay() {
     // Called when local date boundary is crossed while app is open
     lastLocalDayKey = getLocalDateKey();
     ensureDailyRollovers();
-    // Refresh leaderboard immediately
+    // Refresh both leaderboards immediately
     try { refreshLeaderboard(); } catch {}
+    try { refreshStreakLeaderboard(); } catch {}
     // Refresh daily quote cache
     try { fetchQuoteOfTheDay(); } catch {}
 }
@@ -479,14 +480,18 @@ async function updatePublicUserDoc() {
         const sec = (currentUserData.weeklyFocusSeconds && currentUserData.weeklyFocusSeconds[today]) || (((currentUserData.weeklyFocus && currentUserData.weeklyFocus[today]) || 0) * 60);
         const minutesFloat = sec / 60;
         const profileName = currentUserData.profileName || "Floww User";
+        const currentStreak = currentUserData.streakCount || 0;
         const ref = doc(db, 'publicUsers', auth.currentUser.uid);
         await setDoc(ref, {
             profileName,
             todayFocusMinutes: parseFloat(minutesFloat.toFixed(2)),
+            currentStreak: currentStreak,
+            lastStreakUpdate: today,
             date: today
         }, { merge: true });
-        // Instantly refresh leaderboard after successful write
+        // Instantly refresh both leaderboards after successful write
         await refreshLeaderboard();
+        await refreshStreakLeaderboard();
     } catch (e) {
         console.error('Error updating public user doc:', e);
     }
@@ -541,17 +546,107 @@ async function refreshLeaderboard() {
     }
 }
 
+let streakLeaderboardInterval = null;
+async function refreshStreakLeaderboard() {
+    try {
+        const listEl = document.getElementById('streak-leaderboard-list');
+        if (!listEl) return;
+        
+        // Query all users with streak data, no date filter needed for streaks
+        const q = query(
+            collection(db, 'publicUsers'),
+            where('currentStreak', '>', 0)
+        );
+        const snap = await getDocs(q);
+        let entries = [];
+        snap.forEach(docSnap => {
+            const d = docSnap.data() || {};
+            const streak = typeof d.currentStreak === 'number' && isFinite(d.currentStreak) ? Math.max(0, d.currentStreak) : 0;
+            if (streak > 0) {
+                entries.push({
+                    name: d.profileName || 'Floww User',
+                    streak: streak
+                });
+            }
+        });
+        
+        // Sort desc by streak and take top 10
+        entries.sort((a, b) => b.streak - a.streak);
+        entries = entries.slice(0, 10);
+
+        listEl.innerHTML = '';
+        entries.forEach((e, idx) => {
+            const li = document.createElement('li');
+            let medal = '';
+            if (idx === 0) medal = '🥇';
+            else if (idx === 1) medal = '🥈';
+            else if (idx === 2) medal = '🥉';
+            
+            // Add fire emojis for longer streaks
+            let fireEmojis = '🔥';
+            if (e.streak >= 30) fireEmojis = '🔥🔥🔥';
+            else if (e.streak >= 14) fireEmojis = '🔥🔥';
+            
+            li.innerHTML = `<span class="rank">${idx + 1} ${medal}</span><span class="name">${e.name}</span><span class="value">${e.streak} ${fireEmojis}</span>`;
+            listEl.appendChild(li);
+        });
+        
+        // Fill up to 10 with placeholders if needed
+        for (let i = entries.length; i < 10; i++) {
+            const li = document.createElement('li');
+            li.classList.add('placeholder');
+            li.innerHTML = `<span class="rank">${i + 1}</span><span class="name">—</span><span class="value">0 🔥</span>`;
+            listEl.appendChild(li);
+        }
+    } catch (e) {
+        console.error('Failed to refresh streak leaderboard:', e);
+    }
+}
+
 function startLeaderboard() {
     refreshLeaderboard();
+    refreshStreakLeaderboard();
     if (leaderboardInterval) clearInterval(leaderboardInterval);
-    leaderboardInterval = setInterval(refreshLeaderboard, 180000); // every 3 minutes
+    if (streakLeaderboardInterval) clearInterval(streakLeaderboardInterval);
+    
+    // Focus hours leaderboard updates every 3 minutes
+    leaderboardInterval = setInterval(refreshLeaderboard, 180000);
+    
+    // Streak leaderboard updates every hour (less frequent since streaks change daily)
+    streakLeaderboardInterval = setInterval(refreshStreakLeaderboard, 3600000);
 }
 
 function stopLeaderboard() {
     if (leaderboardInterval) clearInterval(leaderboardInterval);
+    if (streakLeaderboardInterval) clearInterval(streakLeaderboardInterval);
     leaderboardInterval = null;
-    const listEl = document.getElementById('leaderboard-list');
-    if (listEl) listEl.innerHTML = '';
+    streakLeaderboardInterval = null;
+    
+    const focusListEl = document.getElementById('leaderboard-list');
+    const streakListEl = document.getElementById('streak-leaderboard-list');
+    if (focusListEl) focusListEl.innerHTML = '';
+    if (streakListEl) streakListEl.innerHTML = '';
+}
+
+function switchLeaderboardTab(boardType) {
+    // Update tab buttons
+    document.querySelectorAll('.leaderboard-tab').forEach(tab => {
+        tab.classList.remove('active');
+        if (tab.dataset.board === boardType) {
+            tab.classList.add('active');
+        }
+    });
+    
+    // Update content visibility
+    document.querySelectorAll('.leaderboard-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    
+    if (boardType === 'focus') {
+        document.getElementById('focus-leaderboard').classList.add('active');
+    } else if (boardType === 'streak') {
+        document.getElementById('streak-leaderboard').classList.add('active');
+    }
 }
 
 // ===================================================================================
@@ -850,6 +945,12 @@ onAuthStateChanged(auth, user => {
 });
 
 function saveUserData() {
+    // Validate and clean data before saving
+    currentUserData = validateUserData(currentUserData);
+    
+    // Run suspicious activity detection (logs warnings but doesn't block)
+    detectSuspiciousActivity(currentUserData);
+    
     if (isGuestMode) {
         localStorage.setItem('youfloww_guest', JSON.stringify(currentUserData));
     } else if (userDataRef) {
@@ -858,25 +959,38 @@ function saveUserData() {
 }
 function loadUserData() {
     if (isGuestMode) {
-        currentUserData = loadGuestData() || getDefaultUserData();
+        const rawData = loadGuestData() || getDefaultUserData();
+        currentUserData = validateUserData(rawData);
+        // Initialize streak tracking
+        initializeStreakTracking(currentUserData);
         initializeAppState();
     } else if (userDataRef) {
         getDoc(userDataRef).then(docSnap => {
             if (docSnap.exists()) {
                 // Merge with defaults to ensure required keys exist
-                currentUserData = { ...getDefaultUserData(), ...docSnap.data() };
+                const rawData = { ...getDefaultUserData(), ...docSnap.data() };
+                currentUserData = validateUserData(rawData);
             } else {
                 // New account: start clean for this user, not with prior user's data
-                currentUserData = getDefaultUserData();
+                currentUserData = validateUserData(getDefaultUserData());
+                // Add account creation timestamp for validation purposes
+                currentUserData.createdAt = Date.now();
                 setDoc(userDataRef, currentUserData).catch(e => console.error('Failed to init user doc:', e));
             }
+            // Initialize streak tracking
+            initializeStreakTracking(currentUserData);
             initializeAppState();
             updatePublicUserDoc();
         });
     }
 }
 function loadGuestData() {
-    try { return JSON.parse(localStorage.getItem('youfloww_guest')); } catch { return null; }
+    try {
+        const rawData = JSON.parse(localStorage.getItem('youfloww_guest'));
+        return rawData ? validateUserData(rawData) : null;
+    } catch {
+        return null;
+    }
 }
 
 // ===================================================================================
@@ -1011,7 +1125,9 @@ function endSession() {
 
     if (isWorkSession) {
         // Manual end of a WORK session → log stats and show review
-        const sessionSeconds = Math.max(0, Math.round(workDuration - timeLeft));
+        let sessionSeconds = Math.max(0, Math.round(workDuration - timeLeft));
+        // Validate session before processing
+        sessionSeconds = validateSessionData(sessionSeconds, sessionStartTime);
         handleEndOfWorkSession(sessionSeconds, false);
         // Only play bad meme on early end of a WORK session
         playRandomSound('bad');
@@ -1039,7 +1155,9 @@ function endSession() {
 function handleSessionCompletion() {
     if (isWorkSession) {
         // Work session finished
-        const sessionSeconds = Math.max(0, Math.round(workDuration - timeLeft));
+        let sessionSeconds = Math.max(0, Math.round(workDuration - timeLeft));
+        // Validate session before processing
+        sessionSeconds = validateSessionData(sessionSeconds, sessionStartTime);
         handleEndOfWorkSession(sessionSeconds, true);
         // Only play good meme for work completion
         playRandomSound('good');
@@ -1076,6 +1194,16 @@ function handleEndOfWorkSession(sessionSeconds, sessionCompleted) {
     stopFaceDetection();
     stopPoseDetection();
     stopVideo();
+
+    // Validate session data before processing
+    const validatedSessionSeconds = validateSessionData(sessionSeconds, sessionStartTime);
+    if (validatedSessionSeconds !== sessionSeconds) {
+        console.warn('Session validation: Adjusted session duration', {
+            original: sessionSeconds,
+            validated: validatedSessionSeconds
+        });
+    }
+    sessionSeconds = validatedSessionSeconds;
 
     // If a task is focused, attribute this session's time (in seconds) to it as well
     if (activeTaskIndex !== null && currentUserData.todos && currentUserData.todos[activeTaskIndex] && !currentUserData.todos[activeTaskIndex].completed) {
@@ -3251,9 +3379,338 @@ document.querySelectorAll('.tab').forEach(tab => {
         };
     }
     
+    // Leaderboard tabs
+    document.querySelectorAll('.leaderboard-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            const boardType = tab.dataset.board;
+            switchLeaderboardTab(boardType);
+        });
+    });
+    
     // Progress widget
     updateCornerWidget();
     setInterval(updateCornerWidget, 60000);
+}
+
+// ===================================================================================
+// DATA VALIDATION & SECURITY
+// ===================================================================================
+
+// Validation constants
+const VALIDATION_LIMITS = {
+    MAX_SESSION_MINUTES: 480,     // 8 hours max per session
+    MAX_DAILY_MINUTES: 1440,      // 24 hours max per day
+    MAX_DAILY_SESSIONS: 48,       // Max 48 sessions per day (30min each)
+    MAX_STREAK_DAYS: 365,         // 1 year max reasonable streak
+    MAX_TOTAL_HOURS: 10000,       // Max lifetime hours (realistic limit)
+    MAX_SESSION_COUNT: 100000,    // Max lifetime sessions
+    MIN_SESSION_SECONDS: 30,      // Minimum 30 seconds for valid session
+};
+
+function validateUserData(data) {
+    if (!data || typeof data !== 'object') return data;
+    
+    const validated = { ...data };
+    const limits = VALIDATION_LIMITS;
+    
+    // Validate and cap numeric values to reasonable limits
+    if (typeof validated.longestSession === 'number') {
+        validated.longestSession = Math.min(Math.max(0, validated.longestSession), limits.MAX_SESSION_MINUTES);
+    }
+    
+    if (typeof validated.streakCount === 'number') {
+        validated.streakCount = Math.min(Math.max(0, validated.streakCount), limits.MAX_STREAK_DAYS);
+    }
+    
+    if (typeof validated.bestStreak === 'number') {
+        validated.bestStreak = Math.min(Math.max(0, validated.bestStreak), limits.MAX_STREAK_DAYS);
+    }
+    
+    if (typeof validated.totalFocusMinutes === 'number') {
+        validated.totalFocusMinutes = Math.min(Math.max(0, validated.totalFocusMinutes), limits.MAX_TOTAL_HOURS * 60);
+    }
+    
+    if (typeof validated.totalFocusSeconds === 'number') {
+        validated.totalFocusSeconds = Math.min(Math.max(0, validated.totalFocusSeconds), limits.MAX_TOTAL_HOURS * 3600);
+    }
+    
+    if (typeof validated.totalSessions === 'number') {
+        validated.totalSessions = Math.min(Math.max(0, validated.totalSessions), limits.MAX_SESSION_COUNT);
+    }
+    
+    if (typeof validated.todaySessions === 'number') {
+        validated.todaySessions = Math.min(Math.max(0, validated.todaySessions), limits.MAX_DAILY_SESSIONS);
+    }
+    
+    // Validate weekly focus data
+    if (validated.weeklyFocusSeconds && typeof validated.weeklyFocusSeconds === 'object') {
+        Object.keys(validated.weeklyFocusSeconds).forEach(date => {
+            const daySeconds = validated.weeklyFocusSeconds[date];
+            if (typeof daySeconds === 'number') {
+                validated.weeklyFocusSeconds[date] = Math.min(Math.max(0, daySeconds), limits.MAX_DAILY_MINUTES * 60);
+            }
+        });
+    }
+    
+    if (validated.weeklyFocus && typeof validated.weeklyFocus === 'object') {
+        Object.keys(validated.weeklyFocus).forEach(date => {
+            const dayMinutes = validated.weeklyFocus[date];
+            if (typeof dayMinutes === 'number') {
+                validated.weeklyFocus[date] = Math.min(Math.max(0, dayMinutes), limits.MAX_DAILY_MINUTES);
+            }
+        });
+    }
+    
+    // Validate weekly sessions data
+    if (validated.weeklySessions && typeof validated.weeklySessions === 'object') {
+        Object.keys(validated.weeklySessions).forEach(date => {
+            const daySessions = validated.weeklySessions[date];
+            if (typeof daySessions === 'number') {
+                validated.weeklySessions[date] = Math.min(Math.max(0, daySessions), limits.MAX_DAILY_SESSIONS);
+            }
+        });
+    }
+    
+    // Ensure data consistency
+    if (validated.bestStreak < validated.streakCount) {
+        validated.bestStreak = validated.streakCount;
+    }
+    
+    // Additional streak reality check: prevent extreme values that bypass other checks
+    if (typeof validated.streakCount === 'number' && validated.streakCount > 50) {
+        // For streaks above 50 days, require they make sense relative to account activity
+        const todaySessions = validated.todaySessions || 0;
+        const totalSessions = validated.totalSessions || 0;
+        
+        // If claiming high streak but very few sessions, it's suspicious
+        if (totalSessions < validated.streakCount / 2) {
+            console.warn('Streak validation: High streak with low session count', {
+                streak: validated.streakCount,
+                totalSessions: totalSessions
+            });
+            // Cap to reasonable value based on session count
+            validated.streakCount = Math.min(validated.streakCount, Math.max(1, totalSessions));
+            validated.bestStreak = Math.max(validated.bestStreak, validated.streakCount);
+        }
+    }
+    
+    // Sync focus minutes and seconds for consistency
+    if (typeof validated.totalFocusSeconds === 'number' && typeof validated.totalFocusMinutes === 'number') {
+        const calculatedMinutes = Math.floor(validated.totalFocusSeconds / 60);
+        if (Math.abs(calculatedMinutes - validated.totalFocusMinutes) > 1) {
+            // If there's a significant discrepancy, use seconds as source of truth
+            validated.totalFocusMinutes = calculatedMinutes;
+        }
+    }
+    
+    return validated;
+}
+
+function validateSessionData(sessionSeconds, sessionStartTime = null) {
+    const limits = VALIDATION_LIMITS;
+    
+    // Basic session duration validation
+    if (typeof sessionSeconds !== 'number' || sessionSeconds < limits.MIN_SESSION_SECONDS) {
+        console.warn('Session validation: Duration too short', sessionSeconds);
+        return Math.max(limits.MIN_SESSION_SECONDS, sessionSeconds || 0);
+    }
+    
+    if (sessionSeconds > limits.MAX_SESSION_MINUTES * 60) {
+        console.warn('Session validation: Duration too long', sessionSeconds);
+        return limits.MAX_SESSION_MINUTES * 60;
+    }
+    
+    // Timestamp validation if provided
+    if (sessionStartTime && typeof sessionStartTime === 'number') {
+        const now = Date.now();
+        const actualDuration = Math.floor((now - sessionStartTime) / 1000);
+        const reportedDuration = Math.floor(sessionSeconds);
+        
+        // Allow 10% tolerance for timing differences and pauses
+        const tolerance = Math.max(60, actualDuration * 0.1); // At least 1 minute tolerance
+        
+        if (Math.abs(actualDuration - reportedDuration) > tolerance) {
+            console.warn('Session validation: Time mismatch detected', {
+                actual: actualDuration,
+                reported: reportedDuration,
+                diff: Math.abs(actualDuration - reportedDuration)
+            });
+            // Use the smaller of the two values to be conservative
+            return Math.min(actualDuration, reportedDuration, limits.MAX_SESSION_MINUTES * 60);
+        }
+    }
+    
+    return Math.floor(sessionSeconds);
+}
+
+function detectSuspiciousActivity(userData) {
+    if (!userData || typeof userData !== 'object') return [];
+    
+    const warnings = [];
+    const limits = VALIDATION_LIMITS;
+    
+    // Check for impossible daily activity
+    if (typeof userData.todaySessions === 'number' && userData.todaySessions > limits.MAX_DAILY_SESSIONS) {
+        warnings.push(`Excessive daily sessions: ${userData.todaySessions}`);
+    }
+    
+    // Check daily focus time
+    const today = getLocalDateKey();
+    if (userData.weeklyFocusSeconds && userData.weeklyFocusSeconds[today]) {
+        const todayMinutes = userData.weeklyFocusSeconds[today] / 60;
+        if (todayMinutes > limits.MAX_DAILY_MINUTES) {
+            warnings.push(`Excessive daily focus time: ${todayMinutes.toFixed(1)} minutes`);
+        }
+    }
+    
+    // Check streak vs account existence (if we have creation date)
+    if (userData.createdAt && typeof userData.streakCount === 'number') {
+        const accountAgeMs = Date.now() - userData.createdAt;
+        const accountAgeDays = Math.floor(accountAgeMs / (24 * 60 * 60 * 1000));
+        
+        if (userData.streakCount > accountAgeDays + 1) { // +1 for today
+            warnings.push(`Streak longer than account age: ${userData.streakCount} days vs ${accountAgeDays} account age`);
+        }
+    }
+    
+    // Check for unrealistic session lengths
+    if (typeof userData.longestSession === 'number' && userData.longestSession > limits.MAX_SESSION_MINUTES) {
+        warnings.push(`Unrealistic longest session: ${userData.longestSession} minutes`);
+    }
+    
+    // Check total focus time vs session count ratio
+    if (typeof userData.totalFocusMinutes === 'number' && typeof userData.totalSessions === 'number') {
+        if (userData.totalSessions > 0) {
+            const avgSessionMinutes = userData.totalFocusMinutes / userData.totalSessions;
+            if (avgSessionMinutes > limits.MAX_SESSION_MINUTES) {
+                warnings.push(`Unrealistic average session length: ${avgSessionMinutes.toFixed(1)} minutes`);
+            }
+        }
+    }
+    
+    // Check for suspicious streak progression
+    const streakJump = detectSuspiciousStreakProgression(userData);
+    if (streakJump.isSuspicious) {
+        warnings.push(`Suspicious streak progression: ${streakJump.reason}`);
+    }
+    
+    // Log warnings for monitoring (but don't break functionality)
+    if (warnings.length > 0) {
+        console.warn('Suspicious activity detected:', warnings);
+    }
+    
+    return warnings;
+}
+
+// Track previous streak values for progression validation
+let streakHistory = {
+    lastKnownStreak: null,
+    lastValidationDate: null,
+    streakChangeLog: [] // Keep last 10 changes for pattern analysis
+};
+
+function detectSuspiciousStreakProgression(userData) {
+    const result = { isSuspicious: false, reason: '', action: 'none' };
+    
+    if (!userData || typeof userData.streakCount !== 'number') {
+        return result;
+    }
+    
+    const currentStreak = userData.streakCount;
+    const today = getLocalDateKey();
+    
+    // Initialize streak tracking if first time
+    if (streakHistory.lastKnownStreak === null) {
+        streakHistory.lastKnownStreak = currentStreak;
+        streakHistory.lastValidationDate = today;
+        return result;
+    }
+    
+    // Skip if same day (avoid multiple validations per day)
+    if (streakHistory.lastValidationDate === today) {
+        return result;
+    }
+    
+    const previousStreak = streakHistory.lastKnownStreak;
+    const streakChange = currentStreak - previousStreak;
+    const daysSinceLastCheck = diffLocalDateKeysDays(streakHistory.lastValidationDate, today);
+    
+    // Normal progression: streak can only increase by 1 per day maximum
+    const maxPossibleIncrease = Math.max(1, daysSinceLastCheck); // Allow catch-up for offline days
+    
+    // Detect suspicious jumps
+    if (streakChange > maxPossibleIncrease) {
+        result.isSuspicious = true;
+        result.reason = `Streak jumped from ${previousStreak} to ${currentStreak} in ${daysSinceLastCheck} day(s)`;
+        result.action = 'cap_to_realistic';
+        
+        // Auto-correct: Set streak to maximum realistic value
+        const correctedStreak = previousStreak + maxPossibleIncrease;
+        userData.streakCount = correctedStreak;
+        userData.bestStreak = Math.max(userData.bestStreak || 0, correctedStreak);
+        
+        result.reason += ` - corrected to ${correctedStreak}`;
+        
+        console.warn('🚨 Streak manipulation detected and corrected:', {
+            previous: previousStreak,
+            attempted: currentStreak,
+            corrected: correctedStreak,
+            daysElapsed: daysSinceLastCheck
+        });
+    }
+    
+    // Check for impossible negative jumps (streak should never decrease unless reset)
+    else if (streakChange < -1 && currentStreak > 0) {
+        // Streaks can reset to 1, but shouldn't randomly decrease to middle values
+        if (currentStreak > 1 && currentStreak < previousStreak - 1) {
+            result.isSuspicious = true;
+            result.reason = `Unusual streak decrease from ${previousStreak} to ${currentStreak}`;
+        }
+    }
+    
+    // Log streak change for pattern analysis
+    streakHistory.streakChangeLog.push({
+        date: today,
+        from: previousStreak,
+        to: currentStreak,
+        change: streakChange,
+        daysElapsed: daysSinceLastCheck
+    });
+    
+    // Keep only last 10 changes
+    if (streakHistory.streakChangeLog.length > 10) {
+        streakHistory.streakChangeLog = streakHistory.streakChangeLog.slice(-10);
+    }
+    
+    // Detect patterns of manipulation
+    if (streakHistory.streakChangeLog.length >= 3) {
+        const recentChanges = streakHistory.streakChangeLog.slice(-3);
+        const suspiciousJumps = recentChanges.filter(change => change.change > change.daysElapsed).length;
+        
+        if (suspiciousJumps >= 2) {
+            result.isSuspicious = true;
+            result.reason += ' - Pattern of suspicious increases detected';
+        }
+    }
+    
+    // Update tracking
+    streakHistory.lastKnownStreak = userData.streakCount; // Use corrected value
+    streakHistory.lastValidationDate = today;
+    
+    return result;
+}
+
+function initializeStreakTracking(userData) {
+    if (userData && typeof userData.streakCount === 'number') {
+        streakHistory.lastKnownStreak = userData.streakCount;
+        streakHistory.lastValidationDate = getLocalDateKey();
+        streakHistory.streakChangeLog = [];
+        
+        console.log('Streak tracking initialized:', {
+            currentStreak: userData.streakCount,
+            date: getLocalDateKey()
+        });
+    }
 }
 
 // ===================================================================================
