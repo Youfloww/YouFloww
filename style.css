@@ -1538,6 +1538,12 @@ input:checked + .slider:before { transform: translateX(22px); }
     opacity: 0.6;
 }
 
+/* Leaderboard CTA */
+.leaderboard-cta { margin-top: 1rem; text-align: center; }
+.leaderboard-cta .cta-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 9999px; font-weight: 800; color: #0b0b0b; background-image: linear-gradient(135deg, #8ee3f9, #38c3e1); border: 1px solid rgba(0,0,0,0.12); box-shadow: 0 6px 14px rgba(0,0,0,0.18); cursor: pointer; }
+.leaderboard-cta .cta-btn:hover { filter: brightness(1.04); transform: translateY(-1px); }
+.leaderboard-cta .cta-btn:active { transform: translateY(0); }
+
 /* --- Stats Modal --- */
 .bmc-modal { max-width: 560px; }
 .support-modal { max-width: 520px; }
