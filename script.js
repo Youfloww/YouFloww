@@ -347,16 +347,17 @@ let isGuestMode = false;
 document.addEventListener('DOMContentLoaded', () => {
     const guestBtn = document.getElementById("continueWithoutSignupBtn");
     const guestWarning = document.getElementById("guestWarning");
-    if (guestBtn) {
-        guestBtn.addEventListener('click', () => {
-            isGuestMode = true;
-            DOMElements.appContainer.classList.remove('hidden');
-            DOMElements.authModal.classList.remove('visible');
-            guestWarning.classList.remove('hidden');
-            currentUserData = loadGuestData() || getDefaultUserData();
-            initializeAppState();
-        });
-    }
+        if (guestBtn) {
+            guestBtn.addEventListener('click', () => {
+                isGuestMode = true;
+                DOMElements.appContainer.classList.remove('hidden');
+                DOMElements.authModal.classList.remove('visible');
+                guestWarning.classList.remove('hidden');
+                currentUserData = loadGuestData() || getDefaultUserData();
+                initializeAppState();
+                updateLeaderboardCTA();
+            });
+        }
 });
 
 function getDefaultUserData() {
@@ -445,6 +446,17 @@ function ensureDailyRollovers() {
             // Do not overwrite lastSessionDate here; it will update on first session of the new day
             saveUserData();
         }
+        // If user missed a day (gap > 1), reset streak to 0 so leaderboard reflects reality
+        try {
+            if (currentUserData && currentUserData.lastStreakDate) {
+                const gap = diffLocalDateKeysDays(currentUserData.lastStreakDate, today);
+                if (gap > 1 && (currentUserData.streakCount || 0) > 0) {
+                    currentUserData.streakCount = 0;
+                    DOMElements.streak.count.textContent = 0;
+                    saveUserData();
+                }
+            }
+        } catch (e) { /* ignore */ }
         // Make sure leaderboard projection points to today (so boards show up-to-date day)
         updatePublicUserDoc();
         // Update charts and stats displays to reflect the new day baseline
@@ -866,6 +878,10 @@ const DOMElements = {
     streak: {
         count: document.getElementById("streak-count"),
     },
+    leaderboard: {
+        cta: document.getElementById("leaderboard-cta"),
+        ctaBtn: document.getElementById("leaderboard-cta-btn")
+    },
     settings: {
         soundEffects: document.getElementById('sound-effects-select'),
         accountabilityToggle: document.getElementById('accountability-toggle'),
@@ -932,6 +948,7 @@ onAuthStateChanged(auth, user => {
         userDataRef = doc(db, "users", user.uid);
         loadUserData();
         startLeaderboard();
+        updateLeaderboardCTA();
     } else if (!isGuestMode) {
         // Fully reset in-memory state on logout to prevent cross-account leakage
         currentUserData = getDefaultUserData();
@@ -941,6 +958,7 @@ onAuthStateChanged(auth, user => {
         if (timerInterval) clearInterval(timerInterval);
         isRunning = false;
         stopLeaderboard();
+        updateLeaderboardCTA();
     }
 });
 
@@ -1643,6 +1661,12 @@ async function initializeAppState() {
 
     // Start live presence once app UI is ready
     try { startPresence(); } catch (e) { console.warn('Presence init failed', e); }
+
+    // Start leaderboards for both authenticated and guest users so they are never blank
+    try { startLeaderboard(); } catch (e) { console.warn('Leaderboard init failed', e); }
+
+    // Show or hide the guest CTA based on auth state
+    updateLeaderboardCTA();
 }
 
 function loadSettingsFromData() {
@@ -3386,10 +3410,31 @@ document.querySelectorAll('.tab').forEach(tab => {
             switchLeaderboardTab(boardType);
         });
     });
+
+    // Leaderboard CTA (guest prompt)
+    if (DOMElements.leaderboard && DOMElements.leaderboard.ctaBtn) {
+        DOMElements.leaderboard.ctaBtn.addEventListener('click', () => {
+            try {
+                if (DOMElements.authModal) DOMElements.authModal.classList.add('visible');
+                if (typeof showSignupForm === 'function') {
+                    showSignupForm();
+                }
+            } catch (e) { /* ignore */ }
+        });
+    }
     
     // Progress widget
     updateCornerWidget();
     setInterval(updateCornerWidget, 60000);
+}
+
+function updateLeaderboardCTA() {
+    try {
+        const cta = DOMElements.leaderboard && DOMElements.leaderboard.cta;
+        if (!cta) return;
+        const shouldShow = !auth.currentUser;
+        cta.classList.toggle('hidden', !shouldShow);
+    } catch (e) { /* ignore */ }
 }
 
 // ===================================================================================
