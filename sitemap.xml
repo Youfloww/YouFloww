@@ -1,35 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://youfloww.com/</loc>
+    <loc>https://youfloww.vercel.app/</loc>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://youfloww.com/#timer</loc>
+    <loc>https://youfloww.vercel.app/#timer</loc>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://youfloww.com/#todo</loc>
+    <loc>https://youfloww.vercel.app/#todo</loc>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://youfloww.com/#journal</loc>
+    <loc>https://youfloww.vercel.app/#journal</loc>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://youfloww.com/#timetable</loc>
+    <loc>https://youfloww.vercel.app/#timetable</loc>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://youfloww.com/#stats</loc>
+    <loc>https://youfloww.vercel.app/#stats</loc>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://youfloww.com/#settings</loc>
+    <loc>https://youfloww.vercel.app/#settings</loc>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://youfloww.com/#diskplayer</loc>
+    <loc>https://youfloww.vercel.app/#diskplayer</loc>
     <priority>0.5</priority>
   </url>
 </urlset>
