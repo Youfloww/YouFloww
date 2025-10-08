@@ -1,6 +1,8 @@
 {
   "name": "YouFloww",
   "short_name": "YouFloww",
+  "description": "YouFloww is a free, browser-based productivity and Pomodoro timer to help you focus on tasks, study, and deep work.",
+  "categories": ["productivity", "education", "utilities"],
   "icons": [
     {
       "src": "assets/images/disk.png",
