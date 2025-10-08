@@ -5,18 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YouFloww: The Ultimate Pomodoro Timer for Deep Focus</title>
     <meta name="description" content="Boost your productivity with YouFloww, the advanced Pomodoro timer with unique features to help you achieve a state of flow and eliminate distractions.">
+    <meta name="application-name" content="YouFloww">
+    <meta name="apple-mobile-web-app-title" content="YouFloww">
+    <meta name="keywords" content="YouFloww, Youflow, youflowww, youflw, You Flow, flow timer, productivity timer, pomodoro timer, focus timer, study timer, deep work timer, ADHD study timer, time management app, task timer, pomodoro technique">
     <link rel="icon" type="image/png" href="assets/images/disk.png">
-    <link rel="canonical" href="https://youfloww.com/">
     <meta name="robots" content="index, follow">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://youfloww.com/">
+    <meta property="og:url" content="https://youfloww.vercel.app/">
+    <meta property="og:site_name" content="YouFloww">
     <meta property="og:title" content="YouFloww: The Ultimate Pomodoro Timer for Deep Focus">
     <meta property="og:description" content="Stay in flow with adaptive Pomodoro, task-focused sessions, ambience, and accountability tools. Study and work sessions that actually stick.">
-    <meta property="og:image" content="https://youfloww.com/assets/images/disk.png">
+    <meta property="og:image" content="https://youfloww.vercel.app/assets/images/disk.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="YouFloww: The Ultimate Pomodoro Timer for Deep Focus">
     <meta name="twitter:description" content="Stay in flow with adaptive Pomodoro, task-focused sessions, ambience, and accountability tools.">
-    <meta name="twitter:image" content="https://youfloww.com/assets/images/disk.png">
+    <meta name="twitter:image" content="https://youfloww.vercel.app/assets/images/disk.png">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -36,14 +39,15 @@
       gtag('js', new Date());
       gtag('config', 'G-V3CLSWYVTF');
     </script>
-            <!-- Structured Data for Logo -->
+            <!-- Structured Data for Logo / Site -->
             <script type="application/ld+json">
             {
                 "@context": "https://schema.org",
                 "@type": "WebSite",
                 "name": "YouFloww",
-                "url": "https://youfloww.com/",
-                "logo": "https://youfloww.com/assets/images/disk.png"
+                "alternateName": ["Youflow", "youflowww", "youflw", "YouFloww Timer", "Productivity Timer", "Focus Timer", "Pomodoro Timer"],
+                "url": "https://youfloww.vercel.app/",
+                "logo": "https://youfloww.vercel.app/assets/images/disk.png"
             }
             </script>
             <!-- SoftwareApplication markup -->
@@ -54,8 +58,8 @@
               "name": "YouFloww",
               "applicationCategory": "Productivity",
               "operatingSystem": "Web",
-              "url": "https://youfloww.com/",
-              "image": "https://youfloww.com/assets/images/disk.png",
+              "url": "https://youfloww.vercel.app/",
+              "image": "https://youfloww.vercel.app/assets/images/disk.png",
               "offers": { "@type": "Offer", "price": 0, "priceCurrency": "USD" },
               "description": "Pomodoro timer with task-focused sessions, ambience, accountability, and streaks."
             }
@@ -237,9 +241,29 @@
             <!-- Leaderboard Section -->
             <section id="leaderboard-section">
                 <div class="leaderboard-card">
-                    <h2><i class="fas fa-trophy"></i> Today's Leaderboard</h2>
-                    <div class="leaderboard-subtext">Top 10 by focus hours. Refreshes every 3 minutes.</div>
-                    <ol id="leaderboard-list" class="leaderboard-list"></ol>
+                    <h2><i class="fas fa-trophy"></i> Leaderboards</h2>
+                    
+                    <!-- Leaderboard Tabs -->
+                    <div class="leaderboard-tabs">
+                        <button class="leaderboard-tab active" data-board="focus">
+                            <i class="fas fa-clock"></i> Focus Hours
+                        </button>
+                        <button class="leaderboard-tab" data-board="streak">
+                            <i class="fas fa-fire"></i> Streak Leaders
+                        </button>
+                    </div>
+                    
+                    <!-- Focus Hours Leaderboard -->
+                    <div id="focus-leaderboard" class="leaderboard-content active">
+                        <div class="leaderboard-subtext">Top 10 by today's focus hours. Refreshes every 3 minutes.</div>
+                        <ol id="leaderboard-list" class="leaderboard-list"></ol>
+                    </div>
+                    
+                    <!-- Streak Leaderboard -->
+                    <div id="streak-leaderboard" class="leaderboard-content">
+                        <div class="leaderboard-subtext">Top 10 by current streak. Updates daily.</div>
+                        <ol id="streak-leaderboard-list" class="leaderboard-list"></ol>
+                    </div>
                 </div>
             </section>
         
