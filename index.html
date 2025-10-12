@@ -24,15 +24,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
-    <!-- Font Awesome 6 (primary) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Font Awesome 5 (fallback for fas/fa-legacy classes) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <!-- Font Awesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer">
     <link rel="stylesheet" href="style.css">
-        <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="achievements.css">
+    <link rel="manifest" href="manifest.json">
     <!-- Google tag (gtag.js) -->
     <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-V3CLSWYVTF"></script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-V3CLSWYVTF" integrity="sha384-..." crossorigin="anonymous"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
@@ -99,6 +98,11 @@
             </script>
 </head>
 <body>
+<!-- Skip Links for Accessibility -->
+<a href="#timer-section" class="skip-link">Skip to Timer</a>
+<a href="#todo-container" class="skip-link">Skip to Tasks</a>
+<a href="#leaderboard-section" class="skip-link">Skip to Leaderboards</a>
+
 <h1 class="visually-hidden">YouFloww – Pomodoro timer for deep focus, task progress, ambience, and streaks</h1>
 <noscript>
   <div style="max-width:720px;margin:1rem auto;color:#ddd;background:#1e1e1e;border:1px solid #333;border-radius:8px;padding:0.75rem;font-size:0.95rem;">
@@ -106,14 +110,14 @@
   </div>
 </noscript>
 <!-- Glow Pill Button Top Left -->
-<button id="glowPillBtn" class="glow-pill-btn">YouFloww</button>
+<button id="glowPillBtn" class="glow-pill-btn" aria-label="YouFloww Home">YouFloww</button>
 <!-- Disk Player (shown below pill if enabled) -->
 <div id="diskPlayerContainer" class="disk-player-container hidden">
     <div id="diskPlayer" class="disk-player">
         <img src="assets/images/disk.png" alt="Disk" class="disk-image" />
         <input type="file" id="diskMusicUpload" accept="audio/*" class="hidden" />
-        <button id="diskChangeMusicBtn" class="disk-change-btn hidden" title="Change Music">
-            <i class="fas fa-music"></i>
+        <button id="diskChangeMusicBtn" class="disk-change-btn hidden" title="Change Music" aria-label="Change Music">
+            <i class="fas fa-music" aria-hidden="true"></i>
         </button>
     </div>
 </div>
@@ -166,7 +170,7 @@
 </div>
 
 <!-- Main App Content (Initially Hidden) -->
-<div id="app-container" class="hidden">
+<main id="app-container" class="hidden" role="main">
     <header class="top-bar">
         <div class="profile-greeting">
             <span>Welcome, </span>
@@ -209,24 +213,26 @@
                 <h2 class="todo-title">🎯 To-Do List</h2>
                 <div id="todo-input-container">
                     <input type="text" id="todo-input" placeholder="Add a new task..." autocomplete="off" />
-                    <button id="add-todo-btn" aria-label="Add Task"><i class="fas fa-plus"></i></button>
+                    <select id="regularTaskSelect" aria-label="Choose regular task (optional)">
+                        <option value="">Choose regular task (optional)</option>
+                    </select>
+                    <button id="add-todo-btn" aria-label="Add Task"><i class="fas fa-plus" aria-hidden="true"></i></button>
                 </div>
                 <ul id="todo-list" class="sortable-list"></ul>
-                <button class="clear-todos-btn">Clear All Tasks</button>
                 <audio id="completeSound"><source src="assets/sounds/complete.mp3" type="audio/mpeg"></audio>
                 <div id="confetti-canvas"></div>
             </div>
             <div class="controls-container">
                 <h2>✨ Ambience & Display</h2>
                 <div class="control-group">
-                    <button id="focusModeBtn">Enter Focus Mode</button>
-                    <button id="noiseBtn">🎧 Play Noise</button>
-                    <button id="pipYoutubeBtn">🎬 Video Player</button>
+                    <button id="focusModeBtn" aria-label="Enter Focus Mode">Enter Focus Mode</button>
+                    <button id="noiseBtn" aria-label="Play Ambient Noise">🎧 Play Noise</button>
+                    <button id="pipYoutubeBtn" aria-label="Open Video Player">🎬 Video Player</button>
                 </div>
                 <div class="control-group">
-                     <button id="snowBtn" class="ambience-toggle-btn">❄️ Snow</button>
-                     <button id="rainBtn" class="ambience-toggle-btn">🌧️ Rain</button>
-                     <button id="sakuraBtn" class="ambience-toggle-btn">🌸 Sakura</button>
+                     <button id="snowBtn" class="ambience-toggle-btn" aria-label="Toggle Snow Effect">❄️ Snow</button>
+                     <button id="rainBtn" class="ambience-toggle-btn" aria-label="Toggle Rain Effect">🌧️ Rain</button>
+                     <button id="sakuraBtn" class="ambience-toggle-btn" aria-label="Toggle Sakura Effect">🌸 Sakura</button>
                 </div>
             </div>
         </section>
@@ -271,6 +277,17 @@
                             <i class="fas fa-star"></i> Want to show up on the leaderboards? Sign in
                         </button>
                     </div>
+                </div>
+            </section>
+        
+            <!-- Achievements Section (only for logged in users) -->
+            <section id="achievements-section" class="logged-in-only">
+                <div class="achievements-subtle-card">
+                    <button id="achievementsBtn" class="achievements-subtle-btn">
+                        <span class="achievement-emoji">🏆</span>
+                        <span class="achievement-text">Badges Earned</span>
+                        <span id="newAchievementBadge" class="achievement-badge-indicator hidden">NEW</span>
+                    </button>
                 </div>
             </section>
         
@@ -389,15 +406,16 @@
             </div>
         </section>
     </main>
-</div>
+</main>
 <div id="statsModal" class="modal">
     <div class="modal-content stats-modal">
         <span class="close-btn">&times;</span>
 <h2>Your Progress 📈</h2>
 <button id="shareStatsBtn" class="btn-share-mini share-left"><i class="fas fa-share-nodes" style="margin-right:6px;"></i><span>Share My Stats</span></button>
 <a href="#" id="openSupportQRBtn" class="support-cta support-btn"><i class="fas fa-qrcode"></i> Support us ❤️</a>
-        <div class="tabs">
+            <div class="tabs">
             <div class="tab active" data-tab="stats">📈 Stats</div>
+            <div class="tab" data-tab="weekly">🗓️ Weekly</div>
             <div class="tab" data-tab="store">🛒 Themes</div>
             <div class="tab" data-tab="settings">⚙️ Settings</div>
             <div class="tab" data-tab="profile">👤 Profile</div>
@@ -537,8 +555,9 @@
             </div>
         </div>
         <div id="settingsContainer" class="tab-content">
-<h3>⏱️ Timer Durations (minutes)</h3>
             <div class="settings-group">
+                <h3>⏱️ Timer Durations (minutes)</h3>
+                <div class="settings-group">
                 <a href="https://docs.google.com/forms/d/e/1FAIpQLScLU0kaf55JTMKH2XaavMzygMUJQZGeZAqgKxrAC8PXrYtuQA/viewform?usp=header" target="_blank" class="header-btn">Feedback 📝</a>
             </div>
             <div class="settings-grid">
@@ -559,8 +578,16 @@
                     <option value="off">Turn Off</option>
                 </select>
             </div>
-            <h3>🤖 Accountability AI</h3>
             <div class="settings-group">
+                <h3>📚 Regular Tasks</h3>
+                <div class="input-group regular-task-inputs">
+                    <input type="text" id="regularTaskInput" placeholder="Add a subject/task (e.g., Calculus, Testing)">
+                    <button id="addRegularTaskBtn" class="icon-btn primary"><i class="fas fa-plus"></i></button>
+                </div>
+                <p class="settings-description">Pick from this list when creating a to-do to keep weekly analytics accurate.</p>
+                <ul id="regularTasksList" class="regular-tasks-list"></ul>
+            </div>
+            <h3>🤖 Accountability AI</h3>
                 <div class="toggle-switch-container">
                     <label for="accountability-toggle">Accountability Partner (Camera)</label>
                     <label class="switch">
@@ -591,12 +618,70 @@
                 </div>
             </div>
         </div>
-<div id="timetableContainer" class="tab-content">
+        <div id="timetableContainer" class="tab-content">
             <div class="timetable-tab-content">
                 <h3>Your Weekly Schedule</h3>
                 <div id="customize-timetable-list" class="customize-timetable-list"></div>
                 <p class="timetable-note">Tip: Manage slots in the main Timetable from the dock. You can also delete slots here.</p>
             </div>
+        </div>
+        
+        <div id="weeklyContainer" class="tab-content">
+            <div class="weekly-report">
+                <h3>Weekly Report</h3>
+                <div class="stats-grid" id="weeklyKpiGrid">
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-hourglass-half"></i></div>
+                        <h3>Focus (7d)</h3>
+                        <p class="stat-value" id="wrFocusTime">0m</p>
+                        <p class="stat-subtext">Last 7 days</p>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                        <h3>Sessions (7d)</h3>
+                        <p class="stat-value" id="wrSessions">0</p>
+                        <p class="stat-subtext">Completed + early</p>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-stopwatch"></i></div>
+                        <h3>Avg Session</h3>
+                        <p class="stat-value" id="wrAvgSession">0m</p>
+                        <p class="stat-subtext">Focus per session</p>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-percentage"></i></div>
+                        <h3>Completion Rate</h3>
+                        <p class="stat-value" id="wrCompletionRate">0%</p>
+                        <p class="stat-subtext">Finished sessions</p>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-fire"></i></div>
+                        <h3>Discipline</h3>
+                        <p class="stat-value" id="wrDiscipline">—</p>
+                        <p class="stat-subtext" id="wrDisciplineLabel">—</p>
+                    </div>
+                </div>
+                <div class="weekly-sections" style="margin-top:16px; display:grid; gap:16px; grid-template-columns: 1fr;">
+                    <div class="weekly-section">
+                        <h3><i class="fas fa-tasks"></i> Task wise analysis</h3>
+                        <ol id="weeklyTaskAnalysisList" class="leaderboard-list weekly-task-list"></ol>
+                    </div>
+                    <div class="weekly-section">
+                        <h3><i class="fas fa-user-secret"></i> Anonymous Sessions</h3>
+                        <p id="weeklyAnonymousSummary">—</p>
+                        <p class="leaderboard-subtext">These are sessions without any Regular Task selection or with a random task name.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Weekly Task Drilldown Modal -->
+        <div id="weeklyTaskDrilldownModal" class="modal">
+          <div class="modal-content weekly-drilldown-modal">
+            <span class="close-btn" id="closeWeeklyDrilldownBtn">&times;</span>
+            <h3 id="weeklyDrilldownTitle" style="margin-top:0">Task details</h3>
+            <ol id="weeklyDrilldownDailyList" class="leaderboard-list"></ol>
+          </div>
         </div>
     </div>
 </div>
@@ -622,7 +707,7 @@
         <div class="completion-icon">🎉</div>
         <h2 id="completion-title">Session Complete!</h2>
         <p id="completion-message">Great work! Keep the momentum going.</p>
-        <button id="closeCompletionModalBtn">Awesome!</button>
+        <button id="closeCompletionModalBtn" aria-label="Close completion modal">Awesome!</button>
     </div>
 </div>
 <!-- Buy Me a Coffee Modal -->
@@ -699,26 +784,30 @@
                 <p id="reviewTotalDuration">0m 0s</p>
             </div>
         </div>
-        <button id="closeReviewModalBtn">Keep Flowing!</button>
+        <button id="closeReviewModalBtn" aria-label="Close session review modal">Keep Flowing!</button>
     </div>
 </div>
 <div id="pip-player-container" class="hidden">
     <div id="pip-player-header">
         <span class="pip-title">YouTube Player</span>
-        <button id="pip-close-btn">&times;</button>
+        <button id="pip-close-btn" aria-label="Close video player">&times;</button>
     </div>
     <div id="pip-player-content">
         <div id="player"></div>
+        <div id="mute-indicator" class="mute-indicator hidden">
+            <i class="fas fa-volume-mute"></i>
+            <span>Click to unmute</span>
+        </div>
     </div>
     <div class="pip-input-container">
         <input type="text" id="pip-youtube-input" placeholder="Paste new YouTube URL here...">
-        <button id="pip-set-btn">Set</button>
+        <button id="pip-set-btn" aria-label="Set YouTube URL">Set</button>
     </div>
     <div id="pip-resize-handle"></div>
 </div>
 
 <!-- macOS Dock Navigation -->
-<nav id="mac-dock">
+<nav id="mac-dock" role="navigation" aria-label="Main navigation">
     <div class="dock-container">
     <div class="dock-item" data-section="timer">
             <div class="dock-icon">
@@ -988,14 +1077,70 @@ window.addEventListener('DOMContentLoaded', function() {
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js" type="module"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js" type="module"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-analytics.js" type="module"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
-<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
-<script src="https://www.youtube.com/iframe_api"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js" defer crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection" crossorigin="anonymous"></script>
+<script src="https://www.youtube.com/iframe_api" crossorigin="anonymous"></script>
+<script src="achievements.js"></script>
 <script src="script.js" type="module"></script>
-<a href="#" id="openBmcSticky" style="position: fixed; bottom: 20px; left: 20px; z-index: 1000;">
+
+<!-- Achievement System Integration -->
+<script>
+function setupAchievementsButton() {
+  const achievementsBtn = document.getElementById('achievementsBtn');
+  console.log('Setting up achievements button:', achievementsBtn);
+  
+  if (achievementsBtn) {
+    // Remove any existing listeners
+    achievementsBtn.replaceWith(achievementsBtn.cloneNode(true));
+    const newBtn = document.getElementById('achievementsBtn');
+    
+    newBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      console.log('Achievement button clicked!');
+      
+      if (typeof achievementSystem !== 'undefined' && achievementSystem) {
+        console.log('Opening achievements panel...');
+        achievementSystem.showAchievementsPanel();
+      } else {
+        console.error('Achievement system not available:', typeof achievementSystem);
+        alert('Achievement system is loading, please try again in a moment.');
+      }
+    });
+    
+    console.log('Achievement button event listener attached successfully');
+  } else {
+    console.error('Achievement button not found!');
+  }
+}
+
+// Try multiple times to ensure it works
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('DOM loaded, setting up achievements...');
+  setupAchievementsButton();
+  
+  // Also try after a delay in case the button is dynamically created
+  setTimeout(setupAchievementsButton, 1000);
+  setTimeout(setupAchievementsButton, 3000);
+});
+
+// Also try when window loads
+window.addEventListener('load', () => {
+  setTimeout(setupAchievementsButton, 500);
+});
+</script>
+
+<!-- Support Button -->
+<a href="#" id="openBmcSticky" style="position: fixed; bottom: 20px; left: 20px; z-index: 1000;" aria-label="Support YouFloww">
     <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 30px !important;width: 108px !important;" >
 </a>
+
+<!-- Footer -->
+<footer style="display: none;" id="app-footer" class="hidden">
+    <p>&copy; 2024 YouFloww. Built with ❤️ for productivity.</p>
+</footer>
+
 </body>
 </html>
