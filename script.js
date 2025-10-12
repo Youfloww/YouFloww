@@ -334,798 +334,30 @@ function hideTeaserOverlay() {
 }
 // FIREBASE SDKs - Imported from index.html
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup, signInAnonymously, linkWithPopup, signInWithRedirect, getRedirectResult, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup, signInAnonymously } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, collection, query, where, orderBy, limit, getDocs, onSnapshot, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-analytics.js";
 
 
 
-// ============ GUEST MODE SYSTEM ============
+// ============ NEW: Guest Mode State ============
 let isGuestMode = false;
-// Legacy guest presence variables removed - using unified presence system now
 
-// Store guest event listeners for proper cleanup
-const guestEventListeners = new Map();
-
-// Initialize guest mode state from localStorage on page load
-function initializeGuestMode() {
-    let guestData = null;
-    let guestModeFlag = null;
-    
-    try {
-        guestData = localStorage.getItem('youfloww_guest');
-        guestModeFlag = localStorage.getItem('youfloww_guest_mode');
-    } catch (error) {
-        console.warn('localStorage not available:', error);
-        return false;
-    }
-    
-    // Check if user was previously in guest mode
-    if (guestModeFlag === 'true' || guestData) {
-        // Restoring guest mode from previous session
-        isGuestMode = true;
-        
-        // Hide auth modal and show app
-        if (DOMElements.authModal) {
-            DOMElements.authModal.classList.remove('visible');
-        }
-        if (DOMElements.appContainer) {
-            DOMElements.appContainer.classList.remove('hidden');
-        }
-        
-        // Load guest data
-        currentUserData = loadGuestData() || getDefaultUserData();
-        
-        // Apply guest restrictions immediately
-        setTimeout(() => {
-            applyGuestRestrictions();
-            updateHeaderForGuest();
-            initializeAppState();
-            // Guest mode restored successfully
-        }, 100);
-        
-        return true;
-    }
-    
-    return false;
-}
-
-// Save guest mode state to localStorage
-function saveGuestModeState() {
-    try {
-        if (isGuestMode) {
-            localStorage.setItem('youfloww_guest_mode', 'true');
-        } else {
-            localStorage.removeItem('youfloww_guest_mode');
-        }
-    } catch (error) {
-        console.warn('Failed to save guest mode state:', error);
-    }
-}
-
-// Features that require login for guests
-const RESTRICTED_FEATURES = {
-    stats: ['statsBtn', 'shareStatsBtn'],
-    achievements: ['achievementsBtn'], // Lock badge/achievement viewing for guests
-    // leaderboards removed - guests can VIEW leaderboards but not participate
-    journal: ['journal-section', 'upload-image-btn', 'save-journal-btn'],
-    timetable: ['timetable-section', 'add-timeslot-btn'],
-    profile: ['changeNameBtn', 'clearDataBtn'],
-    regularTasks: ['addRegularTaskBtn']
-};
-
-// Generate temporary guest ID
-function generateGuestId() {
-    return 'guest_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-}
-
-// Show login prompt for restricted features
-function showLoginPrompt(featureName) {
-    // Remove any existing guest prompts first
-    const existingPrompts = document.querySelectorAll('.guest-login-prompt');
-    existingPrompts.forEach(prompt => prompt.remove());
-    
-    const modal = document.createElement('div');
-    modal.className = 'modal visible guest-login-prompt';
-    modal.innerHTML = `
-        <div class="modal-content" style="max-width: 400px; text-align: center;">
-            <h3>🔒 Sign In Required</h3>
-            <p>Please sign in to use <strong>${featureName}</strong> and save your progress.</p>
-            <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
-                <button class="guest-signin-btn header-btn" style="flex: 1;">Sign In</button>
-                <button class="guest-cancel-btn btn-danger" style="flex: 1;">Cancel</button>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    // Use event delegation for immediate response
-    const signInBtn = modal.querySelector('.guest-signin-btn');
-    const cancelBtn = modal.querySelector('.guest-cancel-btn');
-    
-    signInBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        // Guest sign in clicked
-        modal.remove();
-        showAuthModal();
-    });
-    
-    cancelBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        // Guest cancel clicked
-        modal.remove();
-    });
-    
-    // Close on outside click
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            modal.remove();
-        }
-    });
-    
-    // Focus the sign in button for better UX
-    setTimeout(() => signInBtn.focus(), 100);
-}
-
-// Show auth modal
-function showAuthModal() {
-    // Showing auth modal
-    
-    // Ensure auth modal exists and is shown
-    if (DOMElements.authModal) {
-        DOMElements.authModal.classList.add('visible');
-        
-        // Show signup form by default
-        setTimeout(() => {
-            const signupForm = document.getElementById('signup-form');
-            const loginForm = document.getElementById('login-form');
-            
-            if (signupForm && loginForm) {
-                signupForm.classList.remove('hidden');
-                loginForm.classList.add('hidden');
-                // Auth modal forms configured
-            } else {
-                // Auth forms not found - this is expected in some cases
-            }
-        }, 50);
-    } else {
-        // Auth modal not found in DOMElements
-        
-        // Fallback: try to find it directly
-        const authModal = document.getElementById('authModal');
-        if (authModal) {
-            authModal.classList.add('visible');
-            // Auth modal found via fallback
-        } else {
-            // Auth modal not found anywhere in DOM
-        }
-    }
-}
-
-// Legacy guest presence functions removed - now using unified presence system
-
-// Add guest mode restrictions to UI elements - BULLETPROOF VERSION
-function applyGuestRestrictions() {
-    if (!isGuestMode) {
-        // Not in guest mode, skipping restrictions
-        return;
-    }
-    
-    // Applying guest restrictions
-    
-    // Add guest mode indicator to body
-    document.body.classList.add('guest-mode');
-    
-    // Clear any existing guest event listeners first
-    clearAllGuestEventListeners();
-    
-    let totalProcessed = 0;
-    let totalLocked = 0;
-    
-    Object.entries(RESTRICTED_FEATURES).forEach(([featureType, elementIds]) => {
-        // Processing feature: ${featureType}
-        
-        elementIds.forEach(id => {
-            const element = document.getElementById(id);
-            totalProcessed++;
-            
-            if (element) {
-                // Found element: ${id}
-                
-                // Skip leaderboards - viewable by guests
-                if (featureType === 'leaderboards') {
-                    // Skipping ${id} - viewable by guests
-                    return;
-                }
-                
-                // FORCE CLEAN SLATE - Remove all existing restrictions
-                removeElementRestrictions(element, id);
-                
-                // Apply new restrictions
-                applyElementRestrictions(element, id, featureType);
-                totalLocked++;
-                
-            } else {
-                // Element not found: ${id}
-            }
-        });
-    });
-    
-    // Hide completely restricted sections
-    hideRestrictedSections();
-    
-    // Update header
-    updateHeaderForGuest();
-    
-    // Restriction summary: ${totalLocked}/${totalProcessed} elements locked
-    
-    // Verify restrictions were applied
-    setTimeout(() => {
-        verifyGuestRestrictions();
-    }, 100);
-}
-
-// Remove all restrictions from a specific element
-function removeElementRestrictions(element, id) {
-    // Remove restriction marker
-    element.dataset.guestRestricted = 'false';
-    
-    // Remove all lock icons
-    const lockIcons = element.querySelectorAll('.guest-lock-icon');
-    lockIcons.forEach(icon => {
-        icon.remove();
-        // Removed lock icon from ${id}
-    });
-    
-    // Remove guest event listeners
-    const listenerId = `guest_${id}`;
-    if (guestEventListeners.has(listenerId)) {
-        const { handler, options } = guestEventListeners.get(listenerId);
-        element.removeEventListener('click', handler, options);
-        guestEventListeners.delete(listenerId);
-        console.log(`🗑️ Removed guest event listener from ${id}`);
-    }
-    
-    // Reset element styles
-    element.style.pointerEvents = '';
-    element.style.opacity = '';
-    element.style.cursor = '';
-}
-
-// Apply restrictions to a specific element
-function applyElementRestrictions(element, id, featureType) {
-    // Mark as restricted
-    element.dataset.guestRestricted = 'true';
-    
-    // Create and store event listener
-    const handler = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        console.log(`🚫 Guest restriction triggered: ${featureType}`);
-        showLoginPrompt(featureType.charAt(0).toUpperCase() + featureType.slice(1));
-        return false;
-    };
-    
-    const options = { capture: true, passive: false };
-    const listenerId = `guest_${id}`;
-    
-    // Store listener for later removal
-    guestEventListeners.set(listenerId, { handler, options });
-    
-    // Add event listener
-    element.addEventListener('click', handler, options);
-    
-    // Add visual lock indicator
-    element.style.position = 'relative';
-    const lockIcon = document.createElement('span');
-    lockIcon.className = 'guest-lock-icon';
-    lockIcon.innerHTML = '🔒';
-    lockIcon.style.cssText = `
-        position: absolute;
-        top: -5px;
-        right: -5px;
-        font-size: 14px;
-        z-index: 1000;
-        pointer-events: none;
-        background: rgba(0,0,0,0.8);
-        border-radius: 50%;
-        width: 20px;
-        height: 20px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        border: 1px solid rgba(255,255,255,0.3);
-    `;
-    element.appendChild(lockIcon);
-    
-    console.log(`🔐 Applied restrictions to ${id}`);
-}
-
-// Clear all guest event listeners
-function clearAllGuestEventListeners() {
-    console.log(`🧹 Clearing ${guestEventListeners.size} guest event listeners`);
-    
-    guestEventListeners.forEach((listenerData, listenerId) => {
-        const elementId = listenerId.replace('guest_', '');
-        const element = document.getElementById(elementId);
-        
-        if (element) {
-            const { handler, options } = listenerData;
-            element.removeEventListener('click', handler, options);
-            console.log(`✅ Cleared listener for ${elementId}`);
-        }
-    });
-    
-    guestEventListeners.clear();
-}
-
-// Hide sections that are completely restricted
-function hideRestrictedSections() {
-    const restrictedSections = ['achievements-section'];
-    restrictedSections.forEach(sectionId => {
-        const section = document.getElementById(sectionId);
-        if (section) {
-            section.style.display = 'none';
-            console.log(`🙈 Hidden section: ${sectionId}`);
-        }
-    });
-}
-
-// Verify guest restrictions are properly applied
-function verifyGuestRestrictions() {
-    const restrictedElements = document.querySelectorAll('[data-guest-restricted="true"]');
-    const lockIcons = document.querySelectorAll('.guest-lock-icon');
-    const activeListeners = guestEventListeners.size;
-    
-    console.log('🔍 VERIFICATION RESULTS:');
-    console.log(`   Restricted elements: ${restrictedElements.length}`);
-    console.log(`   Lock icons: ${lockIcons.length}`);
-    console.log(`   Active listeners: ${activeListeners}`);
-    console.log(`   Guest mode class: ${document.body.classList.contains('guest-mode')}`);
-    
-    if (restrictedElements.length === 0 && isGuestMode) {
-        console.error('❌ CRITICAL: No restricted elements found in guest mode!');
-        // Retry application
-        setTimeout(() => {
-            console.log('🔄 Retrying guest restrictions...');
-            applyGuestRestrictions();
-        }, 500);
-    } else if (isGuestMode) {
-        console.log('✅ Guest restrictions verified successfully');
-    }
-}
-
-// BULLETPROOF RESTRICTION REMOVAL SYSTEM
-function removeAllGuestRestrictions() {
-    console.log('🔓 REMOVING ALL GUEST RESTRICTIONS - BULLETPROOF VERSION');
-    
-    // Step 1: Remove guest mode class
-    document.body.classList.remove('guest-mode');
-    console.log('✅ Removed guest-mode class from body');
-    
-    // Step 2: Clear ALL tracked guest event listeners
-    clearAllGuestEventListeners();
-    
-    // Step 3: Process all restricted elements
-    let totalProcessed = 0;
-    let totalUnlocked = 0;
-    
-    Object.entries(RESTRICTED_FEATURES).forEach(([featureType, elementIds]) => {
-        console.log(`🔓 Unlocking feature: ${featureType}`);
-        
-        elementIds.forEach(id => {
-            const element = document.getElementById(id);
-            totalProcessed++;
-            
-            if (element) {
-                const wasRestricted = element.dataset.guestRestricted === 'true';
-                
-                if (wasRestricted) {
-                    // Completely remove all restrictions
-                    removeElementRestrictions(element, id);
-                    totalUnlocked++;
-                    console.log(`✅ Unlocked: ${id}`);
-                } else {
-                    // Ensure element is clean anyway
-                    element.dataset.guestRestricted = 'false';
-                    console.log(`🧼 Ensured clean: ${id}`);
-                }
-            } else {
-                // Element not found: ${id}
-            }
-        });
-    });
-    
-    // Step 4: Re-enable hidden sections
-    showRestrictedSections();
-    
-    // Step 5: Update header
-    updateHeaderForGuest();
-    
-    console.log(`📊 UNLOCK SUMMARY: ${totalUnlocked}/${totalProcessed} elements unlocked`);
-    
-    // Step 6: Comprehensive verification
-    setTimeout(() => {
-        verifyRestrictionRemoval();
-    }, 100);
-    
-    // Step 7: Final cleanup pass
-    setTimeout(() => {
-        performFinalCleanup();
-    }, 200);
-    
-    console.log('✅ BULLETPROOF RESTRICTION REMOVAL COMPLETED');
-}
-
-// Show sections that were hidden for guests
-function showRestrictedSections() {
-    const restrictedSections = ['achievements-section'];
-    restrictedSections.forEach(sectionId => {
-        const section = document.getElementById(sectionId);
-        if (section) {
-            section.style.display = '';
-            section.style.pointerEvents = '';
-            section.style.opacity = '';
-            section.classList.remove('guest-hidden');
-            console.log(`👁️ Restored section: ${sectionId}`);
-        }
-    });
-}
-
-// Verify all restrictions have been removed
-function verifyRestrictionRemoval() {
-    const remainingRestricted = document.querySelectorAll('[data-guest-restricted="true"]');
-    const remainingLocks = document.querySelectorAll('.guest-lock-icon');
-    const remainingListeners = guestEventListeners.size;
-    
-    console.log('🔍 RESTRICTION REMOVAL VERIFICATION:');
-    console.log(`   Remaining restricted elements: ${remainingRestricted.length}`);
-    console.log(`   Remaining lock icons: ${remainingLocks.length}`);
-    console.log(`   Remaining guest listeners: ${remainingListeners}`);
-    console.log(`   Guest mode class removed: ${!document.body.classList.contains('guest-mode')}`);
-    
-    if (remainingRestricted.length > 0 || remainingLocks.length > 0 || remainingListeners > 0) {
-        console.error('❌ CRITICAL: Some restrictions still present!');
-        
-        // Force clean remaining elements
-        remainingRestricted.forEach(el => {
-            el.dataset.guestRestricted = 'false';
-            console.log('🔥 Force cleaned restricted element');
-        });
-        
-        remainingLocks.forEach(lock => {
-            lock.remove();
-            console.log('🔥 Force removed lock icon');
-        });
-        
-        guestEventListeners.clear();
-        console.log('🔥 Force cleared remaining listeners');
-    } else {
-        console.log('✅ ALL RESTRICTIONS SUCCESSFULLY REMOVED!');
-    }
-}
-
-// Perform final cleanup to ensure everything is working
-function performFinalCleanup() {
-    console.log('🧹 Performing final cleanup...');
-    
-    // Test key restricted elements
-    const testElements = ['statsBtn', 'achievementsBtn'];
-    
-    testElements.forEach(id => {
-        const element = document.getElementById(id);
-        if (element) {
-            const hasRestriction = element.dataset.guestRestricted === 'true';
-            const hasLock = element.querySelector('.guest-lock-icon');
-            const isClickable = !element.style.pointerEvents || element.style.pointerEvents !== 'none';
-            
-            console.log(`🔍 Testing ${id}:`);
-            console.log(`   Has restriction: ${hasRestriction}`);
-            console.log(`   Has lock: ${!!hasLock}`);
-            console.log(`   Is clickable: ${isClickable}`);
-            
-            if (hasRestriction || hasLock || !isClickable) {
-                console.error(`❌ ${id} still has issues!`);
-                // Force fix
-                element.dataset.guestRestricted = 'false';
-                if (hasLock) hasLock.remove();
-                element.style.pointerEvents = '';
-                console.log(`🔥 Force fixed ${id}`);
-            } else {
-                console.log(`✅ ${id} is fully functional`);
-            }
-        }
-    });
-    
-    console.log('\u2705 Final cleanup completed');
-}
-
-// DEBUG FUNCTIONS - Can be called manually in console
-window.debugGuestRestrictions = () => {
-    // Debug: Current Guest Restriction Status
-    console.log('   isGuestMode:', isGuestMode);
-    console.log('   Body has guest-mode class:', document.body.classList.contains('guest-mode'));
-    console.log('   Guest event listeners count:', guestEventListeners.size);
-    
-    const restrictedElements = document.querySelectorAll('[data-guest-restricted="true"]');
-    const lockIcons = document.querySelectorAll('.guest-lock-icon');
-    
-    console.log('   Restricted elements found:', restrictedElements.length);
-    console.log('   Lock icons found:', lockIcons.length);
-    
-    // Test each restricted feature
-    Object.entries(RESTRICTED_FEATURES).forEach(([featureType, elementIds]) => {
-        console.log(`\ud83d\udcc2 ${featureType}:`);
-        elementIds.forEach(id => {
-            const element = document.getElementById(id);
-            if (element) {
-                const isRestricted = element.dataset.guestRestricted === 'true';
-                const hasLock = !!element.querySelector('.guest-lock-icon');
-                console.log(`   ${id}: restricted=${isRestricted}, hasLock=${hasLock}`);
-            } else {
-                console.log(`   ${id}: NOT FOUND`);
-            }
-        });
-    });
-};
-
-window.forceRemoveAllRestrictions = () => {
-    console.log('\ud83d\udd25 FORCE REMOVING ALL RESTRICTIONS');
-    
-    // Force clear everything
-    isGuestMode = false;
-    document.body.classList.remove('guest-mode');
-    guestEventListeners.clear();
-    
-    // Remove all restriction markers and lock icons
-    const allRestricted = document.querySelectorAll('[data-guest-restricted]');
-    const allLocks = document.querySelectorAll('.guest-lock-icon');
-    
-    allRestricted.forEach(el => {
-        el.dataset.guestRestricted = 'false';
-        el.style.pointerEvents = '';
-        el.style.opacity = '';
-        el.style.cursor = '';
-    });
-    
-    allLocks.forEach(lock => lock.remove());
-    
-    // Show all sections
-    document.querySelectorAll('section').forEach(section => {
-        section.style.display = '';
-        section.style.pointerEvents = '';
-        section.style.opacity = '';
-    });
-    
-    console.log('\u2705 FORCE REMOVAL COMPLETED');
-    console.log('   Removed', allRestricted.length, 'restriction markers');
-    console.log('   Removed', allLocks.length, 'lock icons');
-};
-
-window.testFeatureAccess = (elementId) => {
-    console.log(`\ud83e\uddea Testing feature access: ${elementId}`);
-    
-    const element = document.getElementById(elementId);
-    if (!element) {
-        console.error('Element not found!');
-        return;
-    }
-    
-    console.log('   Element found:', !!element);
-    console.log('   Is restricted:', element.dataset.guestRestricted === 'true');
-    console.log('   Has lock icon:', !!element.querySelector('.guest-lock-icon'));
-    console.log('   Pointer events:', element.style.pointerEvents || 'auto');
-    console.log('   Opacity:', element.style.opacity || '1');
-    
-    // Try clicking it
-    try {
-        element.click();
-        console.log('\u2705 Click test successful');
-    } catch (e) {
-        console.error('\u274c Click test failed:', e);
-    }
-};
-
-console.log('\ud83d\udd27 Debug functions available:');
-console.log('   debugGuestRestrictions() - Show current status');
-console.log('   forceRemoveAllRestrictions() - Nuclear option');
-console.log('   testFeatureAccess("elementId") - Test specific element');
-
-// Update header buttons based on user status
-function updateHeaderForGuest() {
-    const logoutBtn = document.getElementById('logoutBtn');
-    
-    if (isGuestMode) {
-        // Replace logout button with sign in button for guests
-        if (logoutBtn) {
-            logoutBtn.textContent = 'Sign In';
-            logoutBtn.className = 'header-btn btn-primary';
-            logoutBtn.style.backgroundColor = '#2196F3';
-            logoutBtn.style.color = 'white';
-            logoutBtn.style.border = '1px solid #1976D2';
-            logoutBtn.style.borderRadius = '6px';
-            logoutBtn.style.padding = '8px 16px';
-            logoutBtn.style.fontSize = '14px';
-            logoutBtn.style.fontWeight = '500';
-            logoutBtn.style.cursor = 'pointer';
-            logoutBtn.style.transition = 'all 0.2s ease';
-            
-            // Remove existing event listeners by cloning the button
-            const newBtn = logoutBtn.cloneNode(true);
-            logoutBtn.parentNode.replaceChild(newBtn, logoutBtn);
-            
-            // Add hover effects
-            newBtn.addEventListener('mouseenter', () => {
-                newBtn.style.backgroundColor = '#1976D2';
-                newBtn.style.transform = 'translateY(-1px)';
-            });
-            
-            newBtn.addEventListener('mouseleave', () => {
-                newBtn.style.backgroundColor = '#2196F3';
-                newBtn.style.transform = 'translateY(0)';
-            });
-            
-            // Add sign in functionality
-            newBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                console.log('Guest sign in button clicked');
-                showAuthModal();
-            });
-            
-            console.log('Header updated for guest mode - showing Sign In button');
-        }
-    } else {
-        // Restore logout button for logged-in users
-        if (logoutBtn) {
-            logoutBtn.textContent = 'Logout';
-            logoutBtn.className = 'header-btn btn-danger';
-            logoutBtn.style.backgroundColor = '#f44336';
-            logoutBtn.style.color = 'white';
-            logoutBtn.style.border = '1px solid #d32f2f';
-            logoutBtn.style.borderRadius = '6px';
-            logoutBtn.style.padding = '8px 16px';
-            logoutBtn.style.fontSize = '14px';
-            logoutBtn.style.fontWeight = '500';
-            logoutBtn.style.cursor = 'pointer';
-            logoutBtn.style.transition = 'all 0.2s ease';
-            
-            // Remove existing event listeners by cloning the button
-            const newBtn = logoutBtn.cloneNode(true);
-            logoutBtn.parentNode.replaceChild(newBtn, logoutBtn);
-            
-            // Add hover effects
-            newBtn.addEventListener('mouseenter', () => {
-                newBtn.style.backgroundColor = '#d32f2f';
-                newBtn.style.transform = 'translateY(-1px)';
-            });
-            
-            newBtn.addEventListener('mouseleave', () => {
-                newBtn.style.backgroundColor = '#f44336';
-                newBtn.style.transform = 'translateY(0)';
-            });
-            
-            // Add logout functionality
-            newBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                console.log('Logout button clicked');
-                if (confirm('Are you sure you want to logout?')) {
-                    signOut(auth);
-                }
-            });
-            
-            console.log('Header updated for logged-in user - showing Logout button');
-        }
-    }
-}
-
-// Guest Mode Handler
-document.addEventListener('DOMContentLoaded', async () => {
-    // Initialize guest mode state from previous session
-    const wasGuestRestored = initializeGuestMode();
-
-    
+// ============ NEW: Guest Mode Handler ============
+document.addEventListener('DOMContentLoaded', () => {
     const guestBtn = document.getElementById("continueWithoutSignupBtn");
     const guestWarning = document.getElementById("guestWarning");
-    
-    if (guestBtn) {
-        guestBtn.addEventListener('click', async () => {
-            console.log('Entering guest mode...');
-            
-            // Set guest mode flag FIRST
-            isGuestMode = true;
-            
-            // Save guest mode state for persistence
-            saveGuestModeState();
-            
-            // Clear any residual restriction states from previous sessions
-            console.log('\ud83e\uddfc Clearing any previous restriction states...');
-            Object.entries(RESTRICTED_FEATURES).forEach(([featureType, elementIds]) => {
-                elementIds.forEach(id => {
-                    const element = document.getElementById(id);
-                    if (element) {
-                        // Reset restriction state completely
-                        element.dataset.guestRestricted = null;
-                        // Remove any existing lock icons
-                        const existingLock = element.querySelector('.guest-lock-icon');
-                        if (existingLock) {
-                            existingLock.remove();
-                        }
-                    }
-                });
-            });
-            
-            // Ensure app is visible and auth modal hidden
-            DOMElements.appContainer.classList.remove('hidden');
-            DOMElements.authModal.classList.remove('visible');
-            
-            if (guestWarning) {
+        if (guestBtn) {
+            guestBtn.addEventListener('click', () => {
+                isGuestMode = true;
+                DOMElements.appContainer.classList.remove('hidden');
+                DOMElements.authModal.classList.remove('visible');
                 guestWarning.classList.remove('hidden');
-            }
-            
-            // Load guest data (only in localStorage, never Firestore)
-            currentUserData = loadGuestData() || getDefaultUserData();
-            
-            // CRITICAL: Apply guest restrictions with force refresh
-            console.log('\ud83d\udd12 Force applying guest restrictions after logout...');
-            applyGuestRestrictions();
-            
-            // Apply restrictions multiple times to ensure they stick
-            setTimeout(() => {
-                console.log('\ud83d\udd04 Re-applying guest restrictions (delay 1)...');
-                applyGuestRestrictions();
-            }, 100);
-            
-            setTimeout(() => {
-                console.log('\ud83d\udd04 Re-applying guest restrictions (delay 2)...');
-                applyGuestRestrictions();
-            }, 500);
-            
-            // Initialize app with restricted features
-            initializeAppState();
-            updateLeaderboardCTA();
-            
-            // Start presence system for live count (guest will be counted)
-            console.log('\ud83d\udc40 Starting presence system for guest...');
-            startPresence();
-            
-            // Apply default nature theme for all users (guest and new)
-            console.log('\ud83c\udf3f Applying default nature theme...');
-            if (currentUserData.theme && currentUserData.theme.youtubeVideoId) {
-                // Use the default nature video background
-                applyTheme('youtube', currentUserData.theme.youtubeVideoId);
-                console.log('\u2705 Default nature theme applied:', currentUserData.theme.youtubeVideoId);
-            }
-            
-            // Final verification
-            setTimeout(() => {
-                console.log('\ud83d\udd0d Final guest restrictions verification...');
-                const restrictedElements = document.querySelectorAll('[data-guest-restricted="true"]');
-                const lockIcons = document.querySelectorAll('.guest-lock-icon');
-                console.log('\ud83d\udcca Restriction status:', {
-                    restrictedElements: restrictedElements.length,
-                    lockIcons: lockIcons.length,
-                    isGuestMode,
-                    bodyHasGuestClass: document.body.classList.contains('guest-mode')
-                });
-                
-                if (restrictedElements.length === 0 || lockIcons.length === 0) {
-                    console.error('\u274c Restrictions not applied properly, forcing reapplication...');
-                    applyGuestRestrictions();
-                }
-            }, 1000);
-            
-            console.log('\u2705 Guest mode fully activated with verified restrictions');
-        });
-    }
-    
-    // Cleanup on page unload
-    window.addEventListener('beforeunload', cleanupGuestPresence);
-    window.addEventListener('pagehide', cleanupGuestPresence);
+                currentUserData = loadGuestData() || getDefaultUserData();
+                initializeAppState();
+                updateLeaderboardCTA();
+            });
+        }
 });
 
 function getDefaultUserData() {
@@ -1140,20 +372,8 @@ function getDefaultUserData() {
         longestSession: 0,
         todaySessions: 0,
         lastSessionDate: null,
-        // Rolling 7-day aggregates (pruned to last 7 days)
         weeklyFocus: {},
         weeklyFocusSeconds: {},
-        weeklySessions: {},
-        weeklyCompletedSessions: {},
-        weeklyEarlyEndedSessions: {},
-        weeklyAnonymousSeconds: {},
-        weeklyAnonymousSessions: {},
-        // Per-day task seconds to build weekly task breakdown without storing full sessions
-        weeklyTaskSecondsByDate: {}, // { YYYY-MM-DD: { taskLabel: seconds } }
-        weeklyCategorySecondsByDate: {}, // { YYYY-MM-DD: { categoryId: seconds } }
-        weeklyCategoryCompletionsByDate: {}, // { YYYY-MM-DD: { categoryId: count } }
-        // User-managed canonical task list
-        regularTasks: [], // [{ id, name }]
         todos: [],
         journalEntries: {},
         timetable: {},
@@ -1164,7 +384,7 @@ function getDefaultUserData() {
             soundProfile: "indian",
             isAccountabilityOn: false,
         },
-        theme: { backgroundPath: null, youtubeVideoId: "6KL2QZ91kAM" } // Default to nature YouTube background
+        theme: { backgroundPath: null, youtubeVideoId: null }
     };
 }
 
@@ -1253,8 +473,6 @@ function onNewLocalDay() {
     try { refreshStreakLeaderboard(); } catch {}
     // Refresh daily quote cache
     try { fetchQuoteOfTheDay(); } catch {}
-    // Maybe show weekly report if Sunday
-    try { maybeShowWeeklyReportPopup(); } catch {}
 }
 function startDayBoundaryWatcher() {
     if (_dayWatcherInterval) clearInterval(_dayWatcherInterval);
@@ -1269,32 +487,20 @@ function startDayBoundaryWatcher() {
 
 async function updatePublicUserDoc() {
     try {
-        // Explicitly exclude guest users from leaderboards
-        if (isGuestMode || !auth.currentUser) {
-            console.log('🚫 Guest user excluded from leaderboards:', { isGuestMode, hasAuth: !!auth.currentUser });
-            return;
-        }
-        
-        console.log('🏆 Updating leaderboard data for logged-in user');
+        if (isGuestMode || !auth.currentUser) return;
         const today = getTodayKey();
         const sec = (currentUserData.weeklyFocusSeconds && currentUserData.weeklyFocusSeconds[today]) || (((currentUserData.weeklyFocus && currentUserData.weeklyFocus[today]) || 0) * 60);
         const minutesFloat = sec / 60;
         const profileName = currentUserData.profileName || "Floww User";
         const currentStreak = currentUserData.streakCount || 0;
-        
         const ref = doc(db, 'publicUsers', auth.currentUser.uid);
-        const leaderboardData = {
+        await setDoc(ref, {
             profileName,
             todayFocusMinutes: parseFloat(minutesFloat.toFixed(2)),
             currentStreak: currentStreak,
             lastStreakUpdate: today,
-            date: today,
-            isGuest: false // Explicitly mark as non-guest
-        };
-        
-        await setDoc(ref, leaderboardData, { merge: true });
-        console.log('🏆 Leaderboard data updated:', leaderboardData);
-        
+            date: today
+        }, { merge: true });
         // Instantly refresh both leaderboards after successful write
         await refreshLeaderboard();
         await refreshStreakLeaderboard();
@@ -1316,27 +522,15 @@ async function refreshLeaderboard() {
         );
         const snap = await getDocs(q);
         let entries = [];
-        const userMap = new Map(); // Use Map to ensure unique users only
-        
         snap.forEach(docSnap => {
             const d = docSnap.data() || {};
-            const uid = docSnap.id; // Document ID is the user's UID
             const minutesRaw = d.todayFocusMinutes;
             const minutes = typeof minutesRaw === 'number' && isFinite(minutesRaw) ? Math.max(0, minutesRaw) : 0;
-            
-            // Only keep the highest score for each unique user (in case of duplicates)
-            if (!userMap.has(uid) || userMap.get(uid).minutes < minutes) {
-                userMap.set(uid, {
-                    uid: uid,
-                    name: d.profileName || 'Floww User',
-                    minutes: minutes
-                });
-            }
+            entries.push({
+                name: d.profileName || 'Floww User',
+                minutes
+            });
         });
-        
-        // Convert Map to array for sorting
-        entries = Array.from(userMap.values());
-        console.log('🏆 Focus leaderboard entries (unique users):', entries.length);
         // Sort desc by minutes and take top 10
         entries.sort((a, b) => b.minutes - a.minutes);
         entries = entries.slice(0, 10);
@@ -1377,28 +571,16 @@ async function refreshStreakLeaderboard() {
         );
         const snap = await getDocs(q);
         let entries = [];
-        const userMap = new Map(); // Use Map to ensure unique users only
-        
         snap.forEach(docSnap => {
             const d = docSnap.data() || {};
-            const uid = docSnap.id; // Document ID is the user's UID
             const streak = typeof d.currentStreak === 'number' && isFinite(d.currentStreak) ? Math.max(0, d.currentStreak) : 0;
-            
             if (streak > 0) {
-                // Only keep the highest streak for each unique user (in case of duplicates)
-                if (!userMap.has(uid) || userMap.get(uid).streak < streak) {
-                    userMap.set(uid, {
-                        uid: uid,
-                        name: d.profileName || 'Floww User',
-                        streak: streak
-                    });
-                }
+                entries.push({
+                    name: d.profileName || 'Floww User',
+                    streak: streak
+                });
             }
         });
-        
-        // Convert Map to array for sorting
-        entries = Array.from(userMap.values());
-        console.log('🔥 Streak leaderboard entries (unique users):', entries.length);
         
         // Sort desc by streak and take top 10
         entries.sort((a, b) => b.streak - a.streak);
@@ -1480,41 +662,27 @@ function switchLeaderboardTab(boardType) {
 }
 
 // ===================================================================================
-// UNIFIED PRESENCE SYSTEM (Flowwies Live)
+// PRESENCE (Flowwies Live)
 // ===================================================================================
 let presenceSessionId = null;
 let presenceDocRef = null;
+
+async function ensurePresenceAuth() {
+    if (!auth.currentUser) {
+        try {
+            await signInAnonymously(auth);
+        } catch (e) {
+            console.warn('Anonymous auth for presence failed:', e);
+        }
+    }
+}
 let presenceHeartbeatInterval = null;
 let presenceUnsub = null;
 let lastLiveCount = 0;
 
-// Generate unique session ID
-function generateSessionId() {
+function genSessionId() {
     if (crypto && crypto.randomUUID) return crypto.randomUUID();
-    return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-}
-
-// Generate unique identifier for presence tracking
-function getPresenceUserId() {
-    if (!isGuestMode && auth.currentUser) {
-        // Authenticated user: use their UID
-        return auth.currentUser.uid;
-    } else {
-        // Guest user: use or generate a persistent browser-specific ID
-        let guestId = null;
-        try {
-            guestId = localStorage.getItem('youfloww_guest_id');
-            if (!guestId) {
-                guestId = 'guest_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-                localStorage.setItem('youfloww_guest_id', guestId);
-            }
-        } catch (error) {
-            console.warn('localStorage not available for guest ID:', error);
-            guestId = 'guest_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-            // Generated new guest ID
-        }
-        return guestId;
-    }
+    return 'sess_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
 function getIsFocusing() {
@@ -1523,234 +691,60 @@ function getIsFocusing() {
 
 async function startPresence() {
     try {
-        console.log('Starting presence system...', { 
-            isGuestMode, 
-            hasAuth: !!auth.currentUser,
-            authUid: auth.currentUser?.uid
-        });
-        
-        // Stop any existing presence first
-        await stopPresence();
-        
-        // For guest users or when no signed-in user, skip presence entirely (no auto auth)
-        if (isGuestMode || !auth.currentUser) {
-            console.log('Skipping presence: guest mode or no signed-in user.');
-            return;
-        }
-        
-        // Use the existing signed-in user only
-        const authUser = auth.currentUser;
-        
-        // Generate session ID and create document reference
-        const sessionId = generateSessionId();
-        presenceSessionId = sessionId;
-        presenceDocRef = doc(db, 'presence', sessionId);
-        
-        // Create presence document following your strict field validation
-        const presenceData = {
-            uid: authUser.uid, // Required and must match auth.uid
+        stopPresence();
+        // Ensure we have an auth user (anonymous is fine) so Firestore rules permit writes
+        await ensurePresenceAuth();
+        presenceSessionId = genSessionId();
+        presenceDocRef = doc(db, 'presence', presenceSessionId);
+        const base = {
+            uid: auth.currentUser ? auth.currentUser.uid : null,
             createdAt: serverTimestamp(),
             lastActive: serverTimestamp(),
-            lastActiveMs: Date.now(), // Required as int
-            isFocusing: getIsFocusing(), // Required as bool
-            userAgent: navigator.userAgent || 'unknown' // Required field
+            lastActiveMs: Date.now(),
+            isFocusing: getIsFocusing(),
+            userAgent: navigator.userAgent || ''
         };
-        
-        console.log('\ud83d\udcc4 Creating secure presence document:', presenceData);
-        
-        try {
-            await setDoc(presenceDocRef, presenceData);
-            console.log('\u2705 Secure presence document created successfully!');
-            
-            // Verify creation after a moment
-            setTimeout(async () => {
-                try {
-                    const verification = await getDoc(presenceDocRef);
-                    if (verification.exists()) {
-                        console.log('\u2705 Presence document verified:', verification.data());
-                    } else {
-                        console.error('\u274c Presence document missing after creation!');
-                    }
-                } catch (e) {
-                    console.error('\u274c Presence verification failed:', e);
-                }
-            }, 1500);
-            
-        } catch (e) {
-            console.error('\u274c Failed to create secure presence document:', e);
-            console.error('\u274c Error details:', e.message);
-            throw e;
-        }
-        
-        // Store authUser reference for closures
-        const currentAuthUser = authUser;
-        
-        // Start heartbeat system (every 20 seconds)
-        console.log('\ud83d\udc93 Starting secure presence heartbeat...');
-        if (presenceHeartbeatInterval) clearInterval(presenceHeartbeatInterval);
+        await setDoc(presenceDocRef, base, { merge: true });
+        // Heartbeat every 25s
         presenceHeartbeatInterval = setInterval(async () => {
             try {
-                if (!presenceDocRef || !currentAuthUser) {
-                    console.warn('\u26a0\ufe0f No presence ref or auth user for heartbeat');
-                    return;
-                }
-                
-                // Update with only the allowed fields per your secure rules
-                const heartbeatData = {
-                    uid: currentAuthUser.uid, // Must include uid and match auth
-                    createdAt: serverTimestamp(), // Keep original creation time
+                if (!presenceDocRef) return;
+                await updateDoc(presenceDocRef, {
                     lastActive: serverTimestamp(),
                     lastActiveMs: Date.now(),
-                    isFocusing: getIsFocusing(),
-                    userAgent: navigator.userAgent || 'unknown'
-                };
-                
-                // Use setDoc with merge to ensure all required fields are present
-                await setDoc(presenceDocRef, heartbeatData, { merge: true });
-                console.log('\ud83d\udc97 Secure heartbeat successful');
-            } catch (e) {
-                console.warn('\ud83d\udc94 Heartbeat failed:', e.message);
-                // Try to recreate presence if heartbeat fails
-                if (e.code === 'not-found' || e.message.includes('permission-denied')) {
-                    console.log('\ud83d\udd04 Presence document missing or denied, recreating...');
-                    setTimeout(() => startPresence(), 2000); // Recreate after delay
-                }
-            }
-        }, 20000); // 20 second intervals
-        
-        // Start live count watcher with user deduplication
-        console.log('\ud83d\udc40 Starting live count watcher with deduplication...');
+                    isFocusing: getIsFocusing()
+                });
+            } catch (e) { /* ignore transient */ }
+        }, 25000);
+        // Live watcher
         const collRef = collection(db, 'presence');
-        
-        try {
-            presenceUnsub = onSnapshot(collRef, 
-                (snapshot) => {
-                    console.log('\ud83d\udcc8 Processing presence snapshot...');
-                    const now = Date.now();
-                    const activeThreshold = 90000; // 90 seconds (more generous than heartbeat)
-                    
-                    // Use Map to deduplicate by userId (one count per unique user)
-                    const uniqueActiveUsers = new Map();
-                    let totalSessions = 0;
-                    
-                    snapshot.forEach(docSnap => {
-                        totalSessions++;
-                        const data = docSnap.data() || {};
-                        const sessionId = docSnap.id;
-                        const userId = data.uid; // Use uid field as per secure rules
-                        const lastActiveMs = data.lastActiveMs || 0;
-                        const timeSinceActive = now - lastActiveMs;
-                        const isActive = typeof lastActiveMs === 'number' && timeSinceActive <= activeThreshold;
-                        
-                        // Determine if this is a guest based on anonymous auth pattern
-                        const isGuest = userId && userId.length === 28; // Anonymous UIDs are 28 chars
-                        
-                        console.log(`\ud83d\udc64 Session ${sessionId}:`, {
-                            uid: userId,
-                            isGuest: isGuest,
-                            lastActive: new Date(lastActiveMs).toLocaleTimeString(),
-                            timeSinceActive: Math.round(timeSinceActive / 1000) + 's',
-                            isActive: isActive,
-                            userAgent: data.userAgent ? data.userAgent.substring(0, 20) + '...' : 'unknown'
-                        });
-                        
-                        if (isActive && userId) {
-                            // Only count each unique user once (deduplication by uid)
-                            if (!uniqueActiveUsers.has(userId) || 
-                                uniqueActiveUsers.get(userId).lastActiveMs < lastActiveMs) {
-                                uniqueActiveUsers.set(userId, {
-                                    userId: userId,
-                                    sessionId: sessionId,
-                                    isGuest: isGuest,
-                                    lastActiveMs: lastActiveMs,
-                                    profileName: isGuest ? 'Guest User' : 'Floww User',
-                                    timeSinceActive: Math.round(timeSinceActive / 1000)
-                                });
-                            }
-                        }
-                    });
-                    
-                    const uniqueUserCount = uniqueActiveUsers.size;
-                    const activeUsersList = Array.from(uniqueActiveUsers.values());
-                    
-                    console.log(`\ud83d\udcc8 Live presence summary:`);
-                    console.log(`   Total sessions: ${totalSessions}`);
-                    console.log(`   Unique active users: ${uniqueUserCount}`);
-                    console.log(`   Active users:`, activeUsersList.map(u => ({ 
-                        profile: u.profileName, 
-                        type: u.isGuest ? 'guest' : 'user',
-                        lastActive: u.timeSinceActive + 's ago'
-                    })));
-                    
-                    updateLiveCount(uniqueUserCount);
-                }, 
-                (error) => {
-                    console.error('\u274c Presence watcher error:', error);
-                    // Auto-restart after errors
-                    setTimeout(() => {
-                        console.log('\ud83d\udd04 Auto-restarting presence after error...');
-                        startPresence();
-                    }, 3000);
+        presenceUnsub = onSnapshot(collRef, (snap) => {
+            const now = Date.now();
+            let count = 0;
+            snap.forEach(d => {
+                const data = d.data() || {};
+                if (typeof data.lastActiveMs === 'number' && (now - data.lastActiveMs) <= 60000) {
+                    count++;
                 }
-            );
-            
-            console.log('\u2705 Live count watcher started with deduplication!');
-        } catch (e) {
-            console.error('\u274c Failed to start live count watcher:', e);
-            throw e;
-        }
-        
-        // Setup cleanup handlers  
-        const handleBeforeUnload = () => {
-            if (presenceDocRef) {
-                // Use sendBeacon for reliable cleanup
-                navigator.sendBeacon && navigator.sendBeacon('/cleanup-presence', JSON.stringify({ sessionId: presenceSessionId }));
-                // Also try immediate cleanup
-                deleteDoc(presenceDocRef).catch(() => {});
-            }
-        };
-        
-        window.addEventListener('beforeunload', handleBeforeUnload);
-        
-        // Handle tab visibility changes
-        document.addEventListener('visibilitychange', async () => {
-            if (!presenceDocRef || !currentAuthUser) return;
-            
-            try {
-                // Update with all required fields per secure rules (no extra fields like tabVisible)
-                const visibilityData = {
-                    uid: currentAuthUser.uid,
-                    createdAt: serverTimestamp(),
-                    lastActive: serverTimestamp(), 
-                    lastActiveMs: Date.now(),
-                    isFocusing: getIsFocusing(),
-                    userAgent: navigator.userAgent || 'unknown'
-                };
-                
-                console.log(`\ud83d\udc41\ufe0f Tab ${document.hidden ? 'hidden' : 'visible'} - updating presence`);
-                await setDoc(presenceDocRef, visibilityData, { merge: true });
-            } catch (e) {
-                console.warn('\ud83d\udc41\ufe0f Visibility update failed:', e.message);
+            });
+            updateLiveCount(count);
+        });
+        // Cleanup on unload
+        window.addEventListener('beforeunload', cleanupPresenceOnce, { once: true });
+        document.addEventListener('visibilitychange', () => {
+            // quick ping when tab becomes visible
+            if (!document.hidden && presenceDocRef) {
+                updateDoc(presenceDocRef, { lastActive: serverTimestamp(), lastActiveMs: Date.now(), isFocusing: getIsFocusing() }).catch(()=>{});
             }
         });
-        
-        console.log('\ud83c\udf89 Unified presence system fully initialized!');
-        
-    } catch (error) {
-        console.error('\ud83d\udca5 Presence system failed to start:', error);
-        // Do not attempt any automatic authentication fallbacks. Presence is optional.
+    } catch (e) {
+        console.error('startPresence failed:', e);
     }
 }
 
 function updateLiveCount(n) {
     const el = document.getElementById('liveCount');
-    if (!el) {
-        console.warn('liveCount element not found in DOM');
-        return;
-    }
-    
-    console.log(`Updating live count: ${lastLiveCount} -> ${n}`);
-    
+    if (!el) return;
     if (n !== lastLiveCount) {
         el.textContent = String(n);
         el.classList.remove('flip');
@@ -1758,98 +752,28 @@ function updateLiveCount(n) {
         void el.offsetWidth;
         el.classList.add('flip');
         lastLiveCount = n;
-        console.log(`Live count display updated to: ${n}`);
-    } else {
-        console.log('Live count unchanged, no update needed');
     }
 }
 
 async function stopPresence() {
     try {
-        console.log('\ud83d\uded1 Stopping presence system and cleaning up...');
-        
-        // Clear heartbeat interval immediately
-        if (presenceHeartbeatInterval) {
-            clearInterval(presenceHeartbeatInterval);
-            presenceHeartbeatInterval = null;
-            console.log('\ud83d\udc94 Heartbeat stopped');
-        }
-        
-        // Unsubscribe from live count watcher
-        if (presenceUnsub) {
-            try { 
-                presenceUnsub(); 
-                console.log('\ud83d\udc40 Live count watcher stopped');
-            } catch (e) {
-                console.warn('\u26a0\ufe0f Error stopping watcher:', e.message);
-            }
-            presenceUnsub = null;
-        }
-        
-        // Priority cleanup: Remove current presence document immediately
-        if (presenceDocRef && presenceSessionId) {
-            try {
-                console.log('\ud83e\uddfc Deleting presence document:', presenceSessionId);
-                await deleteDoc(presenceDocRef);
-                console.log('\u2705 Presence document deleted successfully');
-            } catch (e) {
-                console.warn('\u26a0\ufe0f Failed to delete presence document:', e.message);
-                
-                // Try alternative cleanup approach
-                try {
-                    await setDoc(presenceDocRef, {
-                        deleted: true,
-                        lastActiveMs: 0,
-                        uid: 'deleted',
-                        userAgent: 'cleanup'
-                    });
-                    console.log('\ud83e\uddfc Marked presence document as deleted');
-                } catch (markError) {
-                    console.error('\u274c Even marking as deleted failed:', markError.message);
-                }
-            }
-        }
-        
-        // Additional cleanup: Remove any stale anonymous presence documents
-        if (auth.currentUser && auth.currentUser.isAnonymous) {
-            try {
-                console.log('\ud83e\uddfc Cleaning up anonymous user presence documents...');
-                const collRef = collection(db, 'presence');
-                const staleQuery = query(collRef, where('uid', '==', auth.currentUser.uid));
-                const staleSnap = await getDocs(staleQuery);
-                
-                const deletePromises = [];
-                staleSnap.forEach(doc => {
-                    deletePromises.push(deleteDoc(doc.ref));
-                    console.log('\ud83e\uddfc Queued deletion of stale doc:', doc.id);
-                });
-                
-                if (deletePromises.length > 0) {
-                    await Promise.allSettled(deletePromises);
-                    console.log(`\u2705 Cleaned up ${deletePromises.length} stale presence documents`);
-                }
-            } catch (cleanupError) {
-                console.warn('\u26a0\ufe0f Stale document cleanup failed:', cleanupError.message);
-            }
-        }
-        
-        // Reset all state
-        presenceSessionId = null;
-        presenceDocRef = null;
-        
-        console.log('\u2705 Presence system completely stopped and cleaned');
-    } catch (error) {
-        console.error('\u274c Error in stopPresence:', error);
-        
-        // Emergency cleanup - reset state even if cleanup failed
-        presenceSessionId = null;
-        presenceDocRef = null;
+        if (presenceHeartbeatInterval) clearInterval(presenceHeartbeatInterval);
         presenceHeartbeatInterval = null;
+        if (presenceUnsub) { try { presenceUnsub(); } catch {} }
         presenceUnsub = null;
-    }
+        presenceSessionId = null;
+        presenceDocRef = null;
+    } catch {}
 }
 
-// cleanupPresenceOnce function removed - cleanup now handled in stopPresence()
+async function cleanupPresenceOnce() {
+    try {
+        if (presenceDocRef) {
+            // best-effort delete to reduce stale docs; count logic already filters stales
+            await deleteDoc(presenceDocRef).catch(()=>{});
+        }
+    } catch {}
+}
 
 // ===================================================================================
 // GLOBAL STATE & VARIABLES
@@ -1906,7 +830,6 @@ let poseDetectionInterval = null;
 
 // YOUTUBE PLAYER STATE
 let youtubePlayer = null;
-let lastYouTubeVideoId = 'jfKfPfyJRdk'; // Lofi hip hop radio - reliable default
 let isPipDragging = false;
 let pipDragOffset = { x: 0, y: 0 };
 
@@ -2018,168 +941,37 @@ const DOMElements = {
 // FIREBASE AUTH & DATA
 // ===================================================================================
 onAuthStateChanged(auth, user => {
-    console.log('\ud83d\udd04 Auth state changed:', { user: !!user, uid: user?.uid, currentGuestMode: isGuestMode, isAnonymous: !!user?.isAnonymous });
-
-    // Never treat anonymous auth as a real sign-in. Enforce guest or sign-out.
-    if (user && user.isAnonymous) {
-        console.warn('Anonymous auth detected; signing out to prevent unintended auto login.');
-        try { signOut(auth); } catch {}
-        return;
-    }
-    
     if (user) {
-        const wasGuestMode = isGuestMode;
         isGuestMode = false;
-        
-        // Clear guest mode persistence
-        saveGuestModeState();
-        
-        console.log('User signed in:', { uid: user.uid, wasGuest: wasGuestMode });
-        
-        // Remove guest mode styling and restrictions immediately
-        document.body.classList.remove('guest-mode');
         DOMElements.appContainer.classList.remove('hidden');
         DOMElements.authModal.classList.remove('visible');
-        
-        // CRITICAL: Use bulletproof restriction removal system
-        if (wasGuestMode) {
-            console.log('🔥 USER SIGNED IN FROM GUEST MODE - REMOVING ALL RESTRICTIONS');
-            removeAllGuestRestrictions();
-        }
-        
-        // Update header immediately to show logout button
-        updateHeaderForGuest();
-        
-        // Force refresh the app state and UI
-        setTimeout(() => {
-            // Re-initialize all app features for the signed-in user
-            initializeAppState();
-            
-            // Force update all sections to ensure they're accessible
-            const allSections = document.querySelectorAll('section');
-            allSections.forEach(section => {
-                section.style.pointerEvents = '';
-                section.style.opacity = '';
-            });
-            
-            // Update any remaining UI elements
-            updateLeaderboardCTA();
-            
-            console.log('App state refreshed for signed-in user');
-        }, 100);
-        
         userDataRef = doc(db, "users", user.uid);
         loadUserData();
         startLeaderboard();
         updateLeaderboardCTA();
-        // Start presence system for logged-in users
-        startPresence();
-        
-    } else {
-        // User signed out - reset everything and prepare for guest or new login
-        console.log('\ud83d\udeaa User signed out - resetting application state');
-        
-        // Force stop all systems immediately
-        if (timerInterval) {
-            clearInterval(timerInterval);
-            timerInterval = null;
-        }
-        isRunning = false;
-        
-        // Stop all services
-        stopLeaderboard();
-        stopPresence();
-        
-        // Reset application state completely
+    } else if (!isGuestMode) {
+        // Fully reset in-memory state on logout to prevent cross-account leakage
         currentUserData = getDefaultUserData();
         userDataRef = null;
-        
-        // If not transitioning to guest mode, show auth modal
-        if (!isGuestMode) {
-            console.log('\ud83d\udd10 Showing auth modal for re-authentication');
-            DOMElements.appContainer.classList.add('hidden');
-            DOMElements.authModal.classList.add('visible');
-        } else {
-            console.log('\ud83d\udc64 Staying in guest mode after logout');
-            // Keep app container visible for guest mode
-            DOMElements.appContainer.classList.remove('hidden');
-            DOMElements.authModal.classList.remove('visible');
-            
-            // CRITICAL: Reapply guest restrictions after logout with delay
-            console.log('\ud83d\udd12 Reapplying guest restrictions after logout...');
-            setTimeout(() => {
-                applyGuestRestrictions();
-                console.log('\u2705 Guest restrictions reapplied after logout');
-            }, 200);
-        }
-        
-        // Update UI elements
+        DOMElements.appContainer.classList.add('hidden');
+        DOMElements.authModal.classList.add('visible');
+        if (timerInterval) clearInterval(timerInterval);
+        isRunning = false;
+        stopLeaderboard();
         updateLeaderboardCTA();
-        updateHeaderForGuest();
-        
-        console.log('\u2705 Application state reset complete');
     }
 });
 
 function saveUserData() {
-    // Guest mode: Only save to localStorage, never to Firestore
-    if (isGuestMode) {
-        console.log('💾 Saving guest data to localStorage only');
-        
-        // Prune weekly maps to last 7 days for memory efficiency
-        try { pruneWeeklyData(); } catch {}
-        
-        // For guests, save ALL data to localStorage including streaks
-        // but never save to Firestore to preserve storage
-        const guestData = {
-            ...currentUserData,
-            // Keep streak data for guests (they should see their progress)
-            streakCount: currentUserData.streakCount || 0,
-            bestStreak: currentUserData.bestStreak || 0,
-            lastStreakDate: currentUserData.lastStreakDate || null,
-            // Keep basic stats for UI display but don't sync to leaderboards
-            totalFocusMinutes: currentUserData.totalFocusMinutes || 0,
-            totalFocusSeconds: currentUserData.totalFocusSeconds || 0,
-            totalSessions: currentUserData.totalSessions || 0,
-            longestSession: currentUserData.longestSession || 0,
-            todaySessions: currentUserData.todaySessions || 0,
-            lastSessionDate: currentUserData.lastSessionDate || null,
-            // Keep todos and settings
-            todos: currentUserData.todos || [],
-            settings: currentUserData.settings || {},
-            theme: currentUserData.theme || { backgroundPath: null, youtubeVideoId: "6KL2QZ91kAM" },
-            // Keep minimal weekly data for UI (but not for leaderboards)
-            weeklyFocus: currentUserData.weeklyFocus || {},
-            weeklyFocusSeconds: currentUserData.weeklyFocusSeconds || {},
-            weeklySessions: currentUserData.weeklySessions || {},
-            // Mark as guest data
-            isGuestData: true,
-            lastSaved: Date.now()
-        };
-        
-        localStorage.setItem('youfloww_guest', JSON.stringify(guestData));
-        console.log('💾 Guest data saved to localStorage only:', { 
-            streak: guestData.streakCount, 
-            sessions: guestData.totalSessions,
-            todos: guestData.todos.length,
-            profileName: guestData.profileName,
-            totalFocusMinutes: guestData.totalFocusMinutes
-        });
-        console.log('🚫 Guest excluded from Firestore and leaderboards - maintaining data privacy');
-        return; // Don't save to Firestore for guests
-    }
+    // Validate and clean data before saving
+    currentUserData = validateUserData(currentUserData);
     
-    // Regular user: Save to Firestore
-    if (userDataRef) {
-        // Prune weekly maps to last 7 days for memory efficiency before saving
-        try { pruneWeeklyData(); } catch {}
-
-        // Validate and clean data before saving
-        currentUserData = validateUserData(currentUserData);
-        
-        // Run suspicious activity detection (logs warnings but doesn't block)
-        detectSuspiciousActivity(currentUserData);
-        
+    // Run suspicious activity detection (logs warnings but doesn't block)
+    detectSuspiciousActivity(currentUserData);
+    
+    if (isGuestMode) {
+        localStorage.setItem('youfloww_guest', JSON.stringify(currentUserData));
+    } else if (userDataRef) {
         setDoc(userDataRef, currentUserData, { merge: true }).catch(error => console.error("Error saving user data: ", error));
     }
 }
@@ -2268,20 +1060,8 @@ function playRandomSound(type) {
 function startTimer(isResume = false) {
     if (isRunning) return;
     isRunning = true;
-    // Update presence focusing status immediately (secure rules compliant)
-    try { 
-        if (presenceDocRef && auth.currentUser) {
-            const focusUpdate = {
-                uid: auth.currentUser.uid,
-                createdAt: serverTimestamp(),
-                lastActive: serverTimestamp(), 
-                lastActiveMs: Date.now(),
-                isFocusing: getIsFocusing(),
-                userAgent: navigator.userAgent || 'unknown'
-            };
-            setDoc(presenceDocRef, focusUpdate, { merge: true });
-        }
-    } catch (e) { console.warn('Focus presence update failed:', e.message); }
+    // Update presence focusing status immediately
+    try { if (presenceDocRef) updateDoc(presenceDocRef, { isFocusing: getIsFocusing(), lastActive: serverTimestamp(), lastActiveMs: Date.now() }); } catch {}
     enableLeaveWarning();
     if (isWorkSession) {
         if (isResume) {
@@ -2321,20 +1101,8 @@ function startTimer(isResume = false) {
 }
 
 function pauseTimer(userInitiated = true) {
-    // Update presence focusing status immediately when pausing (secure rules compliant)
-    try { 
-        if (presenceDocRef && auth.currentUser) {
-            const pauseUpdate = {
-                uid: auth.currentUser.uid,
-                createdAt: serverTimestamp(),
-                lastActive: serverTimestamp(), 
-                lastActiveMs: Date.now(),
-                isFocusing: false,
-                userAgent: navigator.userAgent || 'unknown'
-            };
-            setDoc(presenceDocRef, pauseUpdate, { merge: true });
-        }
-    } catch (e) { console.warn('Pause presence update failed:', e.message); }
+    // Update presence focusing status immediately when pausing
+    try { if (presenceDocRef) updateDoc(presenceDocRef, { isFocusing: false, lastActive: serverTimestamp(), lastActiveMs: Date.now() }); } catch {}
     if (!isRunning) return;
     clearInterval(timerInterval);
     isRunning = false;
@@ -2370,20 +1138,8 @@ function resetTimer() {
 }
 
 function endSession() {
-    // Presence focusing off at end (secure rules compliant)
-    try { 
-        if (presenceDocRef && auth.currentUser) {
-            const endUpdate = {
-                uid: auth.currentUser.uid,
-                createdAt: serverTimestamp(),
-                lastActive: serverTimestamp(), 
-                lastActiveMs: Date.now(),
-                isFocusing: false,
-                userAgent: navigator.userAgent || 'unknown'
-            };
-            setDoc(presenceDocRef, endUpdate, { merge: true });
-        }
-    } catch (e) { console.warn('End session presence update failed:', e.message); }
+    // Presence focusing off at end
+    try { if (presenceDocRef) updateDoc(presenceDocRef, { isFocusing: false, lastActive: serverTimestamp(), lastActiveMs: Date.now() }); } catch {}
 
     if (isWorkSession) {
         // Manual end of a WORK session → log stats and show review
@@ -2476,17 +1232,7 @@ function handleEndOfWorkSession(sessionSeconds, sessionCompleted) {
         const estSec = (Number.isFinite(t.estimateMinutes) ? t.estimateMinutes : 0) * 60;
         if (estSec > 0 && t.loggedSeconds >= estSec) {
             t.loggedSeconds = estSec; // cap to estimate
-            if (!t.completed) {
-                t.completed = true;
-                // Increment weekly completion for canonical tasks on auto-complete
-                const today = getLocalDateKey();
-                if (t.canonicalId) {
-                    if (!currentUserData.weeklyCategoryCompletionsByDate) currentUserData.weeklyCategoryCompletionsByDate = {};
-                    if (!currentUserData.weeklyCategoryCompletionsByDate[today]) currentUserData.weeklyCategoryCompletionsByDate[today] = {};
-                    const cid = String(t.canonicalId);
-                    currentUserData.weeklyCategoryCompletionsByDate[today][cid] = (currentUserData.weeklyCategoryCompletionsByDate[today][cid] || 0) + 1;
-                }
-            }
+            t.completed = true;
             // Clear focus when task is completed
             activeTaskIndex = null;
             // Celebrate auto-complete just like manual completion
@@ -2539,39 +1285,6 @@ function handleEndOfWorkSession(sessionSeconds, sessionCompleted) {
         // Track weekly sessions by day for 7d stats
         if (!currentUserData.weeklySessions) currentUserData.weeklySessions = {};
         currentUserData.weeklySessions[today] = (currentUserData.weeklySessions[today] || 0) + 1;
-
-        // Track completion vs early end for discipline
-        if (!currentUserData.weeklyCompletedSessions) currentUserData.weeklyCompletedSessions = {};
-        if (!currentUserData.weeklyEarlyEndedSessions) currentUserData.weeklyEarlyEndedSessions = {};
-        if (sessionCompleted) {
-            currentUserData.weeklyCompletedSessions[today] = (currentUserData.weeklyCompletedSessions[today] || 0) + 1;
-        } else {
-            currentUserData.weeklyEarlyEndedSessions[today] = (currentUserData.weeklyEarlyEndedSessions[today] || 0) + 1;
-        }
-
-        // Attribute time to task vs anonymous (7d rolling, per-day buckets)
-    if (!currentUserData.weeklyTaskSecondsByDate) currentUserData.weeklyTaskSecondsByDate = {};
-        if (!currentUserData.weeklyTaskSecondsByDate[today]) currentUserData.weeklyTaskSecondsByDate[today] = {};
-        if (!currentUserData.weeklyCategorySecondsByDate) currentUserData.weeklyCategorySecondsByDate = {};
-        if (!currentUserData.weeklyCategorySecondsByDate[today]) currentUserData.weeklyCategorySecondsByDate[today] = {};
-        if (activeTaskIndex !== null && currentUserData.todos && currentUserData.todos[activeTaskIndex] && !currentUserData.todos[activeTaskIndex].completed) {
-            const t = currentUserData.todos[activeTaskIndex];
-            if (t.canonicalId) {
-                const cid = String(t.canonicalId);
-                currentUserData.weeklyCategorySecondsByDate[today][cid] = (currentUserData.weeklyCategorySecondsByDate[today][cid] || 0) + secondsFocused;
-            } else {
-                // Treat focused sessions on non-regular (free-text) tasks as anonymous
-                if (!currentUserData.weeklyAnonymousSeconds) currentUserData.weeklyAnonymousSeconds = {};
-                if (!currentUserData.weeklyAnonymousSessions) currentUserData.weeklyAnonymousSessions = {};
-                currentUserData.weeklyAnonymousSeconds[today] = (currentUserData.weeklyAnonymousSeconds[today] || 0) + secondsFocused;
-                currentUserData.weeklyAnonymousSessions[today] = (currentUserData.weeklyAnonymousSessions[today] || 0) + 1;
-            }
-        } else {
-            if (!currentUserData.weeklyAnonymousSeconds) currentUserData.weeklyAnonymousSeconds = {};
-            if (!currentUserData.weeklyAnonymousSessions) currentUserData.weeklyAnonymousSessions = {};
-            currentUserData.weeklyAnonymousSeconds[today] = (currentUserData.weeklyAnonymousSeconds[today] || 0) + secondsFocused;
-            currentUserData.weeklyAnonymousSessions[today] = (currentUserData.weeklyAnonymousSessions[today] || 0) + 1;
-        }
         
         // Update longest session (in minutes)
         if (minutesFocused > currentUserData.longestSession) {
@@ -2587,81 +1300,40 @@ function handleEndOfWorkSession(sessionSeconds, sessionCompleted) {
             showStreakAnimation('reset', 0);
         }
     }
-    // Trigger achievement checks based on updated stats
-    try {
-        if (typeof achievementSystem !== 'undefined' && achievementSystem && typeof achievementSystem.checkAchievements === 'function') {
-            const userStatsForAchievements = {
-                totalSessions: currentUserData.totalSessions || 0,
-                currentStreak: currentUserData.streakCount || 0,
-                totalFocusMinutes: currentUserData.totalFocusMinutes || 0,
-                longestSession: currentUserData.longestSession || 0,
-                maxSessionsPerDay: currentUserData.todaySessions || 0,
-                earlyMorningSessions: 0,
-                lateNightSessions: 0,
-                consecutiveWeekends: 0,
-                uniqueTasks: Array.isArray(currentUserData.regularTasks) ? currentUserData.regularTasks.length : 0,
-                perfectSessions: 0
-            };
-            achievementSystem.checkAchievements(userStatsForAchievements);
-        }
-    } catch (e) { console.warn('Achievement check failed:', e); }
     // Note: Sounds are handled at call sites (natural completion -> good, early end -> bad)
     saveUserData();
     // Update public projection used by leaderboard
     updatePublicUserDoc();
 }
 
-// Update streak logic - only called when a work session is completed (both full completion and early end)
+// Update streak logic (local-day aware)
 function updateStreak() {
     const today = getLocalDateKey();
     const prevCount = currentUserData.streakCount || 0;
     const lastStreakDate = currentUserData.lastStreakDate;
     let change = 'none';
 
-    console.log('🔥 Updating streak:', { today, lastStreakDate, prevCount, isGuest: isGuestMode });
-
-    // Check if user already completed a session today
-    if (lastStreakDate === today) {
-        console.log('⚡ Session already completed today, no streak change');
-        return { change: 'none', newCount: currentUserData.streakCount, prevCount };
-    }
-
     if (!lastStreakDate) {
-        // First ever session
         currentUserData.streakCount = 1;
         currentUserData.lastStreakDate = today;
         change = 'inc';
-        console.log('🌟 First session streak started!');
     } else {
         const diffDays = diffLocalDateKeysDays(lastStreakDate, today);
         if (diffDays === 1) {
-            // Consecutive day - increase streak
             currentUserData.streakCount = (currentUserData.streakCount || 0) + 1;
             currentUserData.lastStreakDate = today;
             change = 'inc';
-            console.log(`📈 Streak increased to ${currentUserData.streakCount}`);
         } else if (diffDays > 1) {
-            // Missed days - reset to 1 since a session completed today after a gap
-            const oldStreak = currentUserData.streakCount;
-            currentUserData.streakCount = 1;
+            currentUserData.streakCount = 1; // reset to 1 since a session completed today after a gap
             currentUserData.lastStreakDate = today;
             change = 'reset';
-            console.log(`💔 Streak reset from ${oldStreak} to 1 (missed ${diffDays - 1} days)`);
         }
-        // If same day (diffDays === 0), do nothing - already handled above
+        // If same day (diffDays === 0), do nothing
     }
-    
-    // Update best streak
-    if (currentUserData.streakCount > (currentUserData.bestStreak || 0)) {
+    if (currentUserData.streakCount > currentUserData.bestStreak) {
         currentUserData.bestStreak = currentUserData.streakCount;
-        console.log(`🏆 New best streak: ${currentUserData.bestStreak}`);
     }
-    
-    // Update UI
-    if (DOMElements.streak && DOMElements.streak.count) {
-        DOMElements.streak.count.textContent = currentUserData.streakCount || 0;
-    }
-    
+    DOMElements.streak.count.textContent = currentUserData.streakCount || 0;
     return { change, newCount: currentUserData.streakCount, prevCount };
 }
 
@@ -2816,7 +1488,7 @@ function hideFaceStatusPrompt() {
 // ===================================================================================
 function initYoutubePlayer() {
     // Default video for YouTube player
-    const defaultVideoId = 'jfKfPfyJRdk'; // Lofi hip hop radio - reliable default
+    const defaultVideoId = 'gUbNlN_SqpE';
     // Load YouTube IFrame API
     if (typeof YT !== 'undefined' && YT.Player) {
         createYoutubePlayer(defaultVideoId);
@@ -2830,21 +1502,17 @@ function initYoutubePlayer() {
     setupPipPlayer();
 }
 
-function createYoutubePlayer(videoId) {
-    // Remember last video ID
-    lastYouTubeVideoId = videoId || lastYouTubeVideoId || 'jfKfPfyJRdk';
+function createYoutubePlayer(playlistId) {
     youtubePlayer = new YT.Player('player', {
         height: '100%',
         width: '100%',
-        videoId: lastYouTubeVideoId,
+        videoId: playlistId,
         playerVars: {
-            'autoplay': 1, // Enable autoplay
+            'autoplay': 0,
             'controls': 1,
             'rel': 0,
             'modestbranding': 1,
-            'playsinline': 1,
-            'mute': 1, // Start muted to comply with browser autoplay policies
-            'loop': 1 // Loop the video for continuous playback
+            'playsinline': 1
         },
         events: {
             'onReady': onPlayerReady,
@@ -2854,44 +1522,7 @@ function createYoutubePlayer(videoId) {
 }
 
 function onPlayerReady(event) {
-    // YouTube player ready - ensure it starts playing
-    try {
-        if (youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
-            youtubePlayer.playVideo();
-            // Show mute indicator since video starts muted
-            showMuteIndicator();
-        }
-    } catch (error) {
-        console.warn('Failed to autoplay video:', error);
-    }
-}
-
-// Function to unmute video when user interacts
-function unmuteVideo() {
-    try {
-        if (youtubePlayer && typeof youtubePlayer.unMute === 'function') {
-            youtubePlayer.unMute();
-            hideMuteIndicator();
-        }
-    } catch (error) {
-        console.warn('Failed to unmute video:', error);
-    }
-}
-
-// Show mute indicator
-function showMuteIndicator() {
-    const indicator = document.getElementById('mute-indicator');
-    if (indicator) {
-        indicator.classList.remove('hidden');
-    }
-}
-
-// Hide mute indicator
-function hideMuteIndicator() {
-    const indicator = document.getElementById('mute-indicator');
-    if (indicator) {
-        indicator.classList.add('hidden');
-    }
+    console.log("YouTube player ready");
 }
 
 function onPlayerStateChange(event) {
@@ -2899,86 +1530,21 @@ function onPlayerStateChange(event) {
 }
 
 function setupPipPlayer() {
-    // Toggle PiP player visibility (robust: always show, create player if missing)
+    // Toggle PiP player visibility
     document.getElementById('pipYoutubeBtn').addEventListener('click', () => {
-        const container = DOMElements.pipPlayer.container;
-        if (!container) return;
-
-        const willShow = container.classList.contains('hidden');
-        container.classList.toggle('hidden');
-
-        if (willShow) {
-            // We are showing the player
-            try { hideBackgroundAudioIndicator(); } catch {}
-
-            // Ensure a player exists; if not, create it and then start playback
-            const ensureAndPlay = () => {
-                try {
-                    if (youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
-                        youtubePlayer.playVideo();
-                        // After attempting play, verify and re-cue if not actually playing
-                        setTimeout(() => {
-                            try {
-                                const state = (typeof youtubePlayer.getPlayerState === 'function') ? youtubePlayer.getPlayerState() : null;
-                                // States: -1 unstarted, 0 ended, 2 paused, 5 cued
-                                if (state !== 1) {
-                                    const data = (typeof youtubePlayer.getVideoData === 'function') ? youtubePlayer.getVideoData() : null;
-                                    const currentId = (data && data.video_id) ? data.video_id : null;
-                                    const vid = currentId || lastYouTubeVideoId || 'jfKfPfyJRdk';
-                                    if (typeof youtubePlayer.loadVideoById === 'function') {
-                                        youtubePlayer.loadVideoById(vid);
-                                        if (typeof youtubePlayer.playVideo === 'function') youtubePlayer.playVideo();
-                                    }
-                                }
-                            } catch {}
-                        }, 250);
-                        return;
-                    }
-                } catch {}
-            };
-
-            // If player not ready yet, attempt to create it
-            if (!youtubePlayer || typeof youtubePlayer.playVideo !== 'function') {
-                try {
-                    const defaultVideoId = 'jfKfPfyJRdk';
-                    if (typeof YT !== 'undefined' && YT.Player) {
-                        createYoutubePlayer(defaultVideoId);
-                        // try to play shortly after creation
-                        setTimeout(ensureAndPlay, 400);
-                    } else {
-                        // If API not available yet, set up the callback and try again
-                        window.onYouTubeIframeAPIReady = function() {
-                            createYoutubePlayer(defaultVideoId);
-                            setTimeout(ensureAndPlay, 400);
-                        };
-                    }
-                } catch {
-                    // As a last resort, just show the container; video will appear once API is ready
-                }
-            } else {
-                ensureAndPlay();
-            }
-        } else {
-            // Hiding via button: keep audio playing and show tray controls
-            try {
-                if (youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
-                    youtubePlayer.playVideo();
-                }
-            } catch {}
-            try { showBackgroundAudioIndicator(); } catch {}
+        DOMElements.pipPlayer.container.classList.toggle('hidden');
+        if (!DOMElements.pipPlayer.container.classList.contains('hidden') && youtubePlayer) {
+            youtubePlayer.playVideo();
+        } else if (youtubePlayer) {
+            youtubePlayer.pauseVideo();
         }
     });
     
-    // Close PiP player: hide window but keep audio playing, offer tray controls
+    // Close PiP player
     DOMElements.pipPlayer.closeBtn.addEventListener('click', () => {
-        try {
-            DOMElements.pipPlayer.container.classList.add('hidden');
-            if (youtubePlayer && typeof youtubePlayer.playVideo === 'function') {
-                youtubePlayer.playVideo(); // ensure audio keeps running
-            }
-            showBackgroundAudioIndicator();
-        } catch (e) {
-            console.warn('Failed to background video player on close:', e);
+        DOMElements.pipPlayer.container.classList.add('hidden');
+        if (youtubePlayer) {
+            youtubePlayer.pauseVideo();
         }
     });
     
@@ -2987,7 +1553,6 @@ function setupPipPlayer() {
         const url = DOMElements.pipPlayer.youtubeInput.value;
         const videoId = getYoutubeVideoId(url);
         if (videoId && youtubePlayer) {
-            lastYouTubeVideoId = videoId;
             youtubePlayer.loadVideoById(videoId);
             DOMElements.pipPlayer.youtubeInput.value = '';
         } else if (url) {
@@ -3004,20 +1569,6 @@ function setupPipPlayer() {
     DOMElements.pipPlayer.resizeHandle.addEventListener('mousedown', startResize);
     document.addEventListener('mouseup', stopResize);
     document.addEventListener('mousemove', resize);
-    
-    // Add click handler to unmute video when user interacts
-    DOMElements.pipPlayer.container.addEventListener('click', () => {
-        unmuteVideo();
-    });
-    
-    // Add click handler to mute indicator
-    const muteIndicator = document.getElementById('mute-indicator');
-    if (muteIndicator) {
-        muteIndicator.addEventListener('click', (e) => {
-            e.stopPropagation();
-            unmuteVideo();
-        });
-    }
 }
 
 function startDrag(e) {
@@ -3095,15 +1646,10 @@ async function initializeAppState() {
     initTimetable();
     initMacDock();
     initYoutubePlayer();
-    // Regular tasks UI
-    renderRegularTasksList();
-    populateRegularTaskSelect();
 
-    // If no theme set, default to Nature Walk background video
+    // If no theme set, default to Chill background video
     if (!currentUserData.theme || (!currentUserData.theme.backgroundPath && !currentUserData.theme.youtubeVideoId)) {
-        console.log('\ud83c\udf3f No theme set, applying default Nature Walk theme...');
-        applyTheme('youtube', '6KL2QZ91kAM'); // Nature Walk
-        console.log('\u2705 Default Nature Walk theme applied successfully');
+        applyTheme('youtube', 'ZHMxuoUaWxM'); // Chill
     }
     
     // Update streak display
@@ -3113,9 +1659,6 @@ async function initializeAppState() {
     ensureDailyRollovers();
     startDayBoundaryWatcher();
 
-    // On initial load, if Sunday and not shown yet, show weekly report
-    try { maybeShowWeeklyReportPopup(); } catch {}
-
     // Start live presence once app UI is ready
     try { startPresence(); } catch (e) { console.warn('Presence init failed', e); }
 
@@ -3124,9 +1667,6 @@ async function initializeAppState() {
 
     // Show or hide the guest CTA based on auth state
     updateLeaderboardCTA();
-
-    // Refresh achievements new indicator on load
-    try { if (typeof achievementSystem !== 'undefined' && achievementSystem.updateNewIndicator) achievementSystem.updateNewIndicator(); } catch {}
 }
 
 function loadSettingsFromData() {
@@ -3189,7 +1729,6 @@ function openStats() {
     DOMElements.modals.stats.classList.add('visible'); 
     renderCharts(); 
     updateStatsDisplay(); 
-    try { renderWeeklyReport(); } catch {}
 }
 function closeStats() { DOMElements.modals.stats.classList.remove('visible'); }
 function openBmcModal() { const m = document.getElementById('bmcModal'); if (m) m.classList.add('visible'); }
@@ -3367,16 +1906,6 @@ checkbox.addEventListener('change', () => {
     const label = document.createElement('span');
     label.className = 'todo-label';
     label.textContent = todo.text;
-    // Canonical badge
-    if (todo.canonicalId) {
-        const badge = document.createElement('span');
-        badge.className = 'todo-category-badge';
-        const cname = getRegularTaskName(todo.canonicalId);
-        if (cname) {
-            badge.textContent = ` · ${cname}`;
-            label.appendChild(badge);
-        }
-    }
     // Actions
     const actions = document.createElement('div');
     actions.className = 'todo-actions';
@@ -3511,14 +2040,7 @@ function renderSubtasks(subtasks, todoIndex) {
 
 function addTodo() {
     const input = document.getElementById('todo-input');
-    const select = document.getElementById('regularTaskSelect');
-    const selectedId = select && select.value ? select.value : '';
-    let text = input.value.trim();
-    // If user chose a regular task and left text blank, use the regular task name as text
-    if (!text && selectedId) {
-        const name = getRegularTaskName(selectedId) || '';
-        if (name) text = name;
-    }
+    const text = input.value.trim();
     if (!text) return;
     // Prompt once for estimated minutes (optional, hidden input not shown)
     let estVal = 0;
@@ -3530,18 +2052,15 @@ function addTodo() {
         }
     } catch { /* ignore */ }
     if (!currentUserData.todos) currentUserData.todos = [];
-    const canonicalId = selectedId || null;
     currentUserData.todos.push({ 
         text, 
         completed: false, 
         subtasks: [],
         estimateMinutes: estVal,
         loggedMinutes: 0,
-        createdAt: Date.now(),
-        canonicalId
+        createdAt: Date.now()
     });
     input.value = '';
-    if (select) select.value = '';
     saveUserData();
     loadTodos();
     updateFocusedTaskIndicator();
@@ -3571,22 +2090,6 @@ function toggleTodo(index) {
         const estSec = (Number.isFinite(todo.estimateMinutes) ? todo.estimateMinutes : 0) * 60;
         if (estSec > 0 && Number.isFinite(todo.loggedSeconds)) {
             todo.loggedSeconds = Math.min(todo.loggedSeconds, estSec);
-        }
-        // Increment weekly completion for canonical tasks
-        const today = getLocalDateKey();
-        if (todo.canonicalId) {
-            if (!currentUserData.weeklyCategoryCompletionsByDate) currentUserData.weeklyCategoryCompletionsByDate = {};
-            if (!currentUserData.weeklyCategoryCompletionsByDate[today]) currentUserData.weeklyCategoryCompletionsByDate[today] = {};
-            const cid = String(todo.canonicalId);
-            currentUserData.weeklyCategoryCompletionsByDate[today][cid] = (currentUserData.weeklyCategoryCompletionsByDate[today][cid] || 0) + 1;
-        }
-    } else if (!todo.completed && wasCompleted) {
-        // Decrement if user un-completes a task (floor at 0)
-        const today = getLocalDateKey();
-        if (todo.canonicalId && currentUserData.weeklyCategoryCompletionsByDate && currentUserData.weeklyCategoryCompletionsByDate[today]) {
-            const cid = String(todo.canonicalId);
-            const val = currentUserData.weeklyCategoryCompletionsByDate[today][cid] || 0;
-            currentUserData.weeklyCategoryCompletionsByDate[today][cid] = Math.max(0, val - 1);
         }
     }
     
@@ -3633,7 +2136,7 @@ document.getElementById('todo-input').addEventListener('keydown', function(e) {
     }
 });
 document.getElementById('add-todo-btn').addEventListener('click', addTodo);
-{ const btn = document.querySelector('.clear-todos-btn'); if (btn) btn.addEventListener('click', clearTodos); }
+document.querySelector('.clear-todos-btn').addEventListener('click', clearTodos);
 
 function toggleSubtask(todoIndex, subtaskIndex) {
     const sub = currentUserData.todos[todoIndex].subtasks[subtaskIndex];
@@ -3650,94 +2153,6 @@ function deleteSubtask(todoIndex, subtaskIndex) {
     currentUserData.todos[todoIndex].subtasks.splice(subtaskIndex, 1);
     saveUserData();
     loadTodos();
-}
-
-// Regular Tasks Helpers
-function getRegularTaskName(id) {
-    const arr = currentUserData.regularTasks || [];
-    const item = arr.find(r => String(r.id) === String(id));
-    return item ? item.name : null;
-}
-function addRegularTask(name) {
-    if (!currentUserData.regularTasks) currentUserData.regularTasks = [];
-    // Avoid exact duplicate names (case-insensitive)
-    const exists = currentUserData.regularTasks.some(rt => (rt.name || '').toLowerCase() === name.toLowerCase());
-    if (exists) return;
-    const id = `${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-    currentUserData.regularTasks.push({ id, name });
-    saveUserData();
-    renderRegularTasksList();
-    populateRegularTaskSelect();
-}
-function deleteRegularTask(id) {
-    if (!currentUserData.regularTasks) return;
-    currentUserData.regularTasks = currentUserData.regularTasks.filter(rt => String(rt.id) !== String(id));
-    saveUserData();
-    renderRegularTasksList();
-    populateRegularTaskSelect();
-}
-function renameRegularTask(id, newName) {
-    if (!currentUserData.regularTasks) return;
-    const item = currentUserData.regularTasks.find(rt => String(rt.id) === String(id));
-    if (!item) return;
-    item.name = newName;
-    saveUserData();
-    renderRegularTasksList();
-    populateRegularTaskSelect();
-}
-function renderRegularTasksList() {
-    const ul = document.getElementById('regularTasksList');
-    if (!ul) return;
-    ul.innerHTML = '';
-    const arr = currentUserData.regularTasks || [];
-    if (arr.length === 0) {
-        ul.innerHTML = '<li class="placeholder">No regular tasks yet</li>';
-        return;
-    }
-    arr.forEach(rt => {
-        const li = document.createElement('li');
-        li.className = 'regular-task-item';
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'regular-task-name';
-        nameSpan.textContent = rt.name;
-        const editBtn = document.createElement('button');
-        editBtn.className = 'icon-btn regular-task-edit';
-        editBtn.innerHTML = '<i class="fas fa-pen"></i>';
-        editBtn.title = 'Edit';
-        editBtn.setAttribute('aria-label', 'Edit');
-        editBtn.addEventListener('click', () => {
-            const ans = prompt('Rename task', rt.name);
-            if (ans !== null) {
-                const n = ans.trim();
-                if (n) renameRegularTask(rt.id, n);
-            }
-        });
-        const delBtn = document.createElement('button');
-        delBtn.className = 'icon-btn danger regular-task-delete';
-        delBtn.innerHTML = '<i class="fas fa-trash"></i>';
-        delBtn.title = 'Delete';
-        delBtn.setAttribute('aria-label', 'Delete');
-        delBtn.addEventListener('click', () => deleteRegularTask(rt.id));
-        li.appendChild(nameSpan);
-        li.appendChild(editBtn);
-        li.appendChild(delBtn);
-        ul.appendChild(li);
-    });
-}
-function populateRegularTaskSelect() {
-    const sel = document.getElementById('regularTaskSelect');
-    if (!sel) return;
-    const arr = currentUserData.regularTasks || [];
-    const value = sel.value || '';
-    sel.innerHTML = '<option value="">Choose regular task (optional)</option>';
-    arr.forEach(rt => {
-        const opt = document.createElement('option');
-        opt.value = rt.id;
-        opt.textContent = rt.name;
-        sel.appendChild(opt);
-    });
-    // Try to preserve previous selection
-    if ([...sel.options].some(o => o.value === value)) sel.value = value;
 }
 
 // ===================================================================================
@@ -4715,14 +3130,11 @@ function drawWeeklyBarChartWithAxes(ctx, x, y, w, h, series = []) {
 async function drawLogoTopCenter(ctx, W, H, opts = {}) {
     const { size = 160, y = 20 } = opts;
     // Try multiple candidate paths to avoid path mismatches across builds
-    // Bust in-memory cache so we re-evaluate on each card creation
-    try { window.__flowwCardLogo = null; window.__flowwCardLogoSrc = null; } catch {}
-    const withV = (p) => `${p}?v=${encodeURIComponent(FLOWW_ASSET_VERSION)}`;
     const candidates = [
-        withV('assets/images/card.png'),
-        withV('images/card.png'),
-        withV('/assets/images/card.png'),
-        withV('/images/card.png')
+        window.__flowwCardLogoSrc || 'assets/images/card.png',
+        'images/card.png',
+        '/assets/images/card.png',
+        '/images/card.png'
     ];
     return new Promise((resolve)=>{
         const img = new Image();
@@ -4733,7 +3145,8 @@ async function drawLogoTopCenter(ctx, W, H, opts = {}) {
             img.src = candidates[idx++];
         };
         const drawIt = () => {
-            try { window.__flowwCardLogo = img; window.__flowwCardLogoSrc = img.src; } catch {}
+            window.__flowwCardLogo = img;
+            window.__flowwCardLogoSrc = img.src;
             ctx.globalAlpha = 0.98;
             ctx.drawImage(img, (W - size)/2, y, size, size);
             ctx.globalAlpha = 1;
@@ -4744,14 +3157,6 @@ async function drawLogoTopCenter(ctx, W, H, opts = {}) {
         tryNext();
     });
 }
-
-// Version used for cache-busting assets like the share-card logo
-const FLOWW_ASSET_VERSION = (() => {
-  try {
-    // Change this value on deploys to invalidate caches
-    return (window.__flowwAssetVersion) || (new Date().toISOString().slice(0,10));
-  } catch { return 'v1'; }
-})();
 
 async function downloadCanvasAsPNG(canvas, filename) {
     return new Promise((resolve)=>{
@@ -4852,10 +3257,6 @@ function setupEventListeners() {
     if (shareBtn) shareBtn.addEventListener('click', async () => {
         try { await generateFlowwWrapImage(); } catch (e) { console.error('Share failed:', e); alert('Could not generate image.'); }
     });
-
-    // Render weekly report when switching to Weekly tab
-    const weeklyTab = document.querySelector('.tab[data-tab="weekly"]');
-    if (weeklyTab) weeklyTab.addEventListener('click', () => { try { renderWeeklyReport(); } catch {} });
 
     // Buy Me a Coffee in-app modal
     const bmcSticky = document.getElementById('openBmcSticky');
@@ -4960,37 +3361,12 @@ document.querySelectorAll('.tab').forEach(tab => {
     
     // To-Do List
     document.getElementById('add-todo-btn').addEventListener('click', addTodo);
-
-    // Regular tasks (Settings)
-    const addRT = document.getElementById('addRegularTaskBtn');
-    if (addRT) addRT.addEventListener('click', () => {
-        const input = document.getElementById('regularTaskInput');
-        const name = (input.value || '').trim();
-        if (!name) return;
-        addRegularTask(name);
-        input.value = '';
-    });
-    
-    // Add Enter key support for regular tasks input
-    const regularTaskInput = document.getElementById('regularTaskInput');
-    if (regularTaskInput) {
-        regularTaskInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const name = (regularTaskInput.value || '').trim();
-                if (name) {
-                    addRegularTask(name);
-                    regularTaskInput.value = '';
-                }
-            }
-        });
-    }
     document.getElementById('todo-input').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             addTodo();
         }
     });
-    { const btn = document.querySelector('.clear-todos-btn'); if (btn) btn.addEventListener('click', clearTodos); }
+    document.querySelector('.clear-todos-btn').addEventListener('click', clearTodos);
     
     // Journal
     DOMElements.journal.entry.addEventListener('input', updateCharCount);
@@ -5173,51 +3549,6 @@ function validateUserData(data) {
     }
     
     return validated;
-}
-
-// Keep only last 7 local-date keys in weekly maps to minimize storage
-function pruneWeeklyData() {
-    try {
-        const today = getLocalDateKey();
-        const base = dateKeyToLocalDate(today);
-        const keep = [];
-        for (let i = 6; i >= 0; i--) {
-            const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() - i);
-            keep.push(getLocalDateKey(d));
-        }
-        const keepSet = new Set(keep);
-        const pruneObjKeys = (obj) => {
-            if (!obj || typeof obj !== 'object') return;
-            Object.keys(obj).forEach(k => { if (!keepSet.has(k)) delete obj[k]; });
-        };
-        pruneObjKeys(currentUserData.weeklyFocusSeconds);
-        pruneObjKeys(currentUserData.weeklyFocus);
-        pruneObjKeys(currentUserData.weeklySessions);
-        pruneObjKeys(currentUserData.weeklyCompletedSessions);
-        pruneObjKeys(currentUserData.weeklyEarlyEndedSessions);
-        pruneObjKeys(currentUserData.weeklyAnonymousSeconds);
-        pruneObjKeys(currentUserData.weeklyAnonymousSessions);
-        // weeklyTaskSecondsByDate is nested: prune top-level dates
-        if (currentUserData.weeklyTaskSecondsByDate && typeof currentUserData.weeklyTaskSecondsByDate === 'object') {
-            Object.keys(currentUserData.weeklyTaskSecondsByDate).forEach(dateKey => {
-                if (!keepSet.has(dateKey)) delete currentUserData.weeklyTaskSecondsByDate[dateKey];
-            });
-        }
-        // weeklyCategorySecondsByDate is nested: prune top-level dates
-        if (currentUserData.weeklyCategorySecondsByDate && typeof currentUserData.weeklyCategorySecondsByDate === 'object') {
-            Object.keys(currentUserData.weeklyCategorySecondsByDate).forEach(dateKey => {
-                if (!keepSet.has(dateKey)) delete currentUserData.weeklyCategorySecondsByDate[dateKey];
-            });
-        }
-        // weeklyCategoryCompletionsByDate is nested: prune top-level dates
-        if (currentUserData.weeklyCategoryCompletionsByDate && typeof currentUserData.weeklyCategoryCompletionsByDate === 'object') {
-            Object.keys(currentUserData.weeklyCategoryCompletionsByDate).forEach(dateKey => {
-                if (!keepSet.has(dateKey)) delete currentUserData.weeklyCategoryCompletionsByDate[dateKey];
-            });
-        }
-    } catch (e) {
-        // ignore
-    }
 }
 
 function validateSessionData(sessionSeconds, sessionStartTime = null) {
@@ -5460,38 +3791,22 @@ function playAmbientSound(key) {
     stopAmbientSound();
 
     if (cfg.type === 'element' && cfg.el) {
-        // Use the existing white noise HTML audio element
         ambientAudio = cfg.el;
-        currentAmbientKey = key;
-        if (ambientAudio) {
-            ambientAudio.currentTime = 0;
-            ambientAudio.loop = true;
-            ambientAudio.volume = 0.7;
-            ambientAudio.play().catch(e => console.error('Ambient play failed:', e));
-            if (btn) btn.textContent = '🔇 Stop Noise';
-        }
     } else if (cfg.file) {
-        // Create or reuse cached Audio objects for specific sound files
         if (!ambientCache[cfg.file]) {
             const a = new Audio(`assets/sounds/${cfg.file}`);
             a.loop = true;
-            a.volume = 0.7;
             ambientCache[cfg.file] = a;
         }
         ambientAudio = ambientCache[cfg.file];
-        currentAmbientKey = key;
-        
-        if (ambientAudio) {
-            ambientAudio.currentTime = 0;
-            // Play the specific sound file
-            ambientAudio.play().then(() => {
-                if (btn) btn.textContent = '🔇 Stop Noise';
-                console.log(`Playing ${cfg.file}`);
-            }).catch(e => {
-                console.error(`Failed to play ${cfg.file}:`, e);
-                if (btn) btn.textContent = '🎧 Play Noise';
-            });
-        }
+    }
+    currentAmbientKey = key;
+    if (ambientAudio) {
+        ambientAudio.currentTime = 0;
+        ambientAudio.loop = true;
+        ambientAudio.volume = 1.0;
+        ambientAudio.play().catch(e => console.error('Ambient play failed:', e));
+        if (btn) btn.textContent = '🔇 Stop Noise';
     }
 }
 
@@ -5570,95 +3885,23 @@ function handleLogin(e) {
         });
 }
 
-async function handleLogout() {
-    console.log('\ud83d\udeaa Starting complete logout process...');
-    
-    try {
-        // Stop all timers and sessions immediately
-        if (timerInterval) {
-            clearInterval(timerInterval);
-            timerInterval = null;
-        }
-        isRunning = false;
-        
-        // Stop presence and clean up documents
-        console.log('\ud83d\uded1 Stopping presence and cleaning up...');
-        await stopPresence();
-        
-        // Stop all other services
-        stopLeaderboard();
-        
-        // Clear all authentication state completely
-        console.log('\ud83e\uddfc Clearing all authentication state...');
-        
-        // Sign out from Firebase (this will trigger onAuthStateChanged)
-        await signOut(auth);
-        
-        // Force clear any cached auth state
-        localStorage.removeItem('firebase:authUser:[DEFAULT]');
-        localStorage.removeItem('firebase:persistence:[DEFAULT]');
-        
-        // Clear any anonymous auth tokens that might persist
-        const authKeys = Object.keys(localStorage).filter(key => key.includes('firebase') || key.includes('auth'));
-        authKeys.forEach(key => {
-            console.log('\ud83e\uddfc Clearing auth key:', key);
-            localStorage.removeItem(key);
-        });
-        
-        // Reset application state completely
-        currentUserData = getDefaultUserData();
-        userDataRef = null;
-        
-        console.log('\u2705 Complete logout successful - ready for fresh start');
-        
-    } catch (error) {
-        console.error('\u274c Logout error:', error);
-        
-        // Force logout even if there are errors
-        try {
-            await signOut(auth);
-            localStorage.clear(); // Nuclear option if there are persistent issues
-            console.log('\u26a0\ufe0f Forced logout completed with localStorage clear');
-        } catch (forceError) {
-            console.error('\u274c Even forced logout failed:', forceError);
-        }
-    }
+function handleLogout() {
+    // Stop presence before signing out
+    try { stopPresence(); } catch {}
+    signOut(auth).catch((error) => {
+        console.error("Logout error:", error);
+    });
 }
 
-let __googleInProgress = false;
 async function handleGoogleSignIn() {
-    if (__googleInProgress) return;
-    __googleInProgress = true;
-    const btn = document.getElementById('googleSignInBtn');
-    if (btn) btn.disabled = true;
     try {
         const provider = new GoogleAuthProvider();
         provider.setCustomParameters({ prompt: 'select_account' });
-
-        // If we already have an anonymous session (started for presence), upgrade it with a POPUP
-        if (auth.currentUser && auth.currentUser.isAnonymous) {
-            await linkWithPopup(auth.currentUser, provider);
-            console.log('Anonymous account upgraded with Google via popup');
-        } else {
-            // No current user: normal Google sign-in with popup
-            await signInWithPopup(auth, provider);
-        }
-        // onAuthStateChanged will load/merge user data
+        await signInWithPopup(auth, provider);
+        // onAuthStateChanged will load the correct user's data or initialize a fresh doc
     } catch (e) {
         console.error('Google sign-in failed:', e);
-        if (DOMElements.authError) {
-            const map = {
-                'auth/unauthorized-domain': 'This domain is not authorized for Google sign-in. Please add it in Firebase console.',
-                'auth/popup-blocked': 'Popup was blocked by your browser. Please allow popups for this site and try again.',
-                'auth/cancelled-popup-request': 'Another sign-in attempt was in progress. Please try again.',
-                'auth/popup-closed-by-user': 'Popup was closed before completing sign-in. Please try again.',
-                'auth/operation-not-supported-in-this-environment': 'Popup flow not supported in this environment. Please open in a regular browser window.',
-            };
-            DOMElements.authError.textContent = map[e.code] || (e && e.message) || 'Google sign-in failed. Please try again.';
-        }
-    } finally {
-        __googleInProgress = false;
-        if (btn) btn.disabled = false;
+        if (DOMElements.authError) DOMElements.authError.textContent = e.message || 'Google sign-in failed. Please try again.';
     }
 }
 
@@ -5706,255 +3949,6 @@ function getYoutubeVideoId(url) {
     const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
     const match = url.match(regExp);
     return (match && match[7].length === 11) ? match[7] : false;
-}
-
-// Show modal for video player close options
-function showVideoCloseOptionsModal() {
-    // Remove any existing modal first
-    const existingModal = document.querySelector('.video-close-modal');
-    if (existingModal) {
-        existingModal.remove();
-    }
-    
-    const modal = document.createElement('div');
-    modal.className = 'modal visible video-close-modal';
-    modal.innerHTML = `
-        <div class="modal-content" style="max-width: 420px; text-align: center;">
-            <h3>🎬 Close Video Player</h3>
-            <p>What would you like to do with the video?</p>
-            <div style="display: flex; flex-direction: column; gap: 1rem; margin-top: 1.5rem;">
-                <button class="video-option-btn" id="keepAudioBtn" style="
-                    background: #4caf50; 
-                    color: white; 
-                    border: none; 
-                    padding: 12px 20px; 
-                    border-radius: 8px; 
-                    cursor: pointer;
-                    font-size: 14px;
-                    font-weight: 500;
-                    transition: all 0.2s ease;
-                ">
-                    🎵 Keep Audio Playing (Hide Video)
-                </button>
-                <button class="video-option-btn" id="stopVideoBtn" style="
-                    background: #f44336; 
-                    color: white; 
-                    border: none; 
-                    padding: 12px 20px; 
-                    border-radius: 8px; 
-                    cursor: pointer;
-                    font-size: 14px;
-                    font-weight: 500;
-                    transition: all 0.2s ease;
-                ">
-                    ⏹️ Stop Video Completely
-                </button>
-                <button class="video-option-btn" id="cancelCloseBtn" style="
-                    background: #757575; 
-                    color: white; 
-                    border: none; 
-                    padding: 10px 20px; 
-                    border-radius: 8px; 
-                    cursor: pointer;
-                    font-size: 14px;
-                    font-weight: 400;
-                    transition: all 0.2s ease;
-                ">
-                    Cancel
-                </button>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    // Add hover effects
-    const buttons = modal.querySelectorAll('.video-option-btn');
-    buttons.forEach(btn => {
-        btn.addEventListener('mouseenter', () => {
-            btn.style.transform = 'translateY(-2px)';
-            btn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
-        });
-        btn.addEventListener('mouseleave', () => {
-            btn.style.transform = 'translateY(0)';
-            btn.style.boxShadow = 'none';
-        });
-    });
-    
-    // Keep audio playing (hide video player but continue audio)
-    document.getElementById('keepAudioBtn').addEventListener('click', () => {
-        DOMElements.pipPlayer.container.classList.add('hidden');
-        // Keep video playing for audio, don't pause
-        console.log('Video hidden, audio continues playing in background');
-        
-        // Show a small indicator that audio is playing
-        showBackgroundAudioIndicator();
-        
-        modal.remove();
-    });
-    
-    // Stop video completely
-    document.getElementById('stopVideoBtn').addEventListener('click', () => {
-        DOMElements.pipPlayer.container.classList.add('hidden');
-        stopYoutubeAudioSafely();
-        hideBackgroundAudioIndicator();
-        console.log('Video stopped completely');
-        modal.remove();
-    });
-    
-    // Cancel - keep video player open
-    document.getElementById('cancelCloseBtn').addEventListener('click', () => {
-        modal.remove();
-    });
-    
-    // Close on outside click
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            modal.remove();
-        }
-    });
-}
-
-// Show background audio indicator (compact tray controls)
-function showBackgroundAudioIndicator() {
-    // Remove existing indicator first
-    hideBackgroundAudioIndicator();
-
-    const indicator = document.createElement('div');
-    indicator.id = 'backgroundAudioIndicator';
-
-    // Compute a bottom offset so it sits ABOVE the corner widget (day/month/year bars)
-    let bottomOffset = 20; // default fallback
-    try {
-        const cw = document.getElementById('cornerWidget');
-        if (cw) {
-            const rect = cw.getBoundingClientRect();
-            if (rect.height > 0) bottomOffset = Math.max(20, Math.round(rect.height) + 28);
-        }
-    } catch {}
-
-    // Determine initial state
-    let isPlaying = false;
-    try {
-        if (youtubePlayer && typeof youtubePlayer.getPlayerState === 'function') {
-            isPlaying = youtubePlayer.getPlayerState() === 1; // 1 = playing
-        }
-    } catch {}
-
-    indicator.innerHTML = `
-        <div style="
-            position: fixed;
-            bottom: ${bottomOffset}px;
-            right: 20px;
-            background: rgba(0,0,0,0.8);
-            color: white;
-            padding: 10px 15px;
-            border-radius: 25px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            z-index: 1000;
-            font-size: 14px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.2);
-            cursor: pointer;
-            transition: all 0.3s ease;
-        ">
-            <span id="audioEmoji" style="animation: pulse 2s infinite;">🎵</span>
-            <span id="audioStatusText">${isPlaying ? 'Audio Playing' : 'Audio Paused'}</span>
-            <button id="showVideoBtn" style="
-                background: #4caf50;
-                border: none;
-                color: white;
-                padding: 4px 8px;
-                border-radius: 12px;
-                font-size: 12px;
-                cursor: pointer;
-                margin-left: 8px;
-            ">Show</button>
-            <button id="stopAudioBtn" style="
-                background: #f44336;
-                border: none;
-                color: white;
-                padding: 4px 8px;
-                border-radius: 12px;
-                font-size: 12px;
-                cursor: pointer;
-            ">Stop</button>
-        </div>
-    `;
-
-    document.body.appendChild(indicator);
-
-    // Add CSS animation for pulse effect
-    if (!document.getElementById('audioIndicatorStyles')) {
-        const style = document.createElement('style');
-        style.id = 'audioIndicatorStyles';
-        style.textContent = `
-            @keyframes pulse {
-                0% { opacity: 1; transform: scale(1); }
-                50% { opacity: 0.7; transform: scale(1.1); }
-                100% { opacity: 1; transform: scale(1); }
-            }
-        `;
-        document.head.appendChild(style);
-    }
-
-    const statusTextEl = indicator.querySelector('#audioStatusText');
-    const stopBtn = indicator.querySelector('#stopAudioBtn');
-
-    // Show video player button
-    indicator.querySelector('#showVideoBtn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        DOMElements.pipPlayer.container.classList.remove('hidden');
-        hideBackgroundAudioIndicator();
-    });
-
-    // Stop audio button
-    stopBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        try {
-            stopYoutubeAudioSafely();
-        } catch (err) {
-            console.warn('Stop audio failed:', err);
-        }
-        hideBackgroundAudioIndicator();
-    });
-
-    // Click indicator background to show video
-    indicator.addEventListener('click', () => {
-        DOMElements.pipPlayer.container.classList.remove('hidden');
-        hideBackgroundAudioIndicator();
-    });
-}
-
-// Hide background audio indicator
-function hideBackgroundAudioIndicator() {
-    const indicator = document.getElementById('backgroundAudioIndicator');
-    if (indicator) {
-        indicator.remove();
-    }
-}
-
-// Robustly stop the YouTube PiP audio even if player state is quirky
-function stopYoutubeAudioSafely() {
-    try {
-        if (youtubePlayer && typeof youtubePlayer.stopVideo === 'function') {
-            youtubePlayer.stopVideo(); // Hard stop
-            return;
-        }
-        if (youtubePlayer && typeof youtubePlayer.pauseVideo === 'function') {
-            youtubePlayer.pauseVideo();
-            return;
-        }
-        // Fallback: send postMessage to iframe to pause
-        const iframe = document.getElementById('player');
-        if (iframe && iframe.contentWindow) {
-            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'pauseVideo', args: [] }), '*');
-        }
-    } catch (e) {
-        console.warn('Failed to stop YouTube audio safely:', e);
-    }
 }
 
 function applyTheme(type, path) {
@@ -6069,7 +4063,7 @@ function spawnAmbientParticles(effect) {
             const size = 12 + Math.random() * 12;
             el.style.width = `${size}px`;
             el.style.height = `${size}px`;
-            el.style.backgroundImage = "url('assets/images/petal.png')";
+            el.style.backgroundImage = "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 50 50\"><path fill=\"%23FFC0CB\" d=\"M25 38.2c-1-5.1-4.7-9.3-9.5-12.2 4.9-2.9 8.6-7.1 9.5-12.2 1 5.1 4.7 9.3 9.5 12.2-4.9 2.9-8.6 7.1-9.5 12.2z\"/></svg>')";
             el.style.backgroundSize = 'contain';
             el.style.backgroundRepeat = 'no-repeat';
             p.vy = 35 + Math.random() * 25;
@@ -6170,7 +4164,6 @@ function switchTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
     document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add('active');
     document.getElementById(`${tabName}Container`).classList.add('active');
-    if (tabName === 'weekly') { try { renderWeeklyReport(); } catch {} }
 }
 
 function formatMinutesPretty(totalMinutes) {
@@ -6194,20 +4187,6 @@ function formatDurationPretty(totalSeconds) {
     return parts.join(' ');
 }
 
-// Weekly time formatting for task analysis
-function formatWeeklyTime(totalSeconds) {
-    if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return '0m';
-    if (totalSeconds >= 3600) {
-        const hours = (totalSeconds / 3600);
-        return `${hours.toFixed(2)}h`;
-    } else if (totalSeconds >= 60) {
-        const minutes = Math.round(totalSeconds / 60);
-        return `${minutes}m`;
-    } else {
-        return `${Math.round(totalSeconds)}s`;
-    }
-}
-
 function ensureFocusedTaskIndicator() {
     if (document.getElementById('focusedTaskIndicator')) return;
     const indicator = document.createElement('div');
@@ -6221,256 +4200,6 @@ function ensureFocusedTaskIndicator() {
         const ts = document.getElementById('timer-section');
         if (ts) ts.prepend(indicator);
     }
-}
-
-// ========================= Weekly Report =========================
-let __lastWeeklyReport = null;
-function buildWeeklyReport() {
-    const today = getLocalDateKey();
-    const base = dateKeyToLocalDate(today);
-    const days = [];
-    for (let i = 6; i >= 0; i--) {
-        const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() - i);
-        days.push(getLocalDateKey(d));
-    }
-    const gs = (o, k) => (o && typeof o[k] === 'number') ? o[k] : 0;
-    const gi = (o, k) => (o && typeof o[k] === 'number') ? o[k] : 0;
-
-    let weeklySec = 0;
-    let sessions = 0;
-    let completed = 0;
-    let early = 0;
-    let anonSec = 0;
-    let anonSessions = 0;
-
-    days.forEach(k => {
-        weeklySec += Math.max(0, gs(currentUserData.weeklyFocusSeconds || {}, k));
-        sessions += Math.max(0, gi(currentUserData.weeklySessions || {}, k));
-        completed += Math.max(0, gi(currentUserData.weeklyCompletedSessions || {}, k));
-        early += Math.max(0, gi(currentUserData.weeklyEarlyEndedSessions || {}, k));
-        anonSec += Math.max(0, gs(currentUserData.weeklyAnonymousSeconds || {}, k));
-        anonSessions += Math.max(0, gi(currentUserData.weeklyAnonymousSessions || {}, k));
-    });
-
-    // Aggregate category seconds and completions across last 7 days
-    const categoryTotalsSec = {};
-    const catByDate = currentUserData.weeklyCategorySecondsByDate || {};
-    days.forEach(k => {
-        const m = catByDate[k] || {};
-        Object.keys(m).forEach(cid => {
-            const sec = Math.max(0, m[cid] || 0);
-            categoryTotalsSec[cid] = (categoryTotalsSec[cid] || 0) + sec;
-        });
-    });
-    const categoryTotalsCompletions = {};
-    const compByDate = currentUserData.weeklyCategoryCompletionsByDate || {};
-    days.forEach(k => {
-        const m = compByDate[k] || {};
-        Object.keys(m).forEach(cid => {
-            const c = Math.max(0, m[cid] || 0);
-            categoryTotalsCompletions[cid] = (categoryTotalsCompletions[cid] || 0) + c;
-        });
-    });
-
-    const regularList = (currentUserData.regularTasks || []).filter(rt => rt && rt.id);
-    const dayLabels = days.map(k => {
-        const d = dateKeyToLocalDate(k);
-        const names = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-        return names[d.getDay()];
-    });
-    const tasksAll = regularList
-        .map(rt => {
-            const cid = String(rt.id);
-            const totalSec = Math.max(0, Math.round(categoryTotalsSec[cid] || 0));
-            const daily = days.map(k => Math.max(0, (catByDate[k]||{})[cid] || 0));
-            return {
-                id: cid,
-                name: rt.name || 'Task',
-                seconds: totalSec,
-                completions: categoryTotalsCompletions[cid] || 0,
-                daily
-            };
-        });
-    // Order: active first, then inactive
-    const active = tasksAll.filter(t => (t.completions > 0 || t.seconds > 0))
-        .sort((a,b) => (b.completions - a.completions) || (b.seconds - a.seconds));
-    const inactive = tasksAll.filter(t => !(t.completions > 0 || t.seconds > 0))
-        .sort((a,b) => a.name.localeCompare(b.name));
-    const tasks = [...active, ...inactive];
-
-    const avgSessionMin = sessions > 0 ? Math.round((weeklySec/60) / sessions) : 0;
-    const compRate = (completed + early) > 0 ? completed / (completed + early) : 0;
-    const disciplineScore = Math.round(compRate * 100);
-    let disciplineLabel = '—';
-    if ((completed + early) > 0) {
-        if (disciplineScore >= 90) disciplineLabel = 'Excellent';
-        else if (disciplineScore >= 75) disciplineLabel = 'Strong';
-        else if (disciplineScore >= 60) disciplineLabel = 'Moderate';
-        else if (disciplineScore >= 40) disciplineLabel = 'Needs Consistency';
-        else disciplineLabel = 'Work in Progress';
-    }
-
-    return {
-        focusMinutes: Math.round(weeklySec/60),
-        sessions,
-        avgSessionMinutes: avgSessionMin,
-        completionRatePct: Math.round(compRate * 100),
-        disciplineScore,
-        disciplineLabel,
-        tasks,
-        dayLabels,
-        anonymous: { minutes: Math.round(anonSec/60), sessions: anonSessions }
-    };
-}
-
-function renderWeeklyReport() {
-    const r = buildWeeklyReport();
-    __lastWeeklyReport = r;
-    const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
-    setText('wrFocusTime', formatMinutesPretty(r.focusMinutes));
-    setText('wrSessions', String(r.sessions));
-    setText('wrAvgSession', formatMinutesPretty(r.avgSessionMinutes));
-    setText('wrCompletionRate', `${r.completionRatePct}%`);
-    setText('wrDiscipline', `${r.disciplineScore}`);
-    setText('wrDisciplineLabel', r.disciplineLabel);
-
-    const list = document.getElementById('weeklyTaskAnalysisList');
-    if (list) {
-        list.innerHTML = '';
-        if (r.tasks.length === 0) {
-            const li = document.createElement('li');
-            li.classList.add('placeholder');
-            li.innerHTML = '<span class="name">No regular tasks added</span><span class="value">Add tasks in Settings</span>';
-            list.appendChild(li);
-        } else {
-            const maxSec = Math.max(1, ...r.tasks.map(t => t.seconds||0));
-            // Determine split between active and inactive
-            const hasActive = r.tasks.some(t => (t.completions>0 || t.seconds>0));
-            r.tasks.forEach((t, idx) => {
-                const li = document.createElement('li');
-                if (t.completions===0 && t.seconds===0) li.classList.add('inactive');
-                const timeStr = formatWeeklyTime(t.seconds);
-                li.innerHTML = `<span class=\"rank\">${idx+1}</span><span class=\"name\">${t.name}</span><span class=\"value\">${t.completions} (${timeStr})</span>`;
-                // caret for dropdown
-                const nameEl = li.querySelector('.name');
-                if (nameEl) {
-                  const caret = document.createElement('i');
-                  caret.className = 'fas fa-chevron-down caret';
-                  nameEl.appendChild(caret);
-                }
-                // mini progress bar
-                const bar = document.createElement('div');
-                bar.className = 'mini-bar';
-                const inner = document.createElement('span');
-                const pct = Math.max(0, Math.min(100, (t.seconds / maxSec) * 100));
-                inner.style.width = pct + '%';
-                bar.appendChild(inner);
-                li.appendChild(bar);
-                // click to toggle inline dropdown (ignore clicks inside dropdown)
-                li.dataset.taskIndex = String(idx);
-                li.addEventListener('click', (e) => {
-                  if (e.target && e.target.closest && e.target.closest('.weekly-task-dropdown')) return;
-                  toggleWeeklyTaskDropdown(idx, li);
-                });
-                list.appendChild(li);
-            });
-        }
-    }
-
-    const anon = document.getElementById('weeklyAnonymousSummary');
-    if (anon) {
-        anon.textContent = `${formatMinutesPretty(r.anonymous.minutes)} across ${r.anonymous.sessions} session(s)`;
-    }
-}
-
-function openWeeklyTaskDrilldown(taskIndex) {
-    try {
-        const modal = document.getElementById('weeklyTaskDrilldownModal');
-        const title = document.getElementById('weeklyDrilldownTitle');
-        const list = document.getElementById('weeklyDrilldownDailyList');
-        if (!modal || !title || !list) return;
-        const r = __lastWeeklyReport;
-        if (!r) return;
-        const t = r.tasks[taskIndex];
-        if (!t) return;
-        title.textContent = `${t.name} — weekly breakdown`;
-        list.innerHTML = '';
-        const days = r.dayLabels || [];
-        const d = t.daily || [];
-        for (let i = 0; i < days.length; i++) {
-            const li = document.createElement('li');
-            const timeStr = formatWeeklyTime(d[i] || 0);
-            li.innerHTML = `<span class=\"rank\">${i+1}</span><span class=\"name\">${days[i]}</span><span class=\"value\">${timeStr}</span>`;
-            list.appendChild(li);
-        }
-        // prevent background scroll and show modal
-        document.body.classList.add('modal-open');
-        modal.classList.add('visible');
-    } catch {}
-}
-
-// close modal
-(function(){
-  const btn = document.getElementById('closeWeeklyDrilldownBtn');
-  if (btn) btn.addEventListener('click', () => {
-    const modal = document.getElementById('weeklyTaskDrilldownModal');
-    if (modal) modal.classList.remove('visible');
-    document.body.classList.remove('modal-open');
-  });
-  const overlay = document.getElementById('weeklyTaskDrilldownModal');
-  if (overlay) overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) {
-      overlay.classList.remove('visible');
-      document.body.classList.remove('modal-open');
-    }
-  });
-})();
-
-function toggleWeeklyTaskDropdown(taskIndex, liEl) {
-  try {
-    const r = __lastWeeklyReport; if (!r) return;
-    const t = r.tasks[taskIndex]; if (!t) return;
-    const container = document.getElementById('weeklyTaskAnalysisList'); if (!container) return;
-
-    // If this one is already open, close it and return
-    const existing = liEl.querySelector('.weekly-task-dropdown');
-    if (existing) { existing.remove(); liEl.classList.remove('open'); return; }
-
-    // Close others first
-    container.querySelectorAll('.weekly-task-dropdown').forEach(dd => { const parent = dd.parentElement; if (parent) parent.classList.remove('open'); dd.remove(); });
-
-    // Build dropdown (no bars, just days and time)
-    const dd = document.createElement('div');
-    dd.className = 'weekly-task-dropdown';
-    const days = r.dayLabels || [];
-    const daily = t.daily || [];
-    for (let i = 0; i < days.length; i++) {
-      const row = document.createElement('div'); row.className = 'day-row';
-      const dn = document.createElement('div'); dn.className = 'day-name'; dn.textContent = days[i];
-      const spacer = document.createElement('div'); spacer.style.height = '6px'; // visual spacer replacing bar
-      const time = document.createElement('div'); time.className = 'day-time'; time.textContent = formatWeeklyTime(daily[i]||0);
-      row.appendChild(dn); row.appendChild(spacer); row.appendChild(time);
-      dd.appendChild(row);
-    }
-    liEl.appendChild(dd);
-    // small async to trigger transition
-    requestAnimationFrame(() => { dd.classList.add('open'); liEl.classList.add('open'); });
-  } catch {}
-}
-
-function maybeShowWeeklyReportPopup() {
-    try {
-        const now = new Date();
-        // Sunday in local time
-        const isSunday = now.getDay() === 0;
-        const key = getLocalDateKey(now);
-        const shownKey = localStorage.getItem('youfloww_weekly_popup_shown');
-        if (isSunday && shownKey !== key) {
-            openStats();
-            switchTab('weekly');
-            localStorage.setItem('youfloww_weekly_popup_shown', key);
-        }
-    } catch {}
 }
 
 function updateFocusedTaskIndicator() {
@@ -6670,44 +4399,10 @@ labels: last7Days.map(k => dateKeyToLocalDate(k).toLocaleDateString('en-US', { w
 // ===================================================================================
 document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
-    
     // Initialize the app state after DOM is loaded
     if (isGuestMode) {
         initializeAppState();
     }
-    
-    // Start presence system for everyone (will be properly initialized based on user type)
-    console.log('🌟 DOM loaded - starting presence system immediately');
-    
-    // Try to start presence multiple times to ensure it works
-    const startPresenceWithRetry = (attempt = 1) => {
-        console.log(`🔄 Presence start attempt ${attempt}`);
-        
-        if (!presenceDocRef) {
-            startPresence().then(() => {
-                console.log(`✅ Presence started successfully on attempt ${attempt}`);
-            }).catch((e) => {
-                console.error(`❌ Presence failed on attempt ${attempt}:`, e);
-                if (attempt < 3) {
-                    setTimeout(() => startPresenceWithRetry(attempt + 1), 2000 * attempt);
-                }
-            });
-        } else {
-            console.log('✅ Presence already active');
-        }
-    };
-    
-    // Start immediately
-    startPresenceWithRetry(1);
-    
-    // Also try after a delay in case something wasn't ready
-    setTimeout(() => {
-        if (!presenceDocRef) {
-            console.log('⚡ Retry: Starting presence after delay...');
-            startPresenceWithRetry(2);
-        }
-    }, 3000);
-    
     // Render journal and timetable in Customize modal when opened
     const statsBtn = document.getElementById('statsBtn');
     if (statsBtn) {
