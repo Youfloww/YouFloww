@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Hamster Animation</title>
+    <link rel="stylesheet" href="loading.css">
+    <style>
+        :root {
+            --primary-color: #f7a047;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen Test -->
+    <div id="loadingScreen" class="loading-screen">
+        <div aria-label="Orange and tan hamster running in a metal wheel" role="img" class="wheel-and-hamster">
+            <div class="wheel"></div>
+            <div class="hamster">
+                <div class="hamster__body">
+                    <div class="hamster__head">
+                        <div class="hamster__ear"></div>
+                        <div class="hamster__eye"></div>
+                        <div class="hamster__nose"></div>
+                    </div>
+                    <div class="hamster__limb hamster__limb--fr"></div>
+                    <div class="hamster__limb hamster__limb--fl"></div>
+                    <div class="hamster__limb hamster__limb--br"></div>
+                    <div class="hamster__limb hamster__limb--bl"></div>
+                    <div class="hamster__tail"></div>
+                </div>
+            </div>
+            <div class="spoke"></div>
+        </div>
+        <div class="loading-text">Loading YouFloww...</div>
+    </div>
+
+    <script>
+        // Hide loading screen after 4 seconds for testing
+        setTimeout(() => {
+            const loadingScreen = document.getElementById('loadingScreen');
+            loadingScreen.classList.add('fade-out');
+            setTimeout(() => {
+                loadingScreen.remove();
+                document.body.innerHTML += '<h1 style="color: white; text-align: center; margin-top: 50px;">Loading screen test completed!</h1>';
+            }, 500);
+        }, 4000);
+    </script>
+</body>
+</html>

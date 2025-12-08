@@ -1,0 +1,755 @@
+/* YouFloww Pro Planner / Timetable Styles */
+
+/* Base Timetable Section */
+#timetable-section {
+    position: relative;
+    min-height: 100vh;
+    overflow: hidden;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: #ffffff;
+}
+
+/* Animated Background */
+.timetable-bg-container {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background: #050505;
+    pointer-events: none;
+}
+
+.timetable-canvas {
+    width: 100%;
+    height: 100%;
+    opacity: 0.6;
+}
+
+.timetable-noise-overlay {
+    position: absolute;
+    inset: 0;
+    opacity: 0.07;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+/* Wrapper */
+.timetable-wrapper {
+    position: relative;
+    z-index: 10;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+/* Header */
+.timetable-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem 1.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+}
+
+.timetable-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.timetable-logo {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.75rem;
+    background: linear-gradient(135deg, #ff9966, #ff5e62);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(255, 94, 98, 0.2);
+}
+
+.timetable-logo i {
+    font-size: 1.25rem;
+    color: white;
+}
+
+.timetable-brand h1 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.02em;
+}
+
+.timetable-brand p {
+    font-size: 0.625rem;
+    color: rgba(255, 255, 255, 0.4);
+    margin: 0;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+}
+
+.timetable-header-right {
+    text-align: right;
+}
+
+.timetable-date {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.8);
+    margin: 0 0 0.125rem 0;
+}
+
+.timetable-time {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.4);
+    margin: 0;
+    font-family: 'Courier New', monospace;
+}
+
+/* Main Content */
+.timetable-main {
+    padding: 2rem 0 5rem;
+}
+
+/* Day Selector */
+.timetable-days-selector {
+    background: rgba(20, 20, 20, 0.6);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    border-radius: 1rem;
+    padding: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+    overflow-x: auto;
+}
+
+.timetable-day-btn {
+    position: relative;
+    flex: 1;
+    min-width: 100px;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.75rem;
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.timetable-day-btn:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.timetable-day-btn.active {
+    background: white;
+    color: black;
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
+    transform: scale(1.05);
+}
+
+.timetable-day-btn.has-tasks::after {
+    content: '';
+    position: absolute;
+    bottom: 0.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0.25rem;
+    height: 0.25rem;
+    background: #ff9966;
+    border-radius: 50%;
+}
+
+/* Dashboard */
+.timetable-dashboard {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 1.5rem;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    animation: fadeSlideUp 0.4s ease;
+}
+
+@keyframes fadeSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.timetable-dashboard-title h2 {
+    font-size: 3rem;
+    font-weight: 700;
+    background: linear-gradient(to right, white, white, rgba(255, 255, 255, 0.5));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin: 0 0 0.5rem 0;
+    letter-spacing: -0.03em;
+}
+
+.timetable-dashboard-title p {
+    color: rgba(255, 255, 255, 0.4);
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+.timetable-progress-container {
+    width: 100%;
+    max-width: 16rem;
+}
+
+.timetable-progress-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.timetable-progress-label span {
+    color: #ff9966;
+}
+
+.timetable-progress-label span.complete {
+    color: #4ade80;
+}
+
+.timetable-progress-bar {
+    height: 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 9999px;
+    overflow: hidden;
+}
+
+.timetable-progress-fill {
+    height: 100%;
+    background: linear-gradient(to right, #ff9966, #ff5e62);
+    border-radius: 9999px;
+    transition: width 1s ease-out;
+}
+
+.timetable-progress-fill.complete {
+    background: #4ade80;
+}
+
+/* Toolbar */
+.timetable-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    animation: fadeSlideUp 0.4s ease 0.1s both;
+}
+
+.timetable-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    border-radius: 0.5rem;
+    border: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.timetable-btn.primary {
+    background: #ff9966;
+    color: white;
+    box-shadow: 0 4px 12px rgba(255, 153, 102, 0.2);
+}
+
+.timetable-btn.primary:hover {
+    background: #ff8552;
+    transform: scale(1.02);
+}
+
+.timetable-btn.primary:active {
+    transform: scale(0.98);
+}
+
+.timetable-btn.secondary,
+.timetable-btn.danger {
+    padding: 0.625rem;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.timetable-btn.secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.timetable-btn.danger:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ff5e62;
+}
+
+.timetable-divider {
+    width: 1px;
+    height: 1.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 0 0.25rem;
+}
+
+/* Task List */
+.timetable-task-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-bottom: 5rem;
+    animation: fadeSlideUp 0.4s ease 0.2s both;
+}
+
+/* Empty State */
+.timetable-empty-state {
+    background: rgba(20, 20, 20, 0.6);
+    backdrop-filter: blur(24px);
+    border: 2px dashed rgba(255, 255, 255, 0.05);
+    border-radius: 1.5rem;
+    padding: 3rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.timetable-empty-state:hover {
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.timetable-empty-icon {
+    width: 4rem;
+    height: 4rem;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+    transition: transform 0.3s ease;
+}
+
+.timetable-empty-state:hover .timetable-empty-icon {
+    transform: scale(1.1);
+}
+
+.timetable-empty-icon i {
+    font-size: 2rem;
+    color: rgba(255, 255, 255, 0.2);
+}
+
+.timetable-empty-state:hover .timetable-empty-icon i {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.timetable-empty-state h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.4);
+    margin: 0 0 0.25rem 0;
+    transition: color 0.3s ease;
+}
+
+.timetable-empty-state:hover h3 {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.timetable-empty-state p {
+    color: rgba(255, 255, 255, 0.2);
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+/* Task Item */
+.timetable-task {
+    position: relative;
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    background: rgba(20, 20, 20, 0.6);
+    backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 0.75rem;
+    transition: all 0.3s ease;
+    cursor: move;
+}
+
+.timetable-task:hover {
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.timetable-task.active {
+    background: rgba(255, 153, 102, 0.1);
+    border-color: rgba(255, 153, 102, 0.4);
+    box-shadow: 0 0 30px rgba(255, 153, 102, 0.1);
+}
+
+.timetable-task.active::before {
+    content: '';
+    position: absolute;
+    left: -1px;
+    top: 1rem;
+    bottom: 1rem;
+    width: 0.25rem;
+    background: #ff9966;
+    border-radius: 0 9999px 9999px 0;
+    box-shadow: 0 0 10px #ff9966;
+}
+
+.timetable-task.completed {
+    background: rgba(0, 0, 0, 0.4);
+    border-color: transparent;
+    opacity: 0.6;
+}
+
+/* Drag Handle */
+.timetable-drag-handle {
+    margin-right: 0.75rem;
+    color: rgba(255, 255, 255, 0.1);
+    cursor: grab;
+    transition: color 0.2s ease;
+}
+
+.timetable-task:hover .timetable-drag-handle {
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.timetable-drag-handle:active {
+    cursor: grabbing;
+}
+
+/* Checkbox */
+.timetable-checkbox {
+    margin-right: 1rem;
+    color: rgba(255, 255, 255, 0.2);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 1.5rem;
+}
+
+.timetable-checkbox:hover {
+    color: #ff9966;
+}
+
+.timetable-task.completed .timetable-checkbox {
+    color: #4ade80;
+    transform: scale(1.1);
+}
+
+/* Task Content */
+.timetable-task-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+    .timetable-task-content {
+        flex-direction: row;
+        align-items: center;
+    }
+}
+
+/* Time Input */
+.timetable-time-input {
+    position: relative;
+    min-width: 110px;
+}
+
+.timetable-time-input i {
+    position: absolute;
+    left: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: rgba(255, 255, 255, 0.2);
+    font-size: 0.875rem;
+    pointer-events: none;
+}
+
+.timetable-task.active .timetable-time-input i {
+    color: #ff9966;
+}
+
+.timetable-time-input input {
+    width: 100%;
+    padding: 0.25rem 0.5rem 0.25rem 1.75rem;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 0.375rem;
+    color: rgba(255, 153, 102, 0.8);
+    font-size: 0.875rem;
+    font-family: 'Courier New', monospace;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.timetable-time-input input:hover {
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.timetable-time-input input:focus {
+    outline: none;
+    background: rgba(0, 0, 0, 0.5);
+    border-color: rgba(255, 153, 102, 0.5);
+    box-shadow: 0 0 15px rgba(255, 153, 102, 0.1);
+}
+
+.timetable-task.active .timetable-time-input input {
+    color: rgba(255, 153, 102, 1);
+    font-weight: 700;
+}
+
+.timetable-task.completed .timetable-time-input input {
+    color: rgba(255, 255, 255, 0.3);
+}
+
+/* Title Input */
+.timetable-title-input {
+    flex: 1;
+    min-width: 200px;
+}
+
+.timetable-title-input input {
+    width: 100%;
+    padding: 0.25rem 0;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid transparent;
+    color: white;
+    font-size: 1.125rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.timetable-title-input input::placeholder {
+    color: rgba(255, 255, 255, 0.2);
+}
+
+.timetable-title-input input:hover {
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.timetable-title-input input:focus {
+    outline: none;
+    border-bottom-color: rgba(255, 153, 102, 0.5);
+}
+
+.timetable-task.completed .timetable-title-input input {
+    color: rgba(255, 255, 255, 0.3);
+    text-decoration: line-through;
+}
+
+/* Tag & Priority */
+.timetable-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.timetable-tag {
+    padding: 0.25rem 0.75rem;
+    background: transparent;
+    border: 1px solid;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: center;
+    width: 6rem;
+    transition: all 0.2s ease;
+}
+
+.timetable-tag:focus {
+    outline: none;
+}
+
+.timetable-task.completed .timetable-tag {
+    opacity: 0.5;
+    filter: grayscale(1);
+}
+
+/* Tag Colors */
+.timetable-tag[data-tag="work"],
+.timetable-tag[data-tag="Work"] {
+    background: rgba(59, 130, 246, 0.2);
+    color: #93c5fd;
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+.timetable-tag[data-tag="study"],
+.timetable-tag[data-tag="Study"] {
+    background: rgba(168, 85, 247, 0.2);
+    color: #c4b5fd;
+    border-color: rgba(168, 85, 247, 0.3);
+}
+
+.timetable-tag[data-tag="break"],
+.timetable-tag[data-tag="Break"] {
+    background: rgba(34, 197, 94, 0.2);
+    color: #86efac;
+    border-color: rgba(34, 197, 94, 0.3);
+}
+
+.timetable-tag[data-tag="exercise"],
+.timetable-tag[data-tag="Exercise"],
+.timetable-tag[data-tag="gym"],
+.timetable-tag[data-tag="Gym"] {
+    background: rgba(249, 115, 22, 0.2);
+    color: #fed7aa;
+    border-color: rgba(249, 115, 22, 0.3);
+}
+
+.timetable-tag:not([data-tag="work"]):not([data-tag="Work"]):not([data-tag="study"]):not([data-tag="Study"]):not([data-tag="break"]):not([data-tag="Break"]):not([data-tag="exercise"]):not([data-tag="Exercise"]):not([data-tag="gym"]):not([data-tag="Gym"]) {
+    background: rgba(236, 72, 153, 0.2);
+    color: #f9a8d4;
+    border-color: rgba(236, 72, 153, 0.3);
+}
+
+/* Priority Button */
+.timetable-priority {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    background: transparent;
+    border: 1px solid;
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.timetable-priority:hover {
+    filter: brightness(1.25);
+}
+
+.timetable-task.completed .timetable-priority {
+    opacity: 0.5;
+}
+
+.timetable-priority.high {
+    background: rgba(239, 68, 68, 0.2);
+    color: #fca5a5;
+    border-color: rgba(239, 68, 68, 0.5);
+}
+
+.timetable-priority.medium {
+    background: rgba(234, 179, 8, 0.2);
+    color: #fde047;
+    border-color: rgba(234, 179, 8, 0.5);
+}
+
+.timetable-priority.low {
+    background: rgba(59, 130, 246, 0.2);
+    color: #93c5fd;
+    border-color: rgba(59, 130, 246, 0.5);
+}
+
+/* Actions */
+.timetable-actions {
+    margin-left: 1rem;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.timetable-task:hover .timetable-actions {
+    opacity: 1;
+}
+
+.timetable-delete-btn {
+    padding: 0.5rem;
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.2);
+    cursor: pointer;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.timetable-delete-btn:hover {
+    color: #ff5e62;
+    background: rgba(255, 94, 98, 0.1);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .timetable-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .timetable-header-right {
+        text-align: left;
+    }
+
+    .timetable-dashboard {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .timetable-progress-container {
+        max-width: 100%;
+    }
+
+    .timetable-dashboard-title h2 {
+        font-size: 2.5rem;
+    }
+
+    .timetable-days-selector {
+        overflow-x: scroll;
+        scrollbar-width: none;
+    }
+
+    .timetable-days-selector::-webkit-scrollbar {
+        display: none;
+    }
+
+    .timetable-task {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .timetable-meta {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 153, 102, 0.5);
+}

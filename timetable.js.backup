@@ -1,0 +1,546 @@
+// YouFloww Pro Planner / Timetable JavaScript
+// Complete timetable functionality with animated background
+
+// ================== CONFIGURATION ==================
+
+const STORAGE_KEY = 'youfloww_timetable_v4';
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+// ================== STATE ==================
+
+let timetableData = {
+    Monday: [], Tuesday: [], Wednesday: [], Thursday: [], Friday: [], Saturday: [], Sunday: []
+};
+let currentDay = 'Monday';
+let currentTime = '';
+let draggedItem = null;
+let draggedOverItem = null;
+
+// ================== ANIMATED BACKGROUND ==================
+
+function initTimetableBackground() {
+    const canvas = document.getElementById('timetableCanvas');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+
+    const ORB_COUNT = 15;
+    const colors = ['#FF6B6B', '#6c5ce7', '#ffa502', '#ff9ff3', '#00d2d3', '#5f27cd', '#eb4d4b'];
+
+    const mouse = { x: width / 2, y: height / 2 };
+    let cursorX = width / 2;
+    let cursorY = height / 2;
+
+
+    // Physics objects
+    const orbs = Array.from({ length: ORB_COUNT }).map((_, i) => ({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        vx: (Math.random() - 0.5) * 2,
+        vy: (Math.random() - 0.5) * 2,
+        radius: 80 + Math.random() * 150,
+        color: colors[i % colors.length],
+        friction: 0.96,
+        spring: 0.005 + Math.random() * 0.005
+    }));
+
+    function resize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+    }
+
+    function animate() {
+        ctx.clearRect(0, 0, width, height);
+        ctx.globalCompositeOperation = 'screen';
+        ctx.filter = 'blur(40px)';
+
+        cursorX += (mouse.x - cursorX) * 0.1;
+        cursorY += (mouse.y - cursorY) * 0.1;
+
+        // Draw orbs
+        orbs.forEach(orb => {
+            const dx = mouse.x - orb.x;
+            const dy = mouse.y - orb.y;
+            orb.vx += dx * orb.spring * 0.5;
+            orb.vy += dy * orb.spring * 0.5;
+
+            const margin = 100;
+            if (orb.x < -margin) orb.vx += 1;
+            if (orb.x > width + margin) orb.vx -= 1;
+            if (orb.y < -margin) orb.vy += 1;
+            if (orb.y > height + margin) orb.vy -= 1;
+
+            orb.x += orb.vx;
+            orb.y += orb.vy;
+            orb.vx *= orb.friction;
+            orb.vy *= orb.friction;
+
+            ctx.beginPath();
+            ctx.fillStyle = orb.color;
+            ctx.arc(orb.x, orb.y, orb.radius, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        // Cursor spotlight
+        ctx.beginPath();
+        ctx.fillStyle = 'rgba(255, 165, 0, 0.4)';
+        ctx.arc(cursorX, cursorY, 150, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.arc(cursorX, cursorY, 60, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.filter = 'none';
+        requestAnimationFrame(animate);
+    }
+
+    window.addEventListener('resize', resize);
+    window.addEventListener('mousemove', (e) => {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+    });
+
+    resize();
+    requestAnimationFrame(animate);
+}
+
+// ================== TIME MANAGEMENT ==================
+
+function updateClock() {
+    const now = new Date();
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    currentTime = `${hours}:${minutes}`;
+
+    const dateEl = document.getElementById('timetableDate');
+    const timeEl = document.getElementById('timetableTime');
+
+    if (dateEl) {
+        const options = { weekday: 'long', month: 'long', day: 'numeric' };
+        dateEl.textContent = now.toLocaleDateString('en-US', options);
+    }
+
+    if (timeEl) {
+        timeEl.textContent = currentTime;
+    }
+}
+
+function isTaskActive(task, tasks) {
+    const todayName = DAYS[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1];
+    if (currentDay !== todayName) return false;
+
+    const index = tasks.indexOf(task);
+    if (index === -1) return false;
+
+    const nextTask = tasks[index + 1];
+    const nextTime = nextTask ? nextTask.time : '23:59';
+
+    return currentTime >= task.time && currentTime < nextTime;
+}
+
+// ================== DATA MANAGEMENT ==================
+
+function loadTimetableData() {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+        try {
+            timetableData = JSON.parse(saved);
+        } catch (e) {
+            console.error('Failed to load timetable data:', e);
+        }
+    }
+
+    const dayIndex = new Date().getDay();
+    const mappedIndex = dayIndex === 0 ? 6 : dayIndex - 1;
+    currentDay = DAYS[mappedIndex];
+}
+
+function saveTimetableData() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(timetableData));
+}
+
+// ================== TASK OPERATIONS ==================
+
+function generateTaskId() {
+    return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+}
+
+function addTask() {
+    const now = new Date();
+    now.setHours(now.getHours() + 1);
+    now.setMinutes(0);
+    const defaultTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+    const newTask = {
+        id: generateTaskId(),
+        time: defaultTime,
+        title: '',
+        tag: 'Work',
+        priority: 'medium',
+        completed: false
+    };
+
+    timetableData[currentDay].push(newTask);
+    timetableData[currentDay].sort((a, b) => a.time.localeCompare(b.time));
+
+    saveTimetableData();
+    renderTasks();
+}
+
+function deleteTask(id) {
+    timetableData[currentDay] = timetableData[currentDay].filter(t => t.id !== id);
+    saveTimetableData();
+    renderTasks();
+}
+
+function toggleComplete(id) {
+    const task = timetableData[currentDay].find(t => t.id === id);
+    if (task) {
+        task.completed = !task.completed;
+        saveTimetableData();
+        renderTasks();
+    }
+}
+
+function updateTask(id, field, value) {
+    const task = timetableData[currentDay].find(t => t.id === id);
+    if (task) {
+        task[field] = value;
+        if (field === 'time') {
+            timetableData[currentDay].sort((a, b) => a.time.localeCompare(b.time));
+        }
+        saveTimetableData();
+        renderTasks();
+    }
+}
+
+function cyclePriority(id) {
+    const task = timetableData[currentDay].find(t => t.id === id);
+    if (task) {
+        const cycle = { low: 'medium', medium: 'high', high: 'low' };
+        task.priority = cycle[task.priority];
+        saveTimetableData();
+        renderTasks();
+    }
+}
+
+function copyFromPreviousDay() {
+    const dayIndex = DAYS.indexOf(currentDay);
+    if (dayIndex === 0) {
+        alert('Monday is the first day. No previous day to copy from.');
+        return;
+    }
+
+    const prevDay = DAYS[dayIndex - 1];
+    const tasksToCopy = timetableData[prevDay];
+
+    if (tasksToCopy.length === 0) {
+        alert(`No tasks found on ${prevDay} to copy.`);
+        return;
+    }
+
+    if (confirm(`Copy ${tasksToCopy.length} tasks from ${prevDay} to ${currentDay}?`)) {
+        const copied = tasksToCopy.map(t => ({
+            ...t,
+            id: generateTaskId(),
+            completed: false
+        }));
+
+        timetableData[currentDay] = [...timetableData[currentDay], ...copied];
+        timetableData[currentDay].sort((a, b) => a.time.localeCompare(b.time));
+        saveTimetableData();
+        renderTasks();
+    }
+}
+
+function clearDay() {
+    if (confirm(`Are you sure you want to clear all tasks for ${currentDay}?`)) {
+        timetableData[currentDay] = [];
+        saveTimetableData();
+        renderTasks();
+    }
+}
+
+// ================== UI RENDERING ==================
+
+function updateProgress() {
+    const tasks = timetableData[currentDay];
+    const total = tasks.length;
+    const completed = tasks.filter(t => t.completed).length;
+    const progress = total === 0 ? 0 : Math.round((completed / total) * 100);
+
+    const summaryEl = document.getElementById('timetableTaskSummary');
+    const progressText = document.getElementById('timetableProgressText');
+    const progressFill = document.getElementById('timetableProgressFill');
+
+    if (summaryEl) {
+        summaryEl.textContent = total === 0
+            ? 'No tasks planned yet.'
+            : `${completed} of ${total} tasks completed`;
+    }
+
+    if (progressText) {
+        progressText.textContent = progress === 100 ? 'All Done!' : `${progress}% Complete`;
+        progressText.classList.toggle('complete', progress === 100);
+    }
+
+    if (progressFill) {
+        progressFill.style.width = `${progress}%`;
+        progressFill.classList.toggle('complete', progress === 100);
+    }
+}
+
+function renderTasks() {
+    const container = document.getElementById('timetableTaskList');
+    const emptyState = document.getElementById('timetableEmptyState');
+
+    if (!container) return;
+
+    const tasks = timetableData[currentDay];
+
+    if (tasks.length === 0) {
+        if (emptyState) {
+            emptyState.style.display = 'flex';
+            const emptyDay = document.getElementById('timetableEmptyDay');
+            if (emptyDay) emptyDay.textContent = currentDay;
+        }
+        container.querySelectorAll('.timetable-task').forEach(el => el.remove());
+        updateProgress();
+        return;
+    }
+
+    if (emptyState) {
+        emptyState.style.display = 'none';
+    }
+
+    // Clear existing tasks
+    container.querySelectorAll('.timetable-task').forEach(el => el.remove());
+
+    // Render each task
+    tasks.forEach((task, index) => {
+        const taskEl = createTaskElement(task, tasks);
+        container.appendChild(taskEl);
+    });
+
+    updateProgress();
+}
+
+function createTaskElement(task, tasks) {
+    const isActive = isTaskActive(task, tasks);
+
+    const div = document.createElement('div');
+    div.className = 'timetable-task';
+    div.draggable = true;
+    div.dataset.taskId = task.id;
+
+    if (isActive) div.classList.add('active');
+    if (task.completed) div.classList.add('completed');
+
+    div.innerHTML = `
+        <div class="timetable-drag-handle">
+            <i class="fas fa-grip-vertical"></i>
+        </div>
+        
+        <div class="timetable-checkbox">
+            <i class="fas fa-${task.completed ? 'check-circle' : 'circle'}"></i>
+        </div>
+        
+        <div class="timetable-task-content">
+            <div class="timetable-time-input">
+                <i class="fas fa-clock"></i>
+                <input type="time" value="${task.time}" />
+            </div>
+            
+            <div class="timetable-title-input">
+                <input type="text" value="${task.title}" placeholder="Task Name" />
+            </div>
+            
+            <div class="timetable-meta">
+                <input type="text" class="timetable-tag" data-tag="${task.tag}" value="${task.tag}" />
+                <button class="timetable-priority ${task.priority}">
+                    <i class="fas fa-${task.priority === 'high' ? 'arrow-up' : task.priority === 'low' ? 'arrow-down' : 'minus'}"></i>
+                    ${task.priority === 'high' ? 'High' : task.priority === 'low' ? 'Low' : 'Med'}
+                </button>
+            </div>
+        </div>
+        
+        <div class="timetable-actions">
+            <button class="timetable-delete-btn">
+                <i class="fas fa-trash-alt"></i>
+            </button>
+        </div>
+    `;
+
+    // Event listeners
+    const checkbox = div.querySelector('.timetable-checkbox');
+    checkbox.addEventListener('click', () => toggleComplete(task.id));
+
+    const timeInput = div.querySelector('.timetable-time-input input');
+    timeInput.addEventListener('change', (e) => updateTask(task.id, 'time', e.target.value));
+
+    const titleInput = div.querySelector('.timetable-title-input input');
+    titleInput.addEventListener('blur', (e) => updateTask(task.id, 'title', e.target.value));
+    if (!task.title) titleInput.focus();
+
+    const tagInput = div.querySelector('.timetable-tag');
+    tagInput.addEventListener('blur', (e) => updateTask(task.id, 'tag', e.target.value));
+
+    const priorityBtn = div.querySelector('.timetable-priority');
+    priorityBtn.addEventListener('click', () => cyclePriority(task.id));
+
+    const deleteBtn = div.querySelector('.timetable-delete-btn');
+    deleteBtn.addEventListener('click', () => deleteTask(task.id));
+
+    // Drag events
+    div.addEventListener('dragstart', handleDragStart);
+    div.addEventListener('dragenter', handleDragEnter);
+    div.addEventListener('dragover', handleDragOver);
+    div.addEventListener('dragend', handleDragEnd);
+
+    return div;
+}
+
+function switchDay(day) {
+    currentDay = day;
+
+    document.querySelectorAll('.timetable-day-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.day === day);
+        const hasTasksClass = timetableData[btn.dataset.day].length > 0 ? 'has-tasks' : '';
+        btn.className = `timetable-day-btn ${btn.dataset.day === day ? 'active' : ''} ${hasTasksClass}`.trim();
+    });
+
+    const dayTitle = document.getElementById('timetableCurrentDay');
+    if (dayTitle) dayTitle.textContent = day;
+
+    renderTasks();
+}
+
+// ================== DRAG AND DROP ==================
+
+function handleDragStart(e) {
+    draggedItem = e.currentTarget;
+    e.dataTransfer.effectAllowed = 'move';
+    e.currentTarget.style.opacity = '0.5';
+}
+
+function handleDragEnter(e) {
+    if (e.currentTarget.classList.contains('timetable-task')) {
+        draggedOverItem = e.currentTarget;
+    }
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+}
+
+function handleDragEnd(e) {
+    e.currentTarget.style.opacity = '';
+
+    if (draggedItem && draggedOverItem && draggedItem !== draggedOverItem) {
+        const draggedId = draggedItem.dataset.taskId;
+        const draggedOverId = draggedOverItem.dataset.taskId;
+
+        const tasks = timetableData[currentDay];
+        const draggedIndex = tasks.findIndex(t => t.id === draggedId);
+        const draggedOverIndex = tasks.findIndex(t => t.id === draggedOverId);
+
+        if (draggedIndex !== -1 && draggedOverIndex !== -1) {
+            const [removed] = tasks.splice(draggedIndex, 1);
+            tasks.splice(draggedOverIndex, 0, removed);
+            saveTimetableData();
+            renderTasks();
+        }
+    }
+
+    draggedItem = null;
+    draggedOverItem = null;
+}
+
+// ================== EVENT HANDLERS ==================
+
+function initEventListeners() {
+    // Add task button
+    const addBtn = document.getElementById('timetableAddBtn');
+    if (addBtn) addBtn.addEventListener('click', addTask);
+
+    // Copy button
+    const copyBtn = document.getElementById('timetableCopyBtn');
+    if (copyBtn) copyBtn.addEventListener('click', copyFromPreviousDay);
+
+    // Clear button
+    const clearBtn = document.getElementById('timetableClearBtn');
+    if (clearBtn) clearBtn.addEventListener('click', clearDay);
+
+    // Day buttons
+    document.querySelectorAll('.timetable-day-btn').forEach(btn => {
+        btn.addEventListener('click', () => switchDay(btn.dataset.day));
+    });
+
+    // Empty state click
+    const emptyState = document.getElementById('timetableEmptyState');
+    if (emptyState) emptyState.addEventListener('click', addTask);
+
+    // Clock update
+    setInterval(() => {
+        updateClock();
+        renderTasks(); // Re-render to update active task
+    }, 60000);
+}
+
+// ================== INITIALIZATION ==================
+
+function initTimetable() {
+    try {
+        console.log('Initializing YouFloww Pro Planner...');
+        loadTimetableData();
+        updateClock();
+        initEventListeners();
+        switchDay(currentDay);
+        initTimetableBackground();
+        console.log('YouFloww Pro Planner initialized successfully');
+    } catch (error) {
+        console.error('Error initializing timetable:', error);
+        // Don't let timetable errors break other features
+    }
+}
+
+// Initialize when timetable section becomes visible - with safety checks
+try {
+    const observer = new MutationObserver((mutations) => {
+        try {
+            mutations.forEach((mutation) => {
+                const timetableSection = document.getElementById('timetable-section');
+                if (timetableSection && !timetableSection.classList.contains('hidden')) {
+                    initTimetable();
+                    observer.disconnect();
+                }
+            });
+        } catch (e) {
+            console.error('Timetable observer error:', e);
+        }
+    });
+
+    // Start observing
+    const timetableSection = document.getElementById('timetable-section');
+    if (timetableSection) {
+        if (!timetableSection.classList.contains('hidden')) {
+            initTimetable();
+        } else {
+            observer.observe(timetableSection, { attributes: true, attributeFilter: ['class'] });
+        }
+    } else {
+        console.warn('Timetable section not found in DOM');
+    }
+} catch (error) {
+    console.error('Error setting up timetable observer:', error);
+    // Don't break the page if timetable fails to initialize
+}

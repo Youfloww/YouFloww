@@ -1,0 +1,1557 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouFloww: The Ultimate Pomodoro Timer for Deep Focus</title>
+    <meta name="description"
+        content="Boost your productivity with YouFloww, the advanced Pomodoro timer with unique features to help you achieve a state of flow and eliminate distractions.">
+    <meta name="application-name" content="YouFloww">
+    <meta name="apple-mobile-web-app-title" content="YouFloww">
+    <meta name="keywords"
+        content="YouFloww, Youflow, youflowww, youflw, You Flow, flow timer, productivity timer, pomodoro timer, focus timer, study timer, deep work timer, ADHD study timer, time management app, task timer, pomodoro technique">
+    <link rel="icon" type="image/png" href="assets/images/disk.png">
+    <meta name="robots" content="index, follow">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://youfloww.vercel.app/">
+    <meta property="og:site_name" content="YouFloww">
+    <meta property="og:title" content="YouFloww: The Ultimate Pomodoro Timer for Deep Focus">
+    <meta property="og:description"
+        content="Stay in flow with adaptive Pomodoro, task-focused sessions, ambience, and accountability tools. Study and work sessions that actually stick.">
+    <meta property="og:image" content="https://youfloww.vercel.app/assets/images/disk.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="YouFloww: The Ultimate Pomodoro Timer for Deep Focus">
+    <meta name="twitter:description"
+        content="Stay in flow with adaptive Pomodoro, task-focused sessions, ambience, and accountability tools.">
+    <meta name="twitter:image" content="https://youfloww.vercel.app/assets/images/disk.png">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <!-- Font Awesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+        integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
+        crossorigin="anonymous" referrerpolicy="no-referrer">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="monkey_form.css">
+    <link rel="stylesheet" href="achievements.css">
+    <link rel="stylesheet" href="loading.css">
+    <link rel="manifest" href="manifest.json">
+    <!-- Google tag (gtag.js) -->
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-V3CLSWYVTF" integrity="sha384-..."
+        crossorigin="anonymous"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', 'G-V3CLSWYVTF');
+    </script>
+    <!-- Structured Data for Logo / Site -->
+    <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@type": "WebSite",
+                "name": "YouFloww",
+                "alternateName": ["Youflow", "youflowww", "youflw", "YouFloww Timer", "Productivity Timer", "Focus Timer", "Pomodoro Timer"],
+                "url": "https://youfloww.vercel.app/",
+                "logo": "https://youfloww.vercel.app/assets/images/disk.png"
+            }
+            </script>
+    <!-- SoftwareApplication markup -->
+    <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "SoftwareApplication",
+              "name": "YouFloww",
+              "applicationCategory": "Productivity",
+              "operatingSystem": "Web",
+              "url": "https://youfloww.vercel.app/",
+              "image": "https://youfloww.vercel.app/assets/images/disk.png",
+              "offers": { "@type": "Offer", "price": 0, "priceCurrency": "USD" },
+              "description": "Pomodoro timer with task-focused sessions, ambience, accountability, and streaks."
+            }
+            </script>
+    <!-- FAQ Page markup -->
+    <script type="application/ld+json">
+            {
+              "@context": "https://schema.org",
+              "@type": "FAQPage",
+              "mainEntity": [
+                {
+                  "@type": "Question",
+                  "name": "What is YouFloww?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "YouFloww is a browser-based focus companion with Pomodoro, task tracking, ambience, and accountability features to help you enter flow."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "Can I time sessions for a specific task?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Yes. Select a task to focus and YouFloww will log time to it, show progress, and resume remaining estimate later."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  "name": "Is YouFloww free?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Yes, YouFloww runs entirely in your browser for free."
+                  }
+                }
+              ]
+            }
+            </script>
+</head>
+
+<body>
+    <!-- Rain Canvas for Raindrop Effect -->
+    <canvas id="bg-canvas"
+        style="position: fixed; top: 0; left: 0; width: 100%; height: 100vh; z-index: 0; pointer-events: none; display: none;"></canvas>
+
+    <!-- Little Hamster Animation -->
+    <div id="loadingScreen" class="loading-screen">
+        <div aria-label="Orange and tan hamster running in a metal wheel" role="img" class="wheel-and-hamster">
+            <div class="wheel"></div>
+            <div class="hamster">
+                <div class="hamster__body">
+                    <div class="hamster__head">
+                        <div class="hamster__ear"></div>
+                        <div class="hamster__eye"></div>
+                        <div class="hamster__nose"></div>
+                    </div>
+                    <div class="hamster__limb hamster__limb--fr"></div>
+                    <div class="hamster__limb hamster__limb--fl"></div>
+                    <div class="hamster__limb hamster__limb--br"></div>
+                    <div class="hamster__limb hamster__limb--bl"></div>
+                    <div class="hamster__tail"></div>
+                </div>
+            </div>
+            <div class="spoke"></div>
+        </div>
+        <div class="loading-text">Loading YouFloww...</div>
+    </div>
+
+    <!-- Skip Links for Accessibility -->
+    <a href="#timer-section" class="skip-link">Skip to Timer</a>
+    <a href="#todo-container" class="skip-link">Skip to Tasks</a>
+    <a href="#leaderboard-section" class="skip-link">Skip to Leaderboards</a>
+
+    <h1 class="visually-hidden">YouFloww – Pomodoro timer for deep focus, task progress, ambience, and streaks</h1>
+    <noscript>
+        <div
+            style="max-width:720px;margin:1rem auto;color:#ddd;background:#1e1e1e;border:1px solid #333;border-radius:8px;padding:0.75rem;font-size:0.95rem;">
+            YouFloww is a browser-based Pomodoro timer with task-focused sessions, ambience, and streaks. Enable
+            JavaScript to use the app.
+        </div>
+    </noscript>
+    <!-- Glow Pill Button Top Left -->
+    <button id="glowPillBtn" class="glow-pill-btn" aria-label="YouFloww Home">YouFloww</button>
+    <!-- Disk Player (shown below pill if enabled) -->
+    <div id="diskPlayerContainer" class="disk-player-container hidden">
+        <div id="diskPlayer" class="disk-player">
+            <img src="assets/images/disk.png" alt="Disk" class="disk-image" loading="lazy" />
+            <input type="file" id="diskMusicUpload" accept="audio/*" class="hidden" />
+            <button id="diskChangeMusicBtn" class="disk-change-btn hidden" title="Change Music"
+                aria-label="Change Music">
+                <i class="fas fa-music" aria-hidden="true"></i>
+            </button>
+        </div>
+    </div>
+
+
+    <!-- Spline Viewer Script (Removed) -->
+    <!-- Model Viewer Script -->
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+    <!-- TensorFlow.js and COCO-SSD -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <script src="accountability.js"></script>
+    <!-- YouTube Video Background - always at back -->
+    <div id="video-background-container"></div>
+    <video id="video" width="720" height="560" autoplay muted playsinline class="hidden"></video>
+    <canvas id="pose-canvas" class="hidden"></canvas>
+    <div id="face-detection-status" class="face-status-prompt hidden"></div>
+
+    <!-- Firebase Auth Modal -->
+    <div id="authModal" class="modal visible">
+        <div class="modal-content auth-container">
+            <div id="auth-form-container">
+                <!-- Sign Up Form -->
+                <form id="signup-form">
+                    <div class="card">
+                        <input value="" class="blind-check" type="checkbox" id="blind-input-signup" name="blindcheck"
+                            hidden />
+
+                        <label for="blind-input-signup" class="blind_input">
+                            <span class="hide">Hide</span>
+                            <span class="show">Show</span>
+                        </label>
+
+                        <div class="form">
+                            <div class="title">Sign Up</div>
+
+                            <label class="label_input" for="signup-email">Email</label>
+                            <input spellcheck="false" class="input" type="email" id="signup-email"
+                                placeholder="Email Address" required />
+
+                            <label class="label_input" for="signup-password">Password</label>
+                            <input spellcheck="false" class="input" type="password" id="signup-password"
+                                placeholder="Password (min. 6 characters)" required />
+
+                            <label class="label_input" for="signup-location">Location</label>
+                            <select id="signup-location" class="input auth-select" required>
+                                <option value="" disabled selected>Where are you from?</option>
+                                <option value="indian">India</option>
+                                <option value="non-indian">Outside India</option>
+                            </select>
+
+                            <button class="submit" type="submit">Sign Up</button>
+                        </div>
+
+                        <label for="blind-input-signup" class="avatar">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" viewBox="0 0 64 64"
+                                id="monkey">
+                                <ellipse cx="53.7" cy="33" rx="8.3" ry="8.2" fill="#89664c"></ellipse>
+                                <ellipse cx="53.7" cy="33" rx="5.4" ry="5.4" fill="#ffc5d3"></ellipse>
+                                <ellipse cx="10.2" cy="33" rx="8.2" ry="8.2" fill="#89664c"></ellipse>
+                                <ellipse cx="10.2" cy="33" rx="5.4" ry="5.4" fill="#ffc5d3"></ellipse>
+                                <g fill="#89664c">
+                                    <path
+                                        d="m43.4 10.8c1.1-.6 1.9-.9 1.9-.9-3.2-1.1-6-1.8-8.5-2.1 1.3-1 2.1-1.3 2.1-1.3-20.4-2.9-30.1 9-30.1 19.5h46.4c-.7-7.4-4.8-12.4-11.8-15.2">
+                                    </path>
+                                    <path
+                                        d="m55.3 27.6c0-9.7-10.4-17.6-23.3-17.6s-23.3 7.9-23.3 17.6c0 2.3.6 4.4 1.6 6.4-1 2-1.6 4.2-1.6 6.4 0 9.7 10.4 17.6 23.3 17.6s23.3-7.9 23.3-17.6c0-2.3-.6-4.4-1.6-6.4 1-2 1.6-4.2 1.6-6.4">
+                                    </path>
+                                </g>
+                                <path
+                                    d="m52 28.2c0-16.9-20-6.1-20-6.1s-20-10.8-20 6.1c0 4.7 2.9 9 7.5 11.7-1.3 1.7-2.1 3.6-2.1 5.7 0 6.1 6.6 11 14.7 11s14.7-4.9 14.7-11c0-2.1-.8-4-2.1-5.7 4.4-2.7 7.3-7 7.3-11.7"
+                                    fill="#e0ac7e"></path>
+                                <g fill="#3b302a" class="monkey-eye-nose">
+                                    <path
+                                        d="m35.1 38.7c0 1.1-.4 2.1-1 2.1-.6 0-1-.9-1-2.1 0-1.1.4-2.1 1-2.1.6.1 1 1 1 2.1">
+                                    </path>
+                                    <path
+                                        d="m30.9 38.7c0 1.1-.4 2.1-1 2.1-.6 0-1-.9-1-2.1 0-1.1.4-2.1 1-2.1.5.1 1 1 1 2.1">
+                                    </path>
+                                    <ellipse cx="40.7" cy="31.7" rx="3.5" ry="4.5" class="monkey-eye-r"></ellipse>
+                                    <ellipse cx="23.3" cy="31.7" rx="3.5" ry="4.5" class="monkey-eye-l"></ellipse>
+                                </g>
+                            </svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" viewBox="0 0 64 64"
+                                id="monkey-hands">
+                                <path fill="#89664C" d="M9.4,32.5L2.1,61.9H14c-1.6-7.7,4-21,4-21L9.4,32.5z"></path>
+                                <path fill="#FFD6BB" d="M15.8,24.8c0,0,4.9-4.5,9.5-3.9c2.3,0.3-7.1,7.6-7.1,7.6s9.7-8.2,11.7-5.6c1.8,2.3-8.9,9.8-8.9,9.8
+            s10-8.1,9.6-4.6c-0.3,3.8-7.9,12.8-12.5,13.8C11.5,43.2,6.3,39,9.8,24.4C11.6,17,13.3,25.2,15.8,24.8"></path>
+                                <path fill="#89664C" d="M54.8,32.5l7.3,29.4H50.2c1.6-7.7-4-21-4-21L54.8,32.5z"></path>
+                                <path fill="#FFD6BB" d="M48.4,24.8c0,0-4.9-4.5-9.5-3.9c-2.3,0.3,7.1,7.6,7.1,7.6s-9.7-8.2-11.7-5.6c-1.8,2.3,8.9,9.8,8.9,9.8
+            s-10-8.1-9.7-4.6c0.4,3.8,8,12.8,12.6,13.8c6.6,1.3,11.8-2.9,8.3-17.5C52.6,17,50.9,25.2,48.4,24.8"></path>
+                            </svg>
+                        </label>
+                    </div>
+                    <p class="auth-switch">Already have an account? <a href="#" id="show-login">Log In</a></p>
+                </form>
+                <!-- Login Form -->
+                <form id="login-form" class="hidden">
+                    <div class="card">
+                        <input value="" class="blind-check" type="checkbox" id="blind-input" name="blindcheck" hidden />
+
+                        <label for="blind-input" class="blind_input">
+                            <span class="hide">Hide</span>
+                            <span class="show">Show</span>
+                        </label>
+
+                        <div class="form">
+                            <div class="title">Sign In</div>
+
+                            <label class="label_input" for="login-email">Email</label>
+                            <input spellcheck="false" class="input" type="email" name="email" id="login-email" />
+
+                            <div class="frg_pss">
+                                <label class="label_input" for="login-password">Password</label>
+                                <a href="#" id="forgot-password-link">Forgot password?</a>
+                            </div>
+                            <input spellcheck="false" class="input" type="text" name="password" id="login-password" />
+                            <button class="submit" type="submit">Submit</button>
+                        </div>
+
+                        <label for="blind-input" class="avatar">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" viewBox="0 0 64 64"
+                                id="monkey">
+                                <ellipse cx="53.7" cy="33" rx="8.3" ry="8.2" fill="#89664c"></ellipse>
+                                <ellipse cx="53.7" cy="33" rx="5.4" ry="5.4" fill="#ffc5d3"></ellipse>
+                                <ellipse cx="10.2" cy="33" rx="8.2" ry="8.2" fill="#89664c"></ellipse>
+                                <ellipse cx="10.2" cy="33" rx="5.4" ry="5.4" fill="#ffc5d3"></ellipse>
+                                <g fill="#89664c">
+                                    <path
+                                        d="m43.4 10.8c1.1-.6 1.9-.9 1.9-.9-3.2-1.1-6-1.8-8.5-2.1 1.3-1 2.1-1.3 2.1-1.3-20.4-2.9-30.1 9-30.1 19.5h46.4c-.7-7.4-4.8-12.4-11.8-15.2">
+                                    </path>
+                                    <path
+                                        d="m55.3 27.6c0-9.7-10.4-17.6-23.3-17.6s-23.3 7.9-23.3 17.6c0 2.3.6 4.4 1.6 6.4-1 2-1.6 4.2-1.6 6.4 0 9.7 10.4 17.6 23.3 17.6s23.3-7.9 23.3-17.6c0-2.3-.6-4.4-1.6-6.4 1-2 1.6-4.2 1.6-6.4">
+                                    </path>
+                                </g>
+                                <path
+                                    d="m52 28.2c0-16.9-20-6.1-20-6.1s-20-10.8-20 6.1c0 4.7 2.9 9 7.5 11.7-1.3 1.7-2.1 3.6-2.1 5.7 0 6.1 6.6 11 14.7 11s14.7-4.9 14.7-11c0-2.1-.8-4-2.1-5.7 4.4-2.7 7.3-7 7.3-11.7"
+                                    fill="#e0ac7e"></path>
+                                <g fill="#3b302a" class="monkey-eye-nose">
+                                    <path
+                                        d="m35.1 38.7c0 1.1-.4 2.1-1 2.1-.6 0-1-.9-1-2.1 0-1.1.4-2.1 1-2.1.6.1 1 1 1 2.1">
+                                    </path>
+                                    <path
+                                        d="m30.9 38.7c0 1.1-.4 2.1-1 2.1-.6 0-1-.9-1-2.1 0-1.1.4-2.1 1-2.1.5.1 1 1 1 2.1">
+                                    </path>
+                                    <ellipse cx="40.7" cy="31.7" rx="3.5" ry="4.5" class="monkey-eye-r"></ellipse>
+                                    <ellipse cx="23.3" cy="31.7" rx="3.5" ry="4.5" class="monkey-eye-l"></ellipse>
+                                </g>
+                            </svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" viewBox="0 0 64 64"
+                                id="monkey-hands">
+                                <path fill="#89664C" d="M9.4,32.5L2.1,61.9H14c-1.6-7.7,4-21,4-21L9.4,32.5z"></path>
+                                <path fill="#FFD6BB" d="M15.8,24.8c0,0,4.9-4.5,9.5-3.9c2.3,0.3-7.1,7.6-7.1,7.6s9.7-8.2,11.7-5.6c1.8,2.3-8.9,9.8-8.9,9.8
+	            s10-8.1,9.6-4.6c-0.3,3.8-7.9,12.8-12.5,13.8C11.5,43.2,6.3,39,9.8,24.4C11.6,17,13.3,25.2,15.8,24.8"></path>
+                                <path fill="#89664C" d="M54.8,32.5l7.3,29.4H50.2c1.6-7.7-4-21-4-21L54.8,32.5z"></path>
+                                <path fill="#FFD6BB" d="M48.4,24.8c0,0-4.9-4.5-9.5-3.9c-2.3,0.3,7.1,7.6,7.1,7.6s-9.7-8.2-11.7-5.6c-1.8,2.3,8.9,9.8,8.9,9.8
+	            s-10-8.1-9.7-4.6c0.4,3.8,8,12.8,12.6,13.8c6.6,1.3,11.8-2.9,8.3-17.5C52.6,17,50.9,25.2,48.4,24.8"></path>
+                            </svg>
+                        </label>
+                    </div>
+                    <p class="auth-switch">Don't have an account? <a href="#" id="show-signup">Sign Up</a></p>
+                </form>
+                <div class="oauth-divider"><span>or</span></div>
+                <button id="googleSignInBtn" class="google-btn" type="button">
+                    <span class="g-logo">G</span>
+                    Continue with Google
+                </button>
+                <!-- Guest Mode Button and Warning -->
+                <button id="continueWithoutSignupBtn" class="auth-btn-guest" type="button">
+                    Continue without signing up
+                </button>
+                <p id="guestWarning" class="auth-warning hidden">
+                    <strong>Warning:</strong> Your stats and tasks will NOT be saved after you close this tab.
+                </p>
+                <p id="auth-error" class="error-message"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Content (Initially Hidden) -->
+    <main id="app-container" class="hidden" role="main">
+        <header class="top-bar">
+            <div class="profile-greeting">
+                <span>Welcome, </span>
+                <span id="profileNameDisplay">Floww User</span>
+                <button id="changeNameBtn" class="btn-icon" aria-label="Change Name">✏️</button>
+            </div>
+            <div class="header-controls">
+                <div id="streak-counter">
+                    <span id="streak-emoji">🔥</span>
+                    <span id="streak-count">0</span>
+                </div>
+                <button id="statsBtn" class="header-btn">Customize</button>
+                <div id="livePresence" class="live-presence" title="People currently using YouFloww">
+                    <span class="dot" aria-hidden="true"></span>
+                    <span class="label"><span id="liveCount" class="flip-number" aria-live="polite">0</span> Flowwies
+                        Focusing</span>
+                </div>
+                <button id="logoutBtn" class="header-btn btn-danger">Logout</button>
+            </div>
+        </header>
+        <main>
+            <section id="timer-section">
+                <div id="status">Work Session</div>
+                <div id="timer">25:00</div>
+                <div class="timer-controls">
+                    <button id="resetBtn" class="btn-icon" aria-label="Reset Timer" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                            <path
+                                d="M12 6v3l4-4-4-4v3c-4.42 0-8 3.58-8 8 0 1.57.46 3.03 1.24 4.26L6.7 14.8c-.45-.83-.7-1.79-.7-2.8 0-3.31 2.69-6 6-6zm6.76 1.74L17.3 9.2c.44.84.7 1.79.7 2.8 0 3.31-2.69 6-6 6v-3l-4 4 4 4v-3c4.42 0 8-3.58 8-8 0-1.57-.46-3.03-1.24-4.26z" />
+                        </svg>
+                    </button>
+                    <button id="playPauseBtn" aria-label="Start Timer">
+                        <svg id="playIcon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M8 5v14l11-7z" />
+                        </svg>
+                        <svg id="pauseIcon" class="hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+                            fill="currentColor">
+                            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                        </svg>
+                    </button>
+                    <button id="endSessionBtn" class="btn-icon" aria-label="End Session" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M6 6h12v12H6z" />
+                        </svg>
+                    </button>
+                </div>
+            </section>
+            <section id="features-section">
+                <div id="todo-container">
+                    <h2 class="todo-title">🎯 To-Do List</h2>
+                    <div class="tasks-hover" aria-label="Tasks">
+                        <div class="tasks-toggle">TASKS</div>
+                        <div class="tasks-panel" role="region" aria-label="Task List">
+                            <div class="tasks-panel-top">
+                                <label class="tasks-hide-toggle">
+                                    <input type="checkbox" id="hideTasksToggle" checked />
+                                    Hide tasks
+                                </label>
+                            </div>
+                            <div id="todo-input-container">
+                                <input type="text" id="todo-input" placeholder="Add a new task..." autocomplete="off" />
+                                <select id="regularTaskSelect" aria-label="Choose Regular Task">
+                                    <option value="">Choose regular task (optional)</option>
+                                </select>
+                                <button id="add-todo-btn" aria-label="Add Task"><i class="fas fa-plus"
+                                        aria-hidden="true"></i></button>
+                            </div>
+                            <ul id="todo-list" class="sortable-list"></ul>
+                        </div>
+                    </div>
+
+                    <!-- Hidden elements for existing functionality -->
+                    <!-- Hidden elements for existing functionality -->
+                    <audio id="completeSound">
+                        <source src="assets/sounds/complete.mp3" type="audio/mpeg">
+                    </audio>
+                    <div id="confetti-canvas"></div>
+                </div>
+                <div class="controls-container">
+                    <h2>✨ Ambience & Display</h2>
+                    <div class="control-group">
+                        <button id="focusModeBtn" aria-label="Enter Focus Mode">Enter Focus Mode</button>
+                        <button id="noiseBtn" aria-label="Play Ambient Noise">🎧 Play Noise</button>
+                        <button id="pipYoutubeBtn" aria-label="Open Video Player">🎬 Video Player</button>
+                    </div>
+                    <div class="control-group">
+                        <button id="snowBtn" class="ambience-toggle-btn" aria-label="Toggle Snow Effect">❄️
+                            Snow</button>
+                        <button id="rainBtn" class="ambience-toggle-btn" aria-label="Toggle Rain Effect">🌧️
+                            Rain</button>
+                        <button id="sakuraBtn" class="ambience-toggle-btn" aria-label="Toggle Sakura Effect">🌸
+                            Sakura</button>
+                    </div>
+                </div>
+            </section>
+            <!-- Motivational Quote of the Day Section (below To-Do List) -->
+            <section id="quote-section">
+                <div class="quote-container">
+                    <blockquote id="daily-quote" class="quote-text">Loading motivational quote...</blockquote>
+                    <div id="quote-author" class="quote-author"></div>
+                </div>
+            </section>
+
+            <!-- Leaderboard Section -->
+            <section id="leaderboard-section">
+                <div class="leaderboard-card">
+                    <h2><i class="fas fa-trophy"></i> Leaderboards</h2>
+
+                    <!-- Leaderboard Tabs -->
+                    <div class="leaderboard-tabs">
+                        <button class="leaderboard-tab active" data-board="focus">
+                            <i class="fas fa-clock"></i> Focus Hours
+                        </button>
+                        <button class="leaderboard-tab" data-board="streak">
+                            <i class="fas fa-fire"></i> Streak Leaders
+                        </button>
+                    </div>
+
+                    <!-- Focus Hours Leaderboard -->
+                    <div id="focus-leaderboard" class="leaderboard-content active">
+                        <div class="leaderboard-subtext">Top 10 by today's focus hours. Refreshes every 3 minutes.</div>
+                        <ol id="leaderboard-list" class="leaderboard-list"></ol>
+                    </div>
+
+                    <!-- Streak Leaderboard -->
+                    <div id="streak-leaderboard" class="leaderboard-content">
+                        <div class="leaderboard-subtext">Top 10 by current streak. Updates daily.</div>
+                        <ol id="streak-leaderboard-list" class="leaderboard-list"></ol>
+                    </div>
+
+                    <!-- Guest CTA to encourage sign-in for leaderboard eligibility -->
+                    <div id="leaderboard-cta" class="leaderboard-cta hidden">
+                        <button id="leaderboard-cta-btn" class="cta-btn">
+                            <i class="fas fa-star"></i> Want to show up on the leaderboards? Sign in
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Achievements Section (only for logged in users) -->
+            <section id="achievements-section" class="logged-in-only">
+                <div class="achievements-subtle-card">
+                    <button id="achievementsBtn" class="achievements-subtle-btn">
+                        <span class="achievement-emoji">🏆</span>
+                        <span class="achievement-text">Badges Earned</span>
+                        <span id="newAchievementBadge" class="achievement-badge-indicator hidden">NEW</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- New Journal Section -->
+            <section id="journal-section" class="hidden">
+                <div class="journal-header">
+                    <h2><i class="fas fa-book-open"></i> Daily Journal</h2>
+                    <div class="journal-date">
+                        <span id="journal-current-date"></span>
+                    </div>
+                </div>
+                <div class="journal-layout">
+                    <div class="journal-editor">
+                        <div class="journal-status">
+                            <span id="journal-char-count">0/1024</span> characters
+                            <span id="journal-save-status" class="journal-save-status"></span>
+                        </div>
+                        <textarea id="journal-entry" placeholder="Write about your day... (max 1024 characters)"
+                            maxlength="1024"></textarea>
+                        <div class="journal-controls">
+                            <button id="upload-image-btn" class="journal-btn">
+                                <i class="fas fa-image"></i> Add Image
+                            </button>
+                            <input type="file" id="journal-image-upload" accept="image/*" class="hidden">
+                            <button id="save-journal-btn" class="journal-btn primary">
+                                <i class="fas fa-save"></i> Save Entry
+                            </button>
+                        </div>
+                        <div id="journal-image-preview" class="journal-image-preview hidden"></div>
+                    </div>
+                    <div class="journal-history">
+                        <h3><i class="fas fa-history"></i> Previous Entries</h3>
+                        <div id="journal-entries-list" class="journal-entries-list"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- New Timetable Section -->
+            <section id="timetable-section" class="hidden">
+                <div class="timetable-header">
+                    <h2><i class="fas fa-calendar-alt"></i> Personal Timetable</h2>
+                    <div class="timetable-controls">
+                        <button id="add-timeslot-btn" class="timetable-btn primary">
+                            <i class="fas fa-plus"></i> Add Time Slot
+                        </button>
+                        <button id="clear-timetable-btn" class="timetable-btn danger">
+                            <i class="fas fa-trash"></i> Clear All
+                        </button>
+                    </div>
+                </div>
+
+                <div class="timetable-content">
+                    <div class="days-selector">
+                        <div class="day-tab" data-day="monday">Monday</div>
+                        <div class="day-tab" data-day="tuesday">Tuesday</div>
+                        <div class="day-tab" data-day="wednesday">Wednesday</div>
+                        <div class="day-tab" data-day="thursday">Thursday</div>
+                        <div class="day-tab" data-day="friday">Friday</div>
+                        <div class="day-tab" data-day="saturday">Saturday</div>
+                        <div class="day-tab" data-day="sunday">Sunday</div>
+                    </div>
+
+                    <div class="current-day-indicator">
+                        <i class="fas fa-calendar-check"></i>
+                        <span id="current-day-name">Today is Monday</span>
+                    </div>
+
+                    <div class="timeslots-container">
+                        <div id="timeslots-list" class="timeslots-list">
+                            <!-- Time slots will be generated here -->
+                            <div class="no-slots-message">
+                                <i class="fas fa-calendar-plus"></i>
+                                <p>No time slots added for this day yet.</p>
+                                <button id="add-first-slot" class="timetable-btn primary">Add your first time
+                                    slot</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add Time Slot Modal -->
+                <div id="add-timeslot-modal" class="modal">
+                    <div class="modal-content">
+                        <span class="close-modal">&times;</span>
+                        <h3>Add Time Slot</h3>
+                        <form id="timeslot-form">
+                            <div class="form-group">
+                                <label for="timeslot-day">Day</label>
+                                <select id="timeslot-day" required>
+                                    <option value="monday">Monday</option>
+                                    <option value="tuesday">Tuesday</option>
+                                    <option value="wednesday">Wednesday</option>
+                                    <option value="thursday">Thursday</option>
+                                    <option value="friday">Friday</option>
+                                    <option value="saturday">Saturday</option>
+                                    <option value="sunday">Sunday</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="timeslot-start-hour">Start Time</label>
+                                <div class="time-picker-row">
+                                    <select id="timeslot-start-hour" class="time-select" required>
+                                        <option value="">Hour</option>
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                        <option value="3">3</option>
+                                        <option value="4">4</option>
+                                        <option value="5">5</option>
+                                        <option value="6">6</option>
+                                        <option value="7">7</option>
+                                        <option value="8">8</option>
+                                        <option value="9">9</option>
+                                        <option value="10">10</option>
+                                        <option value="11">11</option>
+                                        <option value="12">12</option>
+                                    </select>
+                                    <span class="time-separator">:</span>
+                                    <select id="timeslot-start-minute" class="time-select" required>
+                                        <option value="">Min</option>
+                                        <option value="00">00</option>
+                                        <option value="15">15</option>
+                                        <option value="30">30</option>
+                                        <option value="45">45</option>
+                                    </select>
+                                    <select id="timeslot-start-ampm" class="time-select ampm-select" required>
+                                        <option value="">--</option>
+                                        <option value="AM">AM</option>
+                                        <option value="PM">PM</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="timeslot-end-hour">End Time</label>
+                                <div class="time-picker-row">
+                                    <select id="timeslot-end-hour" class="time-select" required>
+                                        <option value="">Hour</option>
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                        <option value="3">3</option>
+                                        <option value="4">4</option>
+                                        <option value="5">5</option>
+                                        <option value="6">6</option>
+                                        <option value="7">7</option>
+                                        <option value="8">8</option>
+                                        <option value="9">9</option>
+                                        <option value="10">10</option>
+                                        <option value="11">11</option>
+                                        <option value="12">12</option>
+                                    </select>
+                                    <span class="time-separator">:</span>
+                                    <select id="timeslot-end-minute" class="time-select" required>
+                                        <option value="">Min</option>
+                                        <option value="00">00</option>
+                                        <option value="15">15</option>
+                                        <option value="30">30</option>
+                                        <option value="45">45</option>
+                                    </select>
+                                    <select id="timeslot-end-ampm" class="time-select ampm-select" required>
+                                        <option value="">--</option>
+                                        <option value="AM">AM</option>
+                                        <option value="PM">PM</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="timeslot-activity">Activity</label>
+                                <input type="text" id="timeslot-activity" placeholder="What are you planning to do?"
+                                    required>
+                            </div>
+
+                            <button type="submit" class="timetable-btn primary">Add Time Slot</button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </main>
+
+    <!-- Learning Buddy Overlay - Center Screen -->
+    <div id="learningBuddyOverlay" class="learning-buddy-overlay hidden">
+        <!-- Close button -->
+        <button id="closeLearningBuddy" class="close-buddy-btn" aria-label="Close Learning Buddy">
+            <i class="fas fa-times"></i>
+        </button>
+
+        <!-- Main Content Container -->
+        <div class="buddy-content-container">
+            <!-- Speech Bubble -->
+            <div class="buddy-speech-bubble" id="buddySpeechBubble">
+                <p id="buddyMessage">Hi! I'm here to listen while you explain your concepts. Teaching is one of the best
+                    ways to learn! 🎓</p>
+            </div>
+
+            <!-- Adorable Learning Cat -->
+            <div class="learning-cat-container" id="learningCat">
+                <model-viewer id="buddy3D" src="Cat/Cat.glb" alt="A 3D model of a cat" camera-controls
+                    shadow-intensity="1" disable-zoom interaction-prompt="none">
+                </model-viewer>
+            </div>
+
+            <!-- Control Buttons -->
+            <div class="buddy-controls">
+                <button id="buddyListenBtn" class="buddy-control-btn listening">
+                    <i class="fas fa-ear-listen"></i>
+                    <span>I'm Listening!</span>
+                </button>
+                <button id="buddyTipsBtn" class="buddy-control-btn">
+                    <i class="fas fa-lightbulb"></i>
+                    <span>Learning Tips</span>
+                </button>
+                <button id="buddyEncourageBtn" class="buddy-control-btn">
+                    <i class="fas fa-heart"></i>
+                    <span>Encourage Me</span>
+                </button>
+                <button id="buddyPlayWithMeBtn" class="buddy-control-btn">
+                    <i class="fas fa-rotate"></i>
+                    <span>🎮 Play with Me!</span>
+                </button>
+            </div>
+
+            <!-- Quick Tips Panel -->
+            <!-- Learning Tips Card Stack Popup -->
+            <div id="tipsPopupOverlay" class="tips-popup-overlay hidden">
+                <div class="tips-popup-content">
+                    <button id="closeTipsPopup" class="close-tips-btn">&times;</button>
+                    <h3>✨ Learning Techniques</h3>
+                    <p class="tips-instruction">Tap a card to see the next one!</p>
+                    <div id="tipsCardStack" class="tips-card-stack">
+                        <!-- Cards will be injected here by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Accountability Partner Overlay -->
+    <div id="accountabilityOverlay" class="accountability-overlay hidden">
+        <div class="accountability-content">
+            <div class="accountability-emoji">👀</div>
+            <h2>Where you at bro?</h2>
+            <p>Your session is paused until you return!</p>
+            <div class="accountability-subtext">Waiting for you to get back in the zone...</div>
+        </div>
+    </div>
+
+    <div id="statsModal" class="modal">
+        <div class="modal-content stats-modal">
+            <span class="close-btn">&times;</span>
+            <h2>Your Progress 📈</h2>
+            <button id="shareStatsBtn" class="btn-share-mini share-left"><i class="fas fa-share-nodes"
+                    style="margin-right:6px;"></i><span>Share My Stats</span></button>
+            <a href="#" id="openSupportQRBtn" class="support-cta support-btn"><i class="fas fa-qrcode"></i> Support us
+                ❤️</a>
+            <div class="tabs">
+                <div class="tab active" data-tab="stats">📈 Stats</div>
+                <div class="tab" data-tab="weekly">🗓️ Weekly</div>
+                <div class="tab" data-tab="store">🛒 Themes</div>
+                <div class="tab" data-tab="settings">⚙️ Settings</div>
+                <div class="tab" data-tab="profile">👤 Profile</div>
+                <div class="tab" data-tab="journal">📔 Journal</div>
+                <div class="tab" data-tab="timetable">📅 Timetable</div>
+            </div>
+
+            <div id="statsContainer" class="tab-content active">
+                <div class="stats-grid">
+                    <div class="stat-card focus-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <h3>Total Focus Time</h3>
+                        <p class="stat-value" id="totalFocusTime">0h 0m</p>
+                        <p class="stat-subtext">Lifetime achievement</p>
+                    </div>
+
+                    <div class="stat-card sessions-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <h3>Total Sessions</h3>
+                        <p class="stat-value" id="totalSessionsCount">0</p>
+                        <p class="stat-subtext">Productivity moments</p>
+                    </div>
+
+                    <div class="stat-card streak-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-fire"></i>
+                        </div>
+                        <h3>Current Streak</h3>
+                        <p class="stat-value" id="currentStreak">0 days</p>
+                        <p class="stat-subtext">Keep it going!</p>
+                    </div>
+
+                    <div class="stat-card best-streak-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-trophy"></i>
+                        </div>
+                        <h3>Best Streak</h3>
+                        <p class="stat-value" id="bestStreak">0 days</p>
+                        <p class="stat-subtext">Your personal record</p>
+                    </div>
+
+                    <div class="stat-card longest-session-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-star"></i>
+                        </div>
+                        <h3>Longest Session</h3>
+                        <p class="stat-value" id="longestSession">0m</p>
+                        <p class="stat-subtext">Your deepest focus</p>
+                    </div>
+
+                    <div class="stat-card today-sessions-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-calendar-day"></i>
+                        </div>
+                        <h3>Today's Sessions</h3>
+                        <p class="stat-value" id="todaySessions">0</p>
+                        <p class="stat-subtext">Daily progress</p>
+                    </div>
+
+                    <div class="stat-card weekly-hours-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-hourglass-half"></i>
+                        </div>
+                        <h3>Weekly Focus</h3>
+                        <p class="stat-value" id="weeklyFocusHours">0h</p>
+                        <p class="stat-subtext">Total hours in last 7 days</p>
+                    </div>
+
+                    <div class="stat-card weekly-sessions-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-calendar-week"></i>
+                        </div>
+                        <h3>Weekly Sessions</h3>
+                        <p class="stat-value" id="weeklySessionsCount">0</p>
+                        <p class="stat-subtext">Completed sessions (7d)</p>
+                    </div>
+
+                    <div class="stat-card avg-session-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-stopwatch"></i>
+                        </div>
+                        <h3>Avg Session Length</h3>
+                        <p class="stat-value" id="avgSessionLength">0m</p>
+                        <p class="stat-subtext">Across all sessions</p>
+                    </div>
+                </div>
+
+                <div class="charts-container">
+                    <div class="chart-wrapper">
+                        <h3>Weekly Focus Trend</h3>
+                        <div class="chart-container"><canvas id="barChart"></canvas></div>
+                    </div>
+                    <div class="chart-wrapper">
+                        <h3>Tasks Completed</h3>
+                        <div class="chart-container"><canvas id="pieChart"></canvas></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="storeContainer" class="tab-content">
+                <div class="settings-group">
+                    <h3>🎬 YouTube Background</h3>
+                    <div class="input-group">
+                        <input type="text" id="youtube-input" placeholder="Paste YouTube URL...">
+                        <button id="setYoutubeBtn">Set</button>
+                    </div>
+                </div>
+                <div class="settings-group">
+                    <h3>🖼️ Custom Image Background</h3>
+                    <div class="input-group">
+                        <input type="file" id="image-upload-input" accept="image/*" class="hidden">
+                        <button id="uploadImageBtn">Upload Image</button>
+                        <button id="clearImageBtn" class="btn-danger">Clear</button>
+                    </div>
+                    <div style="font-size:0.98em;color:#f7a047;margin-top:0.5em;">
+                        <b>Note:</b> Please reload the page after uploading an image to see your new background.
+                    </div>
+                </div>
+                <div class="settings-group">
+                    <h3>🖼️ Static Wallpapers</h3>
+                    <div class="gallery-tabs">
+                        <button class="gallery-tab active" data-category="all">All</button>
+                        <button class="gallery-tab" data-category="cars">Cars</button>
+                        <button class="gallery-tab" data-category="landscapes">Landscapes</button>
+                        <button class="gallery-tab" data-category="animals">Animals</button>
+                        <button class="gallery-tab" data-category="anime">Anime</button>
+                        <button class="gallery-tab" data-category="cosmic">Cosmic</button>
+                    </div>
+                    <div id="wallpaperGrid" class="wallpaper-grid">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <h3>🎬 YouTube Themes</h3>
+                <div id="storeItems">
+                    <div class="store-item" data-type="youtube" data-id="AEiPpKLJIMM">
+                        <span>🌆 Cosmic Code</span><button>Apply</button>
+                    </div>
+                    <div class="store-item" data-type="youtube" data-id="ZHMxuoUaWxM">
+                        <span>🎵 Chill</span><button>Apply</button>
+                    </div>
+                    <div class="store-item" data-type="youtube" data-id="NJuSStkIZBg">
+                        <span>🌧️ Cozy Rainy Night</span><button>Apply</button>
+                    </div>
+                    <div class="store-item" data-type="youtube" data-id="6KL2QZ91kAM">
+                        <span>🏞️ Nature Walk</span><button>Apply</button>
+                    </div>
+                </div>
+            </div>
+            <div id="settingsContainer" class="tab-content">
+                <div class="settings-group">
+                    <h3>⏱️ Timer Durations (minutes)</h3>
+                    <div class="settings-group">
+                        <a href="https://docs.google.com/forms/d/e/1FAIpQLScLU0kaf55JTMKH2XaavMzygMUJQZGeZAqgKxrAC8PXrYtuQA/viewform?usp=header"
+                            target="_blank" class="header-btn">Feedback 📝</a>
+                    </div>
+                    <div class="settings-grid">
+                        <label for="work-duration">Work:</label>
+                        <input type="number" id="work-duration" min="1">
+                        <label for="short-break-duration">Short Break:</label>
+                        <input type="number" id="short-break-duration" min="1">
+                        <label for="long-break-duration">Long Break:</label>
+                        <input type="number" id="long-break-duration" min="1">
+                    </div>
+                    <!-- New Settings -->
+                    <h3>🎵 Sound Effects</h3>
+                    <div class="settings-group">
+                        <label for="sound-effects-select">Start/End Sounds:</label>
+                        <select id="sound-effects-select" class="settings-select">
+                            <option value="indian">For Indians</option>
+                            <option value="non-indian">For Non-Indians</option>
+                            <option value="off">Turn Off</option>
+                        </select>
+                    </div>
+                    <div class="settings-group">
+                        <h3>📚 Regular Tasks</h3>
+                        <div class="input-group regular-task-inputs">
+                            <input type="text" id="regularTaskInput"
+                                placeholder="Add a subject/task (e.g., Calculus, Testing)">
+                            <button id="addRegularTaskBtn" class="icon-btn primary"><i class="fas fa-plus"></i></button>
+                        </div>
+                        <p class="settings-description">Pick from this list when creating a to-do to keep weekly
+                            analytics accurate.</p>
+                        <ul id="regularTasksList" class="regular-tasks-list"></ul>
+                    </div>
+                    <h3>🤖 Accountability AI</h3>
+                    <div class="toggle-switch-container">
+                        <label for="accountability-toggle">Accountability Partner (Camera)</label>
+                        <label class="switch">
+                            <input type="checkbox" id="accountability-toggle">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                    <p class="settings-description" id="accountability-warning">Pauses the timer if you're away from the
+                        screen for 30+ seconds. Note: This feature only works when you're using the current tab.</p>
+                </div>
+                <button id="saveSettingsBtn">Save Settings</button>
+            </div>
+            <div id="profileContainer" class="tab-content">
+                <div class="info-zone">
+                    <h3>🔥 Streak Info</h3>
+                    <p>Complete at least one full work session each day to build your streak. Keep the fire going!</p>
+                </div>
+                <div class="danger-zone">
+                    <h3>⚠️ Danger Zone</h3>
+                    <p>This will reset ALL your stats and settings permanently.</p>
+                    <button id="clearDataBtn" class="btn-danger">Clear All Data</button>
+                </div>
+            </div>
+            <div id="journalContainer" class="tab-content">
+                <div class="journal-tab-content">
+                    <h3>Your Journal Entries</h3>
+                    <div id="journal-tab-entries" class="journal-tab-entries">
+                        <!-- Journal entries will be displayed here -->
+                    </div>
+                </div>
+            </div>
+            <div id="timetableContainer" class="tab-content">
+                <div class="timetable-tab-content">
+                    <h3>Your Weekly Schedule</h3>
+                    <div id="customize-timetable-list" class="customize-timetable-list"></div>
+                    <p class="timetable-note">Tip: Manage slots in the main Timetable from the dock. You can also delete
+                        slots here.</p>
+                </div>
+            </div>
+
+            <div id="weeklyContainer" class="tab-content">
+                <div class="weekly-report">
+                    <h3>Weekly Report</h3>
+                    <div class="stats-grid" id="weeklyKpiGrid">
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-hourglass-half"></i></div>
+                            <h3>Focus (7d)</h3>
+                            <p class="stat-value" id="wrFocusTime">0m</p>
+                            <p class="stat-subtext">Last 7 days</p>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                            <h3>Sessions (7d)</h3>
+                            <p class="stat-value" id="wrSessions">0</p>
+                            <p class="stat-subtext">Completed + early</p>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-stopwatch"></i></div>
+                            <h3>Avg Session</h3>
+                            <p class="stat-value" id="wrAvgSession">0m</p>
+                            <p class="stat-subtext">Focus per session</p>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-percentage"></i></div>
+                            <h3>Completion Rate</h3>
+                            <p class="stat-value" id="wrCompletionRate">0%</p>
+                            <p class="stat-subtext">Finished sessions</p>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fas fa-fire"></i></div>
+                            <h3>Discipline</h3>
+                            <p class="stat-value" id="wrDiscipline">—</p>
+                            <p class="stat-subtext" id="wrDisciplineLabel">—</p>
+                        </div>
+                    </div>
+                    <div class="weekly-sections"
+                        style="margin-top:16px; display:grid; gap:16px; grid-template-columns: 1fr;">
+                        <div class="weekly-section">
+                            <h3><i class="fas fa-tasks"></i> Task wise analysis</h3>
+                            <ol id="weeklyTaskAnalysisList" class="leaderboard-list weekly-task-list"></ol>
+                        </div>
+                        <div class="weekly-section">
+                            <h3><i class="fas fa-user-secret"></i> Anonymous Sessions</h3>
+                            <p id="weeklyAnonymousSummary">—</p>
+                            <p class="leaderboard-subtext">These are sessions without any Regular Task selection or with
+                                a random task name.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Weekly Task Drilldown Modal -->
+            <div id="weeklyTaskDrilldownModal" class="modal">
+                <div class="modal-content weekly-drilldown-modal">
+                    <span class="close-btn" id="closeWeeklyDrilldownBtn">&times;</span>
+                    <h3 id="weeklyDrilldownTitle" style="margin-top:0">Task details</h3>
+                    <ol id="weeklyDrilldownDailyList" class="leaderboard-list"></ol>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="cornerWidget">
+        <div class="progress-label"><span>Day</span><span id="dayProgressPercent"></span></div>
+        <div class="progress-bar-container">
+            <div id="dayProgressBar" class="progress-bar"></div>
+        </div>
+        <div class="progress-label"><span>Month</span><span id="monthProgressPercent"></span></div>
+        <div class="progress-bar-container">
+            <div id="monthProgressBar" class="progress-bar"></div>
+        </div>
+        <div class="progress-label"><span>Year</span><span id="yearProgressPercent"></span></div>
+        <div class="progress-bar-container">
+            <div id="yearProgressBar" class="progress-bar"></div>
+        </div>
+    </div>
+    <div id="ambient-container"></div>
+    <div id="focusModeUI">
+        <div id="focusModeTimer"></div>
+        <div id="focusModeProgressBarContainer">
+            <div id="focusModeProgressBar"></div>
+        </div>
+        <div id="focusModeControls">
+            <button id="focusModePlayPauseBtn" aria-label="Play/Pause"><span class="icon"></span></button>
+            <button id="focusModeExitBtn" aria-label="Exit Focus Mode"><span class="icon"></span></button>
+        </div>
+    </div>
+    <div id="completionModal" class="modal">
+        <div class="completion-content">
+            <div class="completion-icon">🎉</div>
+            <h2 id="completion-title">Session Complete!</h2>
+            <p id="completion-message">Great work! Keep the momentum going.</p>
+            <button id="closeCompletionModalBtn" aria-label="Close completion modal">Awesome!</button>
+        </div>
+    </div>
+    <!-- Buy Me a Coffee Modal -->
+    <div id="bmcModal" class="modal">
+        <div class="modal-content bmc-modal">
+            <span class="close-btn" id="closeBmcModalBtn">&times;</span>
+            <iframe src="https://www.buymeacoffee.com/widget/page/YouFloww" title="Support YouFloww"
+                style="width:100%;height:72vh;border:0;border-radius:12px; background:#fff;"></iframe>
+        </div>
+    </div>
+
+    <!-- Share configuration modal -->
+    <div id="shareConfigModal" class="modal">
+        <div class="modal-content share-modal">
+            <span class="close-btn" id="closeShareConfigBtn">&times;</span>
+            <h3 style="margin:0 0 8px 0;">Share Your Stats</h3>
+            <p class="share-hint">Choose up to 4 stats to include</p>
+            <div class="share-grid">
+                <label><input type="checkbox" value="totalHours" checked> Total Focus</label>
+                <label><input type="checkbox" value="totalSessions"> Total Sessions</label>
+                <label><input type="checkbox" value="currentStreak" checked> Current Streak</label>
+                <label><input type="checkbox" value="bestStreak" checked> Best Streak</label>
+                <label><input type="checkbox" value="longestSession"> Longest Session</label>
+                <label><input type="checkbox" value="todaySessions"> Today’s Sessions</label>
+                <label><input type="checkbox" value="weeklyFocusHours" checked> Weekly Focus</label>
+                <label><input type="checkbox" value="weeklySessionsCount"> Weekly Sessions</label>
+                <label><input type="checkbox" value="avgSessionLength"> Avg Session Length</label>
+            </div>
+            <label class="share-checkbox"><input type="checkbox" id="includeWeeklyGraph"> Include weekly mini
+                graph</label>
+            <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:10px;">
+                <button id="createStatsCardBtn" class="share-primary-btn">Create Card</button>
+            </div>
+        </div>
+    </div>
+    <!-- Support QR Modal -->
+    <div id="supportQRModal" class="modal">
+        <div class="modal-content support-modal">
+            <span class="close-btn" id="closeSupportQRBtn">&times;</span>
+            <h3 style="margin-top:0;">Support YouFloww ❤️</h3>
+            <p class="support-copy">Your support helps me keep YouFloww running — covering database storage, servers,
+                and ongoing improvements. If YouFloww helps you focus, a small contribution makes a big difference.</p>
+            <img src="assets/images/qr.png" alt="Support via QR" class="support-qr" />
+            <p class="support-thanks">Thank you for being a part of the flow. You keep this project alive. ✨</p>
+        </div>
+    </div>
+    <!-- New Session Review Modal with animated assistant -->
+    <div id="reviewModal" class="modal">
+        <div class="review-modal-content">
+            <div class="assistant-character animated-walk-in">
+                <svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+                    <ellipse id="body" cx="60" cy="80" rx="28" ry="25" fill="#6c63ff" />
+                    <circle id="head" cx="60" cy="55" r="20" fill="#ffe0b2" stroke="#333" stroke-width="2" />
+                    <ellipse id="eye-left" cx="54" cy="55" rx="3" ry="4" fill="#222" />
+                    <ellipse id="eye-right" cx="66" cy="55" rx="3" ry="4" fill="#222" />
+                    <path d="M54 65 Q60 73 66 65" stroke="#222" stroke-width="2" fill="none" />
+                    <g id="pointing-arm">
+                        <rect x="70" y="85" width="30" height="8" rx="4" fill="#ffe0b2" stroke="#333"
+                            stroke-width="2" />
+                        <circle cx="100" cy="89" r="7" fill="#ffe0b2" stroke="#333" stroke-width="2" />
+                    </g>
+                    <rect id="leg" x="62" y="100" width="8" height="20" rx="4" fill="#6c63ff" />
+                </svg>
+            </div>
+            <h2 class="review-title">Session Review</h2>
+            <p class="review-subtitle">Here's how your focus session went:</p>
+            <div class="review-stats-grid" id="statsGrid">
+                <div class="review-stat-item">
+                    <h3>Total Focus</h3>
+                    <p id="reviewFocusTime">0m 0s</p>
+                </div>
+                <div class="review-stat-item">
+                    <h3>Away Time</h3>
+                    <p id="reviewAwayTime">0m 0s</p>
+                </div>
+                <div class="review-stat-item">
+                    <h3>Total Duration</h3>
+                    <p id="reviewTotalDuration">0m 0s</p>
+                </div>
+            </div>
+            <button id="closeReviewModalBtn" aria-label="Close session review modal">Keep Flowing!</button>
+        </div>
+    </div>
+    <div id="pip-player-container" class="hidden" style="display: none;">
+        <div id="pip-player-header">
+            <span class="pip-title">📺 Video Player</span>
+            <div class="pip-controls">
+                <button id="pip-minimize-btn" aria-label="Minimize player">_</button>
+                <button id="pip-close-btn" aria-label="Close player">×</button>
+            </div>
+        </div>
+        <div id="pip-player-content">
+            <div id="player"></div>
+            <div id="player-placeholder" style="display: none; color: white; text-align: center; padding: 20px;">
+                <i class="fas fa-play-circle" style="font-size: 48px; margin-bottom: 10px;"></i>
+                <p>Video loading...</p>
+            </div>
+        </div>
+        <div class="pip-input-container">
+            <input type="text" id="pip-youtube-input" placeholder="Paste YouTube link here...">
+            <button id="pip-set-btn">Play</button>
+        </div>
+        <div id="pip-resize-handle"></div>
+    </div>
+
+    <!-- macOS Dock Navigation -->
+    <nav id="mac-dock" role="navigation" aria-label="Main navigation">
+        <div class="dock-container">
+            <div class="dock-item" data-section="timer">
+                <div class="dock-icon">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <span class="dock-label">Timer</span>
+            </div>
+            <div class="dock-item" data-section="todo">
+                <div class="dock-icon">
+                    <i class="fas fa-tasks"></i>
+                </div>
+                <span class="dock-label">Tasks</span>
+            </div>
+            <div class="dock-item" data-section="journal">
+                <div class="dock-icon">
+                    <i class="fas fa-book"></i>
+                </div>
+                <span class="dock-label">Journal</span>
+            </div>
+            <div class="dock-item" data-section="timetable">
+                <div class="dock-icon">
+                    <i class="fas fa-calendar"></i>
+                </div>
+                <span class="dock-label">Schedule</span>
+            </div>
+            <div class="dock-item" data-section="stats">
+                <div class="dock-icon">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <span class="dock-label">Stats</span>
+            </div>
+            <div class="dock-item" data-section="settings">
+                <div class="dock-icon">
+                    <i class="fas fa-cog"></i>
+                </div>
+                <span class="dock-label">Settings</span>
+            </div>
+            <div class="dock-item" data-section="diskplayer">
+                <div class="dock-icon">
+                    <i class="fas fa-compact-disc"></i>
+                </div>
+                <span class="dock-label">Disk Player</span>
+            </div>
+        </div>
+    </nav>
+
+    <audio id="whiteNoise" loop>
+        <source src="assets/sounds/whitenoise.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="pauseAlertSound">
+        <source src="https://actions.google.com/sounds/v1/ui/close_button_pressed.ogg" type="audio/ogg">
+    </audio>
+    <audio id="resumeAlertSound">
+        <source src="https://actions.google.com/sounds/v1/ui/button_press.ogg" type="audio/ogg">
+    </audio>
+    <audio class="start-sound-indian" src="assets/sounds/start-sound1.mp3"></audio>
+    <audio class="start-sound-indian" src="assets/sounds/start-sound2.mp3"></audio>
+    <audio class="start-sound-indian" src="assets/sounds/start-sound3.mp3"></audio>
+    <audio class="start-sound-indian" src="assets/sounds/start-sound4.mp3"></audio>
+    <audio class="good-meme-indian" src="assets/sounds/good-meme1.mp3"></audio>
+    <audio class="good-meme-indian" src="assets/sounds/good-meme2.mp3"></audio>
+    <audio class="good-meme-indian" src="assets/sounds/good-meme3.mp3"></audio>
+    <audio class="good-meme-indian" src="assets/sounds/good-meme4.mp3"></audio>
+    <audio class="bad-meme-indian" src="assets/sounds/bad-meme1.mp3"></audio>
+    <audio class="bad-meme-indian" src="assets/sounds/bad-meme2.mp3"></audio>
+    <audio class="bad-meme-indian" src="assets/sounds/bad-meme3.mp3"></audio>
+    <audio class="bad-meme-indian" src="assets/sounds/bad-meme4.mp3"></audio>
+    <audio class="start-sound-non-indian" src="assets/sounds/start-nonindian-1.mp3"></audio>
+    <audio class="start-sound-non-indian" src="assets/sounds/start-nonindian-2.mp3"></audio>
+    <audio class="start-sound-non-indian" src="assets/sounds/start-nonindian-3.mp3"></audio>
+    <audio class="start-sound-non-indian" src="assets/sounds/start-nonindian-4.mp3"></audio>
+    <audio class="good-meme-non-indian" src="assets/sounds/good-nonindian-1.mp3"></audio>
+    <audio class="good-meme-non-indian" src="assets/sounds/good-nonindian-2.mp3"></audio>
+    <audio class="good-meme-non-indian" src="assets/sounds/good-nonindian-3.mp3"></audio>
+    <audio class="good-meme-non-indian" src="assets/sounds/good-nonindian-4.mp3"></audio>
+    <audio class="bad-meme-non-indian" src="assets/sounds/bad-nonindian-1.mp3"></audio>
+    <audio class="bad-meme-non-indian" src="assets/sounds/bad-nonindian-2.mp3"></audio>
+    <audio class="bad-meme-non-indian" src="assets/sounds/bad-nonindian-3.mp3"></audio>
+    <audio class="bad-meme-non-indian" src="assets/sounds/bad-nonindian-4.mp3"></audio>
+
+    <script>
+        // --- Gravity Particles (lighter version) ---
+        (function () {
+            const canvas = document.getElementById('gravity-particles-canvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            let W = window.innerWidth, H = window.innerHeight;
+            canvas.width = W; canvas.height = H;
+            window.addEventListener('resize', () => { W = window.innerWidth; H = window.innerHeight; canvas.width = W; canvas.height = H; });
+            const particles = [];
+            const colors = ['#f7a047', '#fff', '#ffecb3', '#ffd180'];
+            const gravity = 0.08;
+            const mouse = { x: W / 2, y: H / 2, active: false };
+            const PARTICLE_COUNT = 28; // reduced for performance
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                particles.push({
+                    x: Math.random() * W, y: Math.random() * H,
+                    vx: (Math.random() - 0.5) * 1.2, vy: (Math.random() - 0.5) * 1.2,
+                    r: Math.random() * 2 + 2.2, color: colors[Math.floor(Math.random() * colors.length)],
+                    glow: Math.random() * 8 + 6
+                });
+            }
+            canvas.addEventListener('mousemove', e => {
+                mouse.x = e.clientX; mouse.y = e.clientY; mouse.active = true;
+            });
+            canvas.addEventListener('mouseleave', () => { mouse.active = false; });
+            let lastFrame = 0;
+            function draw(ts) {
+                if (ts - lastFrame < 1000 / 36) { requestAnimationFrame(draw); return; } // ~36fps
+                lastFrame = ts;
+                ctx.clearRect(0, 0, W, H);
+                for (let p of particles) {
+                    if (mouse.active) {
+                        let dx = p.x - mouse.x, dy = p.y - mouse.y, dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < 120) {
+                            let repel = (120 - dist) / 120 * 2.1;
+                            p.vx += (dx / dist) * repel * 1.7;
+                            p.vy += (dy / dist) * repel * 1.7;
+                        }
+                    }
+                    p.vy += gravity * 0.13;
+                    p.x += p.vx; p.y += p.vy;
+                    p.vx *= 0.95; p.vy *= 0.95;
+                    if (p.x < 0) { p.x = 0; p.vx *= -0.7; }
+                    if (p.x > W) { p.x = W; p.vx *= -0.7; }
+                    if (p.y < 0) { p.y = 0; p.vy *= -0.7; }
+                    if (p.y > H) { p.y = H; p.vy *= -0.7; }
+                    ctx.save();
+                    ctx.globalAlpha = 0.6;
+                    ctx.shadowColor = p.color;
+                    ctx.shadowBlur = p.glow;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.r, 0, 2 * Math.PI);
+                    ctx.fillStyle = p.color;
+                    ctx.fill();
+                    ctx.restore();
+                }
+                requestAnimationFrame(draw);
+            }
+            requestAnimationFrame(draw);
+        })();
+        // --- Magical Star Cursor Trail (lighter version) ---
+        (function () {
+            const canvas = document.getElementById('star-trail-canvas');
+            if (!canvas) return;
+            let W = window.innerWidth, H = window.innerHeight;
+            canvas.width = W; canvas.height = H;
+            canvas.style.position = 'absolute';
+            canvas.style.inset = '0';
+            canvas.style.pointerEvents = 'none';
+            canvas.style.zIndex = 10;
+            window.addEventListener('resize', () => { W = window.innerWidth; H = window.innerHeight; canvas.width = W; canvas.height = H; });
+            const ctx = canvas.getContext('2d');
+            const starColors = ['#fff7b2', '#ffe0fc', '#aeefff', '#ffd180', '#f7a047', '#fff'];
+            let stars = [];
+            let mouse = { x: W / 2, y: H / 2, moved: false };
+            const MAX_STARS = 18; // reduced for performance
+            const STAR_LIFETIME = 22; // shorter for performance
+            canvas.addEventListener('mousemove', e => {
+                mouse.x = e.clientX; mouse.y = e.clientY; mouse.moved = true;
+            });
+            document.addEventListener('mousemove', e => {
+                mouse.x = e.clientX; mouse.y = e.clientY; mouse.moved = true;
+            });
+            function spawnStar(x, y) {
+                if (stars.length >= MAX_STARS) return;
+                const angle = Math.random() * 2 * Math.PI;
+                const speed = Math.random() * 1.1 + 0.3;
+                stars.push({
+                    x, y,
+                    vx: Math.cos(angle) * speed * 0.6,
+                    vy: Math.sin(angle) * speed * 0.6,
+                    r: Math.random() * 1.7 + 1.7,
+                    color: starColors[Math.floor(Math.random() * starColors.length)],
+                    twinkle: Math.random() * 0.5 + 0.7,
+                    alpha: 1,
+                    life: 0,
+                    maxLife: STAR_LIFETIME + Math.random() * 7
+                });
+            }
+            let lastX = mouse.x, lastY = mouse.y;
+            let lastFrame = 0;
+            function animate(ts) {
+                if (ts - lastFrame < 1000 / 36) { requestAnimationFrame(animate); return; } // ~36fps
+                lastFrame = ts;
+                ctx.clearRect(0, 0, W, H);
+                if (mouse.moved) {
+                    const dx = mouse.x - lastX, dy = mouse.y - lastY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    const steps = Math.floor(dist / 8);
+                    for (let i = 0; i < steps; i++) {
+                        const t = i / steps;
+                        spawnStar(lastX + dx * t, lastY + dy * t);
+                    }
+                    lastX = mouse.x; lastY = mouse.y;
+                    mouse.moved = false;
+                }
+                for (let i = stars.length - 1; i >= 0; i--) {
+                    const s = stars[i];
+                    s.x += s.vx; s.y += s.vy;
+                    s.life++;
+                    const twinkle = 0.7 + 0.5 * Math.sin(s.life * 0.25 + s.twinkle * 10);
+                    ctx.save();
+                    ctx.globalAlpha = s.alpha * twinkle;
+                    ctx.shadowColor = s.color;
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    for (let j = 0; j < 5; j++) {
+                        const angle = (Math.PI * 2 / 5) * j - Math.PI / 2;
+                        const x = s.x + Math.cos(angle) * s.r;
+                        const y = s.y + Math.sin(angle) * s.r;
+                        if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                    }
+                    ctx.closePath();
+                    ctx.fillStyle = s.color;
+                    ctx.fill();
+                    ctx.restore();
+                    if (s.life > s.maxLife) s.alpha -= 0.08;
+                    if (s.alpha <= 0) stars.splice(i, 1);
+                }
+                requestAnimationFrame(animate);
+            }
+            requestAnimationFrame(animate);
+        })();
+        // --- Glowy Text ---
+        (function () {
+            const title = document.getElementById('glowy-title');
+            if (!title) return;
+            title.style.position = 'relative';
+            title.style.fontSize = '3.2rem';
+            title.style.fontWeight = '900';
+            title.style.letterSpacing = '0.04em';
+            title.style.color = '#fff';
+            title.style.textShadow = '0 0 32px #f7a047, 0 0 8px #fff, 0 0 2px #fff';
+            title.style.transition = 'text-shadow 0.2s';
+            title.addEventListener('mousemove', e => {
+                const rect = title.getBoundingClientRect();
+                const x = e.clientX - rect.left, y = e.clientY - rect.top;
+                title.style.textShadow = `0 0 32px #f7a047, ${x / 8 - 20}px ${y / 8 - 20}px 24px #fff, 0 0 2px #fff`;
+            });
+            title.addEventListener('mouseleave', () => {
+                title.style.textShadow = '0 0 32px #f7a047, 0 0 8px #fff, 0 0 2px #fff';
+            });
+        })();
+        // --- Loader Counter ---
+        (function () {
+            const counter = document.getElementById('loader-counter');
+            if (!counter) return;
+            let start = null;
+            function animateCounter(ts) {
+                if (!start) start = ts;
+                let elapsed = ts - start;
+                let percent = Math.min(100, Math.floor((elapsed / 4000) * 100));
+                counter.textContent = percent + '%';
+                if (percent < 100) requestAnimationFrame(animateCounter);
+                else counter.textContent = '100%';
+            }
+            requestAnimationFrame(animateCounter);
+        })();
+        // --- Hide Overlay after 4s ---
+        window.addEventListener('DOMContentLoaded', function () {
+            var overlay = document.getElementById('gravity-loader-overlay');
+            if (overlay) {
+                setTimeout(function () {
+                    overlay.style.opacity = '0';
+                    overlay.style.pointerEvents = 'none';
+                    setTimeout(function () { overlay.style.display = 'none'; }, 600);
+                }, 4000);
+            }
+        });
+    </script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js" type="module"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js" type="module"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js" type="module"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-analytics.js" type="module"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js" defer crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection" crossorigin="anonymous"></script>
+    <script src="https://www.youtube.com/iframe_api" crossorigin="anonymous"></script>
+    <script src="achievements.js"></script>
+    <script src="learning-buddy.js"></script>
+    <script src="script.js" type="module"></script>
+
+    <!-- Achievement System Integration -->
+    <script>
+        function setupAchievementsButton() {
+            const achievementsBtn = document.getElementById('achievementsBtn');
+            console.log('Setting up achievements button:', achievementsBtn);
+
+            if (achievementsBtn) {
+                // Remove any existing listeners
+                achievementsBtn.replaceWith(achievementsBtn.cloneNode(true));
+                const newBtn = document.getElementById('achievementsBtn');
+
+                newBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Achievement button clicked!');
+
+                    if (typeof achievementSystem !== 'undefined' && achievementSystem) {
+                        console.log('Opening achievements panel...');
+                        achievementSystem.showAchievementsPanel();
+                    } else {
+                        console.error('Achievement system not available:', typeof achievementSystem);
+                        alert('Achievement system is loading, please try again in a moment.');
+                    }
+                });
+
+                console.log('Achievement button event listener attached successfully');
+            } else {
+                console.error('Achievement button not found!');
+            }
+        }
+
+        // Try multiple times to ensure it works
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM loaded, setting up achievements...');
+            setupAchievementsButton();
+
+            // Also try after a delay in case the button is dynamically created
+            setTimeout(setupAchievementsButton, 1000);
+            setTimeout(setupAchievementsButton, 3000);
+        });
+
+        // Also try when window loads
+        window.addEventListener('load', () => {
+            setTimeout(setupAchievementsButton, 500);
+        });
+    </script>
+
+
+    <!-- Learning Buddy Cat Button (above Buy Me a Coffee) -->
+    <div id="learningBuddyCatContainer" class="learning-buddy-cat-container">
+        <button id="learningTechniquesBtn" class="learning-buddy-cat-btn"
+            title="Open Learning Buddy - Learn by explaining!">
+            🐱
+        </button>
+    </div>
+
+    <!-- Support Button -->
+    <a href="#" id="openBmcSticky" style="position: fixed; bottom: 20px; left: 20px; z-index: 1000;"
+        aria-label="Support YouFloww">
+        <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee"
+            style="height: 30px !important;width: 108px !important;">
+    </a>
+
+    <!-- Footer -->
+    <footer style="display: none;" id="app-footer" class="hidden">
+        <p>&copy; 2024 YouFloww. Built with ❤️ for productivity.</p>
+    </footer>
+
+    <script>
+        (function () {
+            const KEY = 'youfloww_hide_tasks';
+            function apply(h) {
+                const w = document.querySelector('.tasks-hover');
+                if (!w) return;
+                w.classList.toggle('always-open', !h);
+            }
+            function init() {
+                const t = document.getElementById('hideTasksToggle');
+                if (!t) return;
+                let h = true;
+                try { const s = localStorage.getItem(KEY); if (s !== null) h = (s === 'true'); } catch { }
+                t.checked = h;
+                apply(h);
+                t.addEventListener('change', () => {
+                    const v = t.checked;
+                    apply(v);
+                    try { localStorage.setItem(KEY, String(v)); } catch { }
+                });
+            }
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+        })();
+    </script>
+    <script src="raindrop.js"></script>
+</body>
+
+</html>
