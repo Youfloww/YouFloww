@@ -1,0 +1,298 @@
+@import 'tailwindcss';
+
+/* ------------------------------------------------------------------ */
+/*  Design tokens                                                      */
+/*  Every palette defines the same variables; Tailwind reads them.     */
+/* ------------------------------------------------------------------ */
+@theme inline {
+  --font-sans: 'Nunito Variable', 'Nunito', ui-rounded, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Fredoka Variable', 'Fredoka', 'Nunito Variable', ui-rounded, system-ui, sans-serif;
+
+  --color-bg: var(--bg);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-surface: var(--surface);
+  --color-surface-strong: var(--surface-strong);
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-good: #2fbf85;
+  --color-warn: #ffb020;
+  --color-bad: #ff5d73;
+
+  --radius-blob: 2rem;
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+:root {
+  color-scheme: light;
+  --bg: #fff1e8;
+  --ink: #2a1b3d;
+  --muted: color-mix(in oklab, var(--ink) 62%, transparent);
+  --faint: color-mix(in oklab, var(--ink) 38%, transparent);
+  --line: color-mix(in oklab, var(--ink) 10%, transparent);
+  --surface: rgb(255 255 255 / 0.62);
+  --surface-strong: rgb(255 255 255 / 0.86);
+  --glass-border: rgb(255 255 255 / 0.75);
+  --primary: #ff8a4c;
+  --secondary: #9d7bff;
+  --a1: #ffd3b0;
+  --a2: #ffb5c8;
+  --a3: #cdb8ff;
+  --a4: #ffe9a8;
+  --shadow-tint: 255 120 80;
+
+  /* Mode accent (focus by default) */
+  --accent: var(--primary);
+  --accent-ink: #fff;
+  --accent-soft: color-mix(in oklab, var(--accent) 16%, transparent);
+  --break-short: #2fc39a;
+  --break-long: #5b8cff;
+
+  /* Opaque-ish panel surface so content behind sheets never fights the UI */
+  --sheet: rgb(255 255 255 / 0.93);
+  /* Liquid orb glass */
+  --orb-hi: 0.85;
+  --orb-lo: 0.35;
+  /* Flowy's body colours (brand peach → pink → grape by default) */
+  --flowy-1: #ffe2bf;
+  --flowy-2: #ff93a6;
+  --flowy-3: #9d7bff;
+}
+
+[data-theme='matcha'] {
+  --bg: #eef6ea; --ink: #1d2b1f; --primary: #4fa765; --secondary: #e7a93f;
+  --a1: #cdebc0; --a2: #f6e3a8; --a3: #b9e2d6; --a4: #e8f5c8; --shadow-tint: 70 140 80;
+  --flowy-1: #f4fbd9; --flowy-2: #a8dca0; --flowy-3: #5fb38a;
+}
+[data-theme='lavender'] {
+  --bg: #f3eeff; --ink: #251b40; --primary: #8462ff; --secondary: #ff7fbf;
+  --a1: #d9ccff; --a2: #ffd0e8; --a3: #c4e4ff; --a4: #f0d9ff; --shadow-tint: 120 90 255;
+  --flowy-1: #f6eeff; --flowy-2: #cbaeff; --flowy-3: #8662ff;
+}
+[data-theme='ocean'] {
+  --bg: #eaf6fb; --ink: #0f2738; --primary: #1e9fd6; --secondary: #ff8f7a;
+  --a1: #bfe7f7; --a2: #cde9ff; --a3: #c9f2e6; --a4: #ffe0d6; --shadow-tint: 30 140 200;
+  --flowy-1: #dcf6ff; --flowy-2: #7fd0f0; --flowy-3: #6c8cff;
+}
+[data-theme='strawberry'] {
+  --bg: #fff0f3; --ink: #3a1626; --primary: #ff4f84; --secondary: #ffa43a;
+  --a1: #ffc9d6; --a2: #ffe1c4; --a3: #ffd6ec; --a4: #fff0b8; --shadow-tint: 255 80 130;
+  --flowy-1: #ffe6ee; --flowy-2: #ff9bb7; --flowy-3: #ff5f8f;
+}
+[data-theme='midnight'] {
+  color-scheme: dark;
+  --bg: #140f22; --ink: #f6f0ff; --primary: #ff9a5a; --secondary: #a98bff;
+  --surface: rgb(36 26 58 / 0.55); --surface-strong: rgb(40 30 64 / 0.9);
+  --glass-border: rgb(255 255 255 / 0.09);
+  --sheet: rgb(30 22 50 / 0.94);
+  --orb-hi: 0.14;
+  --orb-lo: 0.04;
+  --a1: #3a2266; --a2: #5a2453; --a3: #1d3a63; --a4: #4a2a2a; --shadow-tint: 0 0 0;
+  --break-short: #3fe0b0; --break-long: #7aa2ff;
+}
+[data-theme='nebula'] {
+  color-scheme: dark;
+  --bg: #0a0f1f; --ink: #eaf6ff; --primary: #58e1f5; --secondary: #c084fc;
+  --surface: rgb(18 28 52 / 0.55); --surface-strong: rgb(20 30 58 / 0.9);
+  --glass-border: rgb(255 255 255 / 0.08);
+  --sheet: rgb(14 22 42 / 0.94);
+  --orb-hi: 0.14;
+  --orb-lo: 0.04;
+  --flowy-1: #d2fbff; --flowy-2: #7be3f4; --flowy-3: #b583fa;
+  --a1: #0e2c4d; --a2: #2b1a5e; --a3: #0c3d3b; --a4: #3c1449; --shadow-tint: 0 0 0;
+  --accent-ink: #06121f;
+  --break-short: #3fe0b0; --break-long: #8aa8ff;
+}
+
+[data-mode='short'] { --accent: var(--break-short); }
+[data-mode='long'] { --accent: var(--break-long); }
+
+/* ------------------------------------------------------------------ */
+/*  Base                                                               */
+/* ------------------------------------------------------------------ */
+@layer base {
+html,
+body,
+#root {
+  height: 100%;
+}
+html {
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-tap-highlight-color: transparent;
+  text-size-adjust: 100%;
+  transition: background-color 0.6s var(--ease-out-soft);
+}
+body {
+  font-family: var(--font-sans);
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+::selection {
+  background: color-mix(in oklab, var(--accent) 35%, transparent);
+}
+:focus-visible {
+  outline: 3px solid color-mix(in oklab, var(--accent) 70%, white);
+  outline-offset: 2px;
+  border-radius: 12px;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+
+}
+
+/* ------------------------------------------------------------------ */
+/*  Reusable surfaces                                                  */
+/* ------------------------------------------------------------------ */
+@utility glass {
+  background: var(--surface);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(22px) saturate(1.6);
+  -webkit-backdrop-filter: blur(22px) saturate(1.6);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.35) inset,
+    0 18px 50px -18px rgb(var(--shadow-tint) / 0.28),
+    0 4px 14px -6px rgb(0 0 0 / 0.08);
+}
+@utility glass-sheet {
+  background: var(--sheet);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(30px) saturate(1.6);
+  -webkit-backdrop-filter: blur(30px) saturate(1.6);
+  box-shadow: 0 30px 80px -30px rgb(var(--shadow-tint) / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.16);
+}
+@utility glass-strong {
+  background: var(--surface-strong);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(28px) saturate(1.7);
+  -webkit-backdrop-filter: blur(28px) saturate(1.7);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.4) inset,
+    0 30px 80px -30px rgb(var(--shadow-tint) / 0.35),
+    0 8px 24px -12px rgb(0 0 0 / 0.14);
+}
+@utility pressable {
+  transition:
+    transform 0.25s var(--ease-spring),
+    background-color 0.2s,
+    box-shadow 0.25s,
+    color 0.2s;
+  &:active:not(:disabled) {
+    transform: scale(0.94);
+  }
+}
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+@utility soft-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--ink) 18%, transparent) transparent;
+  overscroll-behavior: contain;
+}
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+.text-gradient {
+  background: linear-gradient(120deg, var(--primary), var(--secondary));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Range input — cute pill slider */
+input[type='range'].floww-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 28px;
+  background: transparent;
+  --p: 50%;
+}
+input[type='range'].floww-range::-webkit-slider-runnable-track {
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent) var(--p), var(--line) var(--p));
+}
+input[type='range'].floww-range::-moz-range-track {
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent) var(--p), var(--line) var(--p));
+}
+input[type='range'].floww-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: white;
+  border: 3px solid var(--accent);
+  box-shadow: 0 4px 10px rgb(0 0 0 / 0.18);
+  transition: transform 0.2s var(--ease-spring);
+}
+input[type='range'].floww-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  border: 3px solid var(--accent);
+  box-shadow: 0 4px 10px rgb(0 0 0 / 0.18);
+}
+input[type='range'].floww-range:active::-webkit-slider-thumb {
+  transform: scale(1.25);
+}
+
+/* Liquid wave inside the orb */
+/* SVG user units: the wave paths repeat every 100 / 50 units */
+@keyframes wave-slide {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100px); }
+}
+.wave-slide { animation: wave-slide 3.5s linear infinite; }
+.wave-slide-slow { animation: wave-slide 5.5s linear infinite reverse; }
+.paused-anim .wave-slide,
+.paused-anim .wave-slide-slow { animation-play-state: paused; }
+
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--line) 25%, color-mix(in oklab, var(--line) 40%, transparent) 50%, var(--line) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@keyframes spin-slow { to { transform: rotate(360deg); } }
+.spin-slow { animation: spin-slow 6s linear infinite; }
+
+/* View transitions: soft cross-fade on theme switch */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.5s;
+  animation-timing-function: var(--ease-out-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

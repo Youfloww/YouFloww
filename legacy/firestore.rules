@@ -1,0 +1,51 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ========================================
+    // PRESENCE COLLECTION - For live user count
+    // ========================================
+    match /presence/{sessionId} {
+      // Allow anyone to create, read, update, delete presence documents
+      // This is needed for live user count to work for both guests and logged-in users
+      allow read, write, create, update, delete: if true;
+    }
+    
+    // ========================================
+    // PUBLIC USERS - For leaderboards
+    // ========================================
+    match /publicUsers/{userId} {
+      // Allow anyone to read leaderboard data (for public leaderboards)
+      allow read: if true;
+      
+      // Only authenticated users can create/update their own leaderboard entry
+      allow create, update: if request.auth != null && request.auth.uid == userId;
+      
+      // Only allow deletion by the owner
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // ========================================
+    // USER DATA - Private user data
+    // ========================================
+    match /userData/{userId} {
+      // Users can only access their own data when authenticated
+      allow read, write, create, update, delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // ========================================
+    // USERS COLLECTION (if it exists)
+    // ========================================
+    match /users/{userId} {
+      // Users can only access their own data when authenticated
+      allow read, write, create, update, delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // ========================================
+    // FALLBACK - Deny all other collections
+    // ========================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

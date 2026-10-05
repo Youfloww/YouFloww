@@ -1,40 +1,73 @@
-# Youfloww
-Visit:  https://youfloww.vercel.app/
-Product hunt launch rank: #161 (Day Rank)  #1702  (Week Rank)
-Product Hunt Launch link:  https://www.producthunt.com/products/youfloww/launches/youfloww?utm_source=other&utm_medium=social
+# YouFloww 🫧
 
-Ever feel like your standard focus timer is just another boring tab you can’t wait to close? 🥱 I did. Most timers are functional but uninspiring. They don’t adapt to your vibe, and they definitely don’t motivate you in a fun way.
+**The cozy focus timer that makes you _want_ to work.** → [youfloww.vercel.app](https://youfloww.vercel.app/)
 
-That’s why I built YouFloww – a free, browser-based focus timer that doubles as a fully customizable personal productivity sanctuary. It’s not just a timer; it’s a space where you actually want to spend your focus time.
+![YouFloww](public/icons/og.png)
 
-Why YouFloww is Different:
+YouFloww is a free, no-sign-up focus space: a Pomodoro-style timer with a cute companion, a layered ambient sound
+mixer, living backgrounds, tasks, a journal, a weekly planner, deep stats, streaks and live leaderboards.
 
-🎬 Live Wallpapers: Turn any YouTube video into a seamless looping wallpaper. Lofi beats, scenic rain, or outer-space vistas – whatever sets your focus mood.
+## What's inside (v3)
 
-✨ Immersive Ambience: Layer animated effects like snowfall, rainfall, sakura petals, or falling stars. Add built-in white noise or background sounds for total immersion.
+| | |
+|---|---|
+| 🫧 **Flowy** | An animated mascot that reacts to your timer (headphones while focusing, sleepy on breaks, cheering when you finish) with eyes that follow your cursor. Poke it for study tips. |
+| ⏱️ **Liquid orb timer** | Timestamp-based and Web-Worker-ticked, so it stays accurate in background tabs and **survives page refreshes**. Focus / short / long cycles, ±5 min, auto-start, task-linked sessions. |
+| 🎧 **Sound mixer** | Rain, forest, café, fireplace, crickets, cat purr, lo-fi vinyl + generated brown/pink/white noise and 40Hz binaural focus beats. Layer them, save presets, upload your own music, or play any YouTube link in a floating player. |
+| 🌈 **Scenes** | 7 themes, a WebGL aurora that shifts colour with each mode, YouTube live wallpapers, your own image/video, and snow / rain / sakura / fireflies / stars / bubbles particles. |
+| 📝 **Tasks** | Natural language: `Essay 45m #school !` → 45-minute estimate, category, priority. Subtasks, drag to reorder, focus a task to log time against it, undo. |
+| 📈 **Stats** | Daily goal ring, 7/30-day bars, a GitHub-style *focus garden*, power hours, time per category, session ratings and a shareable **Floww Wrap** story image. |
+| 📔 **Journal & 🗓️ Planner** | Mood + prompt-driven journal with autosave and search; a weekly time-block planner with a live "now" indicator. |
+| 🏆 **Community** | Live "flowing now" count, today's focus leaderboard and alive-streak leaderboard. |
+| 🏅 **Badges** | 18 achievements across four rarities. |
+| ⌨️ **Power-user friendly** | `⌘K` command menu, single-key shortcuts (`?` lists them), Zen mode, and a **pop-out timer** using Document Picture-in-Picture. |
+| 😂 **Meme mode** | The YouFloww classic: a random meme sound when you finish, a sad one if you quit early. Or pick cute synthesized chimes. |
+| 👀 **Presence guard** | Optional on-device camera detection that auto-pauses when you walk away. Nothing is uploaded. |
 
-😂 Meme-Powered Motivation: Finish a focus session (>= 25 mins) and get a random “good meme” sound reward. End a session early? You’ll hear a “bad meme” sound. A quirky nudge to keep you on track.
+Works offline as an installable PWA. Sign-in (Google or email) is optional; it syncs across devices in real time,
+and guest progress moves into your account when you sign up.
 
-⏱ Smart Timer Features:
-• Fully customizable timers: Work, Short Break, Long Break
-• Keyboard shortcuts for effortless control
-• Minimalist “Focus Mode” to block distractions
-• Session streak tracking & reminders
+## Tech
 
-📝 Built-in Productivity Tools:
-• Integrated to-do list to track tasks without leaving YouFloww
-• Stats & graphs to monitor your focus over days, weeks, and months
+- **Vite + React 19 + TypeScript**, Tailwind CSS v4 design tokens, Motion for animation, Zustand for state
+- **Firebase** (Auth + Firestore with a persistent multi-tab cache), lazy-loaded after first paint
+- Web Audio API (synth SFX, noise generators, mixer with limiter), WebGL shader background, Canvas particles,
+  Web Workers, Screen Wake Lock, Document Picture-in-Picture, View Transitions, Notifications, Web Share
+- Code-split panels, self-hosted variable fonts, Workbox service worker
 
-💾 Enhanced Customizations:
-• Multiple themes & color options
-• Option to mute/unmute effects, music, or memes individually
-• Supports background video loops from your own YouTube links
-• Flexible session lengths and break patterns
+Data stays compatible with v2: the same `users/{uid}`, `publicUsers/{uid}` and `presence` collections, and the same
+`youfloww_guest` localStorage key, so existing streaks and stats carry over.
 
-🌟 Extra Features You’ll Love:
-• No sign-up required
-• Works entirely in-browser
-• Lightweight and super fast
-• Perfect for students, developers, designers, writers – anyone chasing flow in a world full of distractions
+## Develop
 
-It’s free, fun, and made with passion. I’d love for you to try YouFloww and share your feedback!
+```bash
+npm install
+npm run dev        # http://localhost:5173
+npm run build      # typecheck + production build into dist/
+npm run preview
+```
+
+Vercel picks up `vercel.json` automatically (build `npm run build`, output `dist`).
+
+### Firestore
+
+Rules and indexes live in `firestore.rules` / `firestore.indexes.json`. Deploy the index for a faster leaderboard
+query (the app falls back to the v2 query if it's missing):
+
+```bash
+firebase deploy --only firestore:indexes
+```
+
+## Project layout
+
+```
+src/
+  audio/        sfx synth + ambient mixer
+  data/         user data model, session accounting (v2 compatible)
+  services/     firebase (lazy), sync, presence, leaderboards
+  store/        zustand stores: data, timer, prefs, ui
+  features/     timer, mascot, scene, tasks, sounds, stats, journal, planner,
+                community, achievements, settings, auth, shell (dock, palette), pip
+  ui/           primitives + sheet/dialog
+legacy/         the previous vanilla-JS version, kept for reference
+```
