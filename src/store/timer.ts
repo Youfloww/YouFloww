@@ -26,6 +26,8 @@ interface TimerState {
   /** focus sessions completed in the current cycle */
   cycle: number;
   activeTodoId: string | null;
+  /** focused ms into the session when the current task became active (earlier time belongs to other tasks) */
+  taskMarkMs: number;
   /** set when auto-paused by presence guard */
   autoPaused: boolean;
 
@@ -50,6 +52,7 @@ export const useTimer = create<TimerState>()(
       sessionStartedAt: null,
       cycle: 0,
       activeTodoId: null,
+      taskMarkMs: 0,
       autoPaused: false,
       set: (p) => set(p),
     }),

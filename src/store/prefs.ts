@@ -6,9 +6,18 @@ export type SceneKind = 'aurora' | 'youtube' | 'image' | 'video' | 'plain';
 export type EffectId = 'snow' | 'rain' | 'sakura' | 'fireflies' | 'stars' | 'bubbles';
 export type TimerStyle = 'orb' | 'minimal';
 
+export interface WindowRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface Scene {
   kind: SceneKind;
   youtubeId?: string | null;
+  /** a YouTube playlist: plays through and starts over (youtubeId, if set, is where it starts) */
+  youtubeList?: string | null;
   /** IndexedDB key for uploaded image/video */
   mediaKey?: string | null;
 }
@@ -24,7 +33,15 @@ interface PrefsState {
   timerStyle: TimerStyle;
   showMascot: boolean;
   showQuote: boolean;
-  musicVideo: { id: string | null; open: boolean; x: number; y: number };
+  /** Meme image pop-ups when a focus session starts / ends */
+  memePops: boolean;
+  /** Halfway + 5-minutes-left nudges (time-blindness helper) */
+  checkIns: boolean;
+  /** Ask before anything ends a running session */
+  confirmEnd: boolean;
+  musicVideo: { id: string | null; list?: string | null; open: boolean; x: number; y: number };
+  /** Where each panel window was last left (desktop) */
+  windowRects: Partial<Record<string, WindowRect>>;
   lastSeenVersion: string | null;
 
   set: (patch: Partial<Omit<PrefsState, 'set' | 'toggleEffect' | 'setVolume' | 'toggleTrack'>>) => void;
@@ -46,7 +63,11 @@ export const usePrefs = create<PrefsState>()(
       timerStyle: 'orb',
       showMascot: true,
       showQuote: true,
+      memePops: true,
+      checkIns: true,
+      confirmEnd: true,
       musicVideo: { id: null, open: false, x: 24, y: 96 },
+      windowRects: {},
       lastSeenVersion: null,
 
       set: (patch) => set(patch),

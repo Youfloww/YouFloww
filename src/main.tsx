@@ -6,11 +6,13 @@ import '@fontsource-variable/nunito/wght.css';
 import './styles/index.css';
 import App from './App';
 import { hydrateTimer } from './features/timer/engine';
+import { initPlannedTasks } from './features/planner/plannedTasks';
 import { initSync } from './services/sync';
 import { registerSW } from 'virtual:pwa-register';
 
 hydrateTimer();
 initSync();
+initPlannedTasks();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

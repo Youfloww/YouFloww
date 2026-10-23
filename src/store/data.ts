@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { normalizeUserData, normalizeTodo, recordFocusSession, rollover, type RecordSessionInput, type RecordSessionResult } from '@/data/model';
+import { creditTask, normalizeUserData, normalizeTodo, recordFocusSession, rollover, type RecordSessionInput, type RecordSessionResult } from '@/data/model';
 import type { JournalEntry, Settings, TimeSlot, Todo, UserData } from '@/data/types';
 import { dateKey } from '@/lib/time';
 import { uid } from '@/lib/utils';
@@ -29,6 +29,8 @@ interface DataState {
   replace: (d: UserData, remote?: boolean) => void;
 
   recordSession: (input: RecordSessionInput) => RecordSessionResult;
+  /** Credit part of a running session to a task when the focused task changes mid-session. */
+  creditTask: (todoId: string | null, seconds: number) => void;
   updateSettings: (patch: Partial<Settings>) => void;
   setProfileName: (name: string) => void;
 
@@ -48,8 +50,8 @@ interface DataState {
   saveJournal: (key: string, patch: Partial<JournalEntry>) => void;
   deleteJournal: (key: string) => void;
 
-  addSlot: (slot: Omit<TimeSlot, 'completed'>) => void;
-  toggleSlot: (id: string) => void;
+  addSlot: (slot: Omit<TimeSlot, 'completed'>) => string;
+  updateSlot: (id: string, patch: Partial<TimeSlot>) => void;
   deleteSlot: (id: string) => void;
 
   unlockAchievements: (ids: string[]) => void;
@@ -69,6 +71,12 @@ function loadGuest(): UserData {
   const d = normalizeUserData({});
   return d;
 }
+
+/** A planner block's task was removed by hand: don't re-add it for that date. */
+const skipPlanned = (d: UserData, t?: Todo) => {
+  const slot = t?.plan && d.timetable[t.plan.slot];
+  if (slot) slot.skipOn = t.plan!.date;
+};
 
 export const useData = create<DataState>()((set, get) => {
   const mutate = (fn: (d: UserData) => void) => {
@@ -97,6 +105,11 @@ export const useData = create<DataState>()((set, get) => {
       });
       return result;
     },
+
+    creditTask: (todoId, seconds) =>
+      mutate((d) => {
+        creditTask(d, todoId ? d.todos.find((t) => t.id === todoId) : undefined, Math.round(seconds));
+      }),
 
     updateSettings: (patch) => mutate((d) => void Object.assign(d.settings, patch)),
     setProfileName: (name) => mutate((d) => void (d.profileName = name.trim().slice(0, 40) || 'Floww User')),
@@ -140,6 +153,7 @@ export const useData = create<DataState>()((set, get) => {
       mutate((d) => {
         const i = d.todos.findIndex((x) => x.id === id);
         if (i >= 0) out = d.todos.splice(i, 1)[0];
+        skipPlanned(d, out);
       });
       return out;
     },
@@ -154,7 +168,11 @@ export const useData = create<DataState>()((set, get) => {
         const rest = d.todos.filter((t) => !ids.includes(t.id));
         d.todos = [...ordered, ...rest];
       }),
-    clearCompleted: () => mutate((d) => void (d.todos = d.todos.filter((t) => !t.completed))),
+    clearCompleted: () =>
+      mutate((d) => {
+        d.todos.filter((t) => t.completed).forEach((t) => skipPlanned(d, t));
+        d.todos = d.todos.filter((t) => !t.completed);
+      }),
     addSubtask: (todoId, text) =>
       mutate((d) => {
         d.todos.find((x) => x.id === todoId)?.subtasks.push({ id: uid(), text: text.slice(0, 200), completed: false });
@@ -192,14 +210,17 @@ export const useData = create<DataState>()((set, get) => {
       }),
     deleteJournal: (key) => mutate((d) => void delete d.journalEntries[key]),
 
-    addSlot: (slot) =>
+    addSlot: (slot) => {
+      const id = `${slot.day}-${slot.start}-${slot.end}-${uid().slice(0, 4)}`;
       mutate((d) => {
-        d.timetable[`${slot.day}-${slot.start}-${slot.end}-${uid().slice(0, 4)}`] = { ...slot, completed: false };
-      }),
-    toggleSlot: (id) =>
+        d.timetable[id] = { ...slot, completed: false };
+      });
+      return id;
+    },
+    updateSlot: (id, patch) =>
       mutate((d) => {
         const s = d.timetable[id];
-        if (s) s.completed = !s.completed;
+        if (s) Object.assign(s, patch);
       }),
     deleteSlot: (id) => mutate((d) => void delete d.timetable[id]),
 

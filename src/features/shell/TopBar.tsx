@@ -5,7 +5,6 @@ import { usePresence } from '@/services/presence';
 import { deriveStats } from '@/data/model';
 import { cn } from '@/lib/utils';
 import { useMemo } from 'react';
-import { useIsDesktop } from '@/ui/Sheet';
 
 export function Logo({ onMedia }: { onMedia: boolean }) {
   return (
@@ -49,8 +48,6 @@ export function TopBar({ onMedia }: { onMedia: boolean }) {
   const online = usePresence((s) => s.online);
   const focusing = usePresence((s) => s.focusing);
   const openPanel = useUI((s) => s.openPanel);
-  const panel = useUI((s) => s.panel);
-  const desktop = useIsDesktop();
   const setUI = useUI((s) => s.set);
   const stats = useMemo(() => deriveStats(data), [data]);
 
@@ -63,7 +60,7 @@ export function TopBar({ onMedia }: { onMedia: boolean }) {
   return (
     <header className="flex items-center justify-between gap-2 px-4 pt-[max(12px,env(safe-area-inset-top))] sm:px-6">
       <Logo onMedia={onMedia} />
-      <div className={cn('flex items-center gap-2 transition-opacity duration-300', panel && desktop && 'pointer-events-none opacity-0')}>
+      <div className="flex items-center gap-2">
         {online !== null && (
           <button className={pill} onClick={() => openPanel('community')} title={`${online} flowing now${focusing ? ` · ${focusing} in deep focus` : ''}`}>
             <span className="relative flex size-2.5">
@@ -85,6 +82,9 @@ export function TopBar({ onMedia }: { onMedia: boolean }) {
           <span className="tabular">{stats.streak}</span>
           <span className="mx-0.5 h-4 w-px bg-current opacity-20" />
           <GoalRing value={stats.goalProgress} />
+        </button>
+        <button onClick={() => setUI({ support: true })} aria-label="Buy me a coffee" title="Buy me a coffee" className={cn(pill, 'w-auto px-3 text-base lg:hidden')}>
+          ☕
         </button>
         <button
           onClick={() => (user ? openPanel('account') : setUI({ auth: true }))}

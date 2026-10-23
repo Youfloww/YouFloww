@@ -6,25 +6,51 @@ service cloud.firestore {
     // PRESENCE COLLECTION - For live user count
     // ========================================
     match /presence/{sessionId} {
-      // Allow anyone to create, read, update, delete presence documents
-      // This is needed for live user count to work for both guests and logged-in users
-      allow read, write, create, update, delete: if true;
+      // Anyone can see the live count; only signed-in users write, and only their own
+      // small check-in doc (the exact fields YouFloww writes, with a current timestamp)
+      function validPresence(d) {
+        return d.keys().hasOnly(['uid', 'createdAt', 'lastActive', 'lastActiveMs', 'isFocusing', 'userAgent'])
+          && d.uid == request.auth.uid
+          && d.lastActiveMs is int
+          && d.lastActiveMs > request.time.toMillis() - 900000
+          && d.lastActiveMs < request.time.toMillis() + 900000
+          && (!('isFocusing' in d) || d.isFocusing is bool)
+          && (!('userAgent' in d) || (d.userAgent is string && d.userAgent.size() <= 512));
+      }
+      allow read: if true;
+      allow create: if request.auth != null && sessionId.size() <= 64 && validPresence(request.resource.data);
+      allow update: if request.auth != null && resource.data.uid == request.auth.uid && validPresence(request.resource.data);
+      allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
     }
-    
+
     // ========================================
     // PUBLIC USERS - For leaderboards
     // ========================================
     match /publicUsers/{userId} {
-      // Allow anyone to read leaderboard data (for public leaderboards)
+      // Anyone can read the leaderboards
       allow read: if true;
-      
-      // Only authenticated users can create/update their own leaderboard entry
-      allow create, update: if request.auth != null && request.auth.uid == userId;
-      
+
+      // Owners write their own entry; values must be believable (a day has 1440 minutes)
+      function validEntry(d) {
+        return d.profileName is string && d.profileName.size() <= 60
+          && d.todayFocusMinutes is number && d.todayFocusMinutes >= 0 && d.todayFocusMinutes <= 1440
+          && d.currentStreak is int && d.currentStreak >= 0 && d.currentStreak <= 10000
+          && d.date is string && d.date.size() <= 10
+          && d.lastStreakUpdate is string && d.lastStreakUpdate.size() <= 10
+          && (!('isGuest' in d) || d.isGuest is bool);
+      }
+      function fields() {
+        return ['profileName', 'todayFocusMinutes', 'currentStreak', 'lastStreakUpdate', 'date', 'isGuest'];
+      }
+      allow create: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(fields()) && validEntry(request.resource.data);
+      allow update: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields()) && validEntry(request.resource.data);
+
       // Only allow deletion by the owner
       allow delete: if request.auth != null && request.auth.uid == userId;
     }
-    
+
     // ========================================
     // USER DATA - Private user data
     // ========================================
@@ -39,6 +65,10 @@ service cloud.firestore {
     match /users/{userId} {
       // Users can only access their own data when authenticated
       allow read, write, create, update, delete: if request.auth != null && request.auth.uid == userId;
+
+      match /{allSubcollections=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
     
     // ========================================

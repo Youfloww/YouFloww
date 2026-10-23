@@ -36,8 +36,10 @@ function hexToRgb(hex: string): [number, number, number] {
   return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
 }
 
-function readPalette(mode: string): number[][] {
+/** The theme palette from CSS variables, or null while the stylesheet hasn't applied yet. */
+function readPalette(mode: string): number[][] | null {
   const cs = getComputedStyle(document.documentElement);
+  if (!cs.getPropertyValue('--bg').trim() || !document.documentElement.dataset.theme) return null;
   const get = (k: string) => hexToRgb(cs.getPropertyValue(k) || '#ffffff');
   const a = [get('--a1'), get('--a2'), get('--a3'), get('--a4'), get('--bg')];
   // Breaks tint the sky toward the break colour
@@ -61,7 +63,15 @@ export function Aurora() {
   useEffect(() => {
     // wait a frame so the data-theme attribute is applied
     dark.current = THEMES.find((t) => t.id === theme)?.dark ? 1 : 0;
-    const id = requestAnimationFrame(() => (target.current = readPalette(mode)));
+    // Retry until the theme's variables are really there (on first load the CSS can land a moment after us);
+    // reading too early used to give white and the sky stayed white on dark themes.
+    let id = 0;
+    const read = () => {
+      const p = readPalette(mode);
+      if (p) target.current = p;
+      else id = requestAnimationFrame(read);
+    };
+    id = requestAnimationFrame(read);
     return () => cancelAnimationFrame(id);
   }, [theme, mode]);
 
@@ -100,7 +110,7 @@ export function Aurora() {
     resize();
     addEventListener('resize', resize);
 
-    let cur = target.current ?? readPalette('focus');
+    let cur: number[][] | null = null;
     const t0 = performance.now() - Math.random() * 60000;
     let raf = 0;
     let last = 0;
@@ -111,11 +121,17 @@ export function Aurora() {
       if (now - last < 33) return; // ~30fps is plenty for a slow gradient
       last = now;
       const tgt = target.current;
-      if (tgt) cur = cur.map((c, i) => c.map((x, j) => x + (tgt[i][j] - x) * 0.06));
+      if (!tgt) return; // the CSS gradient underneath shows until we know the palette
+      if (!cur) {
+        cur = tgt;
+        el.style.opacity = '1';
+      }
+      const next = cur.map((c, i) => c.map((x, j) => x + (tgt[i][j] - x) * 0.06));
+      cur = next;
       gl.uniform2f(uR, el.width, el.height);
       gl.uniform1f(uT, still ? 12 : (now - t0) / 1000);
       gl.uniform1f(uDark, dark.current);
-      uC.forEach((l, i) => gl.uniform3fv(l, cur[i]));
+      uC.forEach((l, i) => gl.uniform3fv(l, next[i]));
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     };
     const onVis = () => {
@@ -142,7 +158,7 @@ export function Aurora() {
             'radial-gradient(60% 50% at 20% 20%, var(--a1), transparent), radial-gradient(50% 50% at 80% 30%, var(--a2), transparent), radial-gradient(60% 60% at 50% 90%, var(--a3), transparent), var(--bg)',
         }}
       />
-      <canvas ref={canvas} className="absolute inset-0 size-full" style={{ imageRendering: 'auto' }} aria-hidden />
+      <canvas ref={canvas} className="absolute inset-0 size-full transition-opacity duration-700" style={{ imageRendering: 'auto', opacity: 0 }} aria-hidden />
     </>
   );
 }

@@ -4,9 +4,8 @@ import { usePrefs } from '@/store/prefs';
 import { useUI } from '@/store/ui';
 import { dateKey } from '@/lib/time';
 import { cn, hashString } from '@/lib/utils';
-import { Buddy } from '../mascot/Buddy';
 import { TimerOrb } from './TimerOrb';
-import { Controls, CycleDots, ModeSwitch, TaskChip } from './Controls';
+import { Controls, CycleDots, ModeSwitch, StarterChips, TaskChip } from './Controls';
 
 const QUOTES = [
   ['The secret of getting ahead is getting started.', 'Mark Twain'],
@@ -43,7 +42,6 @@ export function Quote({ onMedia }: { onMedia: boolean }) {
 }
 
 export function FocusStage({ onMedia }: { onMedia: boolean }) {
-  const showMascot = usePrefs((s) => s.showMascot);
   const showQuote = usePrefs((s) => s.showQuote);
   const zen = useUI((s) => s.zen);
 
@@ -53,25 +51,15 @@ export function FocusStage({ onMedia }: { onMedia: boolean }) {
         <ModeSwitch onMedia={onMedia} />
       </motion.div>
 
-      <div className="relative">
-        <TimerOrb onMedia={onMedia} />
-        {showMascot && (
-          <motion.div
-            className="absolute -right-2 -bottom-3 sm:-right-8 sm:-bottom-4"
-            initial={{ scale: 0, rotate: -20 }}
-            animate={{ scale: 1, rotate: 0 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 14, delay: 0.35 }}
-          >
-            <Buddy size={typeof innerWidth !== 'undefined' && innerWidth < 640 ? 68 : 88} />
-          </motion.div>
-        )}
-      </div>
+      {/* the orb's ring is a surface the cat climbs, sits and runs on (data-cat-orb) */}
+      <TimerOrb onMedia={onMedia} />
 
       <motion.div animate={{ opacity: zen ? 0 : 1 }} className={cn('flex flex-col items-center gap-3', zen && 'pointer-events-none')}>
         <TaskChip onMedia={onMedia} />
       </motion.div>
 
       <Controls onMedia={onMedia} />
+      {!zen && <StarterChips onMedia={onMedia} />}
       <CycleDots onMedia={onMedia} />
       {showQuote && !zen && <Quote onMedia={onMedia} />}
     </div>

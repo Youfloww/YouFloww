@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pause, Play, SkipForward } from 'lucide-react';
 import { usePrefs } from '@/store/prefs';
 import { useTimer, MODE_META } from '@/store/timer';
-import { Flowy } from '../mascot/Flowy';
+import { CatSprite } from '../cat/CatSprite';
 import { endEarly, toggle } from '../timer/engine';
 import { useTimerView } from '../timer/TimerOrb';
 import { toast } from '@/store/ui';
@@ -61,6 +61,19 @@ function PipContent() {
   const v = useTimerView();
   const mode = useTimer((s) => s.mode);
   const running = v.status === 'running';
+  // The main window's confirm dialog isn't visible from here, so ending takes two taps
+  const [arm, setArm] = useState(false);
+  useEffect(() => {
+    if (!arm) return;
+    const t = setTimeout(() => setArm(false), 3000);
+    return () => clearTimeout(t);
+  }, [arm]);
+  const onEnd = () => {
+    if (v.status === 'idle' || !usePrefs.getState().confirmEnd || arm) {
+      setArm(false);
+      endEarly();
+    } else setArm(true);
+  };
   return (
     <div className="relative flex h-dvh flex-col items-center justify-center gap-2 overflow-hidden bg-bg text-ink select-none">
       <div
@@ -78,12 +91,16 @@ function PipContent() {
         <button onClick={toggle} aria-label={running ? 'Pause' : 'Start'} className="pressable grid size-14 place-items-center rounded-full bg-accent text-accent-ink shadow-lg">
           {running ? <Pause size={24} fill="currentColor" strokeWidth={0} /> : <Play size={24} fill="currentColor" strokeWidth={0} />}
         </button>
-        <button onClick={endEarly} aria-label="End / skip" className="pressable grid size-11 place-items-center rounded-full bg-surface-strong">
-          <SkipForward size={18} strokeWidth={2.6} />
+        <button
+          onClick={onEnd}
+          aria-label={arm ? 'Tap again to end' : 'End / skip'}
+          className={arm ? 'pressable h-11 rounded-full bg-bad px-3 text-xs font-black text-white' : 'pressable grid size-11 place-items-center rounded-full bg-surface-strong'}
+        >
+          {arm ? 'Sure? Tap' : <SkipForward size={18} strokeWidth={2.6} />}
         </button>
       </div>
       <div className="absolute right-2 bottom-1">
-        <Flowy mood={running ? (mode === 'focus' ? 'focus' : 'break') : 'idle'} size={54} track={false} />
+        <CatSprite anim={running && mode !== 'focus' ? 'walk' : 'idle'} height={54} />
       </div>
     </div>
   );

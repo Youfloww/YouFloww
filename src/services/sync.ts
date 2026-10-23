@@ -197,6 +197,8 @@ export async function resetPassword(email: string) {
 
 export async function signOut() {
   saveCloud.flush();
+  // only the owner may delete their "flowing now" doc, so do it while still signed in
+  await Promise.race([stopPresence(), new Promise((r) => setTimeout(r, 1500))]);
   const fb = await firebase();
   await fb.authMod.signOut(fb.auth);
 }

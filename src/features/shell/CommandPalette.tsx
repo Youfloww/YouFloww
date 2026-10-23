@@ -5,7 +5,7 @@ import { useUI, type PanelId } from '@/store/ui';
 import { usePrefs, THEMES, type EffectId } from '@/store/prefs';
 import { useData } from '@/store/data';
 import { useTimer } from '@/store/timer';
-import { adjust, endEarly, reset, setMode, toggle } from '../timer/engine';
+import { adjust, requestEnd, requestMode, requestReset, toggle } from '../timer/engine';
 import { PRESETS } from '@/audio/mixer';
 import { cn, withViewTransition, pick } from '@/lib/utils';
 import { bus } from '@/lib/bus';
@@ -60,18 +60,18 @@ export function CommandPalette({ onPip }: { onPip?: () => void }) {
     ];
     return [
       { id: 'toggle', group: 'Timer', label: status === 'running' ? 'Pause timer' : 'Start timer', icon: status === 'running' ? '⏸️' : '▶️', kbd: 'Space', run: toggle },
-      { id: 'reset', group: 'Timer', label: 'Reset timer', icon: '🔄', kbd: 'R', run: () => reset() },
-      { id: 'end', group: 'Timer', label: 'End session & log time', icon: '⏹️', kbd: 'E', run: endEarly },
-      { id: 'focus', group: 'Timer', label: 'Switch to Focus', icon: '🎯', kbd: '1', run: () => setMode('focus') },
-      { id: 'short', group: 'Timer', label: 'Switch to Short break', icon: '☕', kbd: '2', run: () => setMode('short') },
-      { id: 'long', group: 'Timer', label: 'Switch to Long break', icon: '🌿', kbd: '3', run: () => setMode('long') },
+      { id: 'reset', group: 'Timer', label: 'Reset timer', icon: '🔄', kbd: 'R', run: requestReset },
+      { id: 'end', group: 'Timer', label: 'End session & log time', icon: '⏹️', kbd: 'E', run: requestEnd },
+      { id: 'focus', group: 'Timer', label: 'Switch to Focus', icon: '🎯', kbd: '1', run: () => requestMode('focus') },
+      { id: 'short', group: 'Timer', label: 'Switch to Short break', icon: '☕', kbd: '2', run: () => requestMode('short') },
+      { id: 'long', group: 'Timer', label: 'Switch to Long break', icon: '🌿', kbd: '3', run: () => requestMode('long') },
       { id: 'plus5', group: 'Timer', label: 'Add 5 minutes', icon: '➕', kbd: '+', run: () => adjust(5) },
       { id: 'minus5', group: 'Timer', label: 'Remove 5 minutes', icon: '➖', kbd: '-', run: () => adjust(-5) },
       ...DOCK_ITEMS.map((d) => ({ id: `p-${d.id}`, group: 'Open', label: d.label, icon: <span className="[&_svg]:size-4">{d.icon}</span>, kbd: d.kbd, run: panel(d.id as PanelId) })),
       { id: 'p-ach', group: 'Open', label: 'Achievements', icon: '🏅', kbd: 'A', run: panel('achievements') },
       { id: 'zen', group: 'View', label: 'Zen mode', icon: '🧘', kbd: 'Z', run: () => setUI({ zen: true, panel: null }) },
       ...(onPip ? [{ id: 'pip', group: 'View', label: 'Pop-out timer (Picture-in-Picture)', icon: '🪟', kbd: 'O', run: onPip }] : []),
-      { id: 'mascot', group: 'View', label: p.showMascot ? 'Hide Flowy' : 'Show Flowy', icon: '🫧', run: () => p.set({ showMascot: !p.showMascot }) },
+      { id: 'mascot', group: 'View', label: p.showMascot ? 'Hide Flowy' : 'Show Flowy', icon: '🐱', run: () => p.set({ showMascot: !p.showMascot }) },
       { id: 'style', group: 'View', label: 'Toggle timer style (orb / minimal)', icon: '⭕', run: () => p.set({ timerStyle: p.timerStyle === 'orb' ? 'minimal' : 'orb' }) },
       ...THEMES.map((t) => ({ id: `t-${t.id}`, group: 'Theme', label: `Theme: ${t.name}`, icon: t.emoji, keywords: 'color palette dark light', run: () => withViewTransition(() => p.set({ theme: t.id })) })),
       { id: 'aurora', group: 'Scene', label: 'Scene: Aurora gradient', icon: '🌈', run: () => p.set({ scene: { kind: 'aurora' } }) },

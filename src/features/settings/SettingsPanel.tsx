@@ -2,6 +2,8 @@ import { motion } from 'motion/react';
 import { useRef, useState } from 'react';
 import { Download, Minus, Plus, Upload } from 'lucide-react';
 import { useData } from '@/store/data';
+import { usePrefs } from '@/store/prefs';
+import { CatSettings } from '../cat/CatSettings';
 import { toast, useUI } from '@/store/ui';
 import { normalizeUserData, defaultUserData } from '@/data/model';
 import type { Settings } from '@/data/types';
@@ -51,6 +53,7 @@ function Row({ title, sub, children }: { title: string; sub?: string; children: 
 }
 
 export default function SettingsPanel() {
+  const prefs = usePrefs();
   const s = useData((x) => x.data.settings);
   const update = useData((x) => x.updateSettings);
   const replace = useData((x) => x.replace);
@@ -95,6 +98,22 @@ export default function SettingsPanel() {
           <Switch checked={!!s.autoStartFocus} onChange={(v) => set({ autoStartFocus: v })} />
         </Row>
       </section>
+
+      <section className="space-y-2">
+        <SectionTitle>ADHD boosters</SectionTitle>
+        <Row title="🛑 Ask before ending a session" sub="Confirm before switching mode, ending or resetting a running session">
+          <Switch checked={prefs.confirmEnd} onChange={(v) => prefs.set({ confirmEnd: v })} />
+        </Row>
+        <Row title="⏰ Time check-ins" sub="A soft chime + nudge at halfway and 5 minutes left">
+          <Switch checked={prefs.checkIns} onChange={(v) => prefs.set({ checkIns: v })} />
+        </Row>
+        <Row title="🖼️ Meme pop-ups" sub="A meme when a session starts, ends or gets quit">
+          <Switch checked={prefs.memePops} onChange={(v) => prefs.set({ memePops: v })} />
+        </Row>
+        <p className="px-1 text-xs font-semibold text-muted">Also: 💭 park distracting thoughts with D, 🐢 “Just 5 min” to beat starting paralysis, 🎲 let the dice pick your task.</p>
+      </section>
+
+      <CatSettings />
 
       <section className="space-y-2">
         <SectionTitle>Helpers</SectionTitle>

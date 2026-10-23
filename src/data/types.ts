@@ -25,6 +25,8 @@ export interface Todo {
   canonicalId?: string | null;
   /** v3: flag a task as today's priority */
   starred?: boolean;
+  /** v3: made from a planner block for one date; `sig` is the block as last synced */
+  plan?: { slot: string; date: string; sig: string };
 }
 
 export interface RegularTask {
@@ -49,6 +51,12 @@ export interface TimeSlot {
   end: string;
   activity: string;
   completed: boolean;
+  /** v3 planner block colour */
+  color?: string;
+  /** v3: date (YYYY-MM-DD) this week's occurrence was done; `completed` is the old never-resetting flag */
+  doneOn?: string;
+  /** v3: its task was removed from the list for this date, so don't add it back */
+  skipOn?: string;
 }
 
 export interface SessionLogEntry {

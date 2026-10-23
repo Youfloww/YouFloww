@@ -5,7 +5,8 @@ import { set as idbSet } from 'idb-keyval';
 import { usePrefs, THEMES, type EffectId } from '@/store/prefs';
 import { cn, withViewTransition } from '@/lib/utils';
 import { Button, Segmented, SectionTitle, Slider, Switch } from '@/ui/primitives';
-import { YT_SCENES, youtubeId, ytThumb } from './SceneLayer';
+import { YT_SCENES } from './SceneLayer';
+import { parseYouTube, ytThumb } from '@/lib/youtube';
 import { toast } from '@/store/ui';
 
 const EFFECTS: { id: EffectId; label: string; emoji: string }[] = [
@@ -83,7 +84,7 @@ export default function ScenesPanel() {
         <p className="mt-4 mb-2 text-xs font-black tracking-wider text-muted uppercase">Live wallpapers</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {YT_SCENES.map((s) => {
-            const on = p.scene.kind === 'youtube' && p.scene.youtubeId === s.id;
+            const on = p.scene.kind === 'youtube' && p.scene.youtubeId === s.id && !p.scene.youtubeList;
             return (
               <motion.button
                 key={s.id}
@@ -110,15 +111,16 @@ export default function ScenesPanel() {
           className="mt-3 flex gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            const id = youtubeId(link);
-            if (!id) return toast({ emoji: '🤔', title: 'Hmm, that’s not a YouTube link' });
-            p.set({ scene: { kind: 'youtube', youtubeId: id } });
+            const yt = parseYouTube(link);
+            if (!yt) return toast({ emoji: '🤔', title: 'Hmm, that’s not a YouTube link' });
+            p.set({ scene: { kind: 'youtube', youtubeId: yt.id, youtubeList: yt.list } });
+            if (yt.list) toast({ emoji: '🎞️', title: 'Playlist wallpaper', body: 'Plays every video in order, then starts over.' });
             setLink('');
           }}
         >
           <div className="flex h-11 flex-1 items-center gap-2 rounded-2xl bg-line px-3">
             <Link2 size={16} className="text-muted" />
-            <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="Any YouTube video as wallpaper" className="min-w-0 flex-1 bg-transparent text-sm font-bold outline-none placeholder:text-faint" />
+            <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="Any YouTube video or playlist as wallpaper" className="min-w-0 flex-1 bg-transparent text-sm font-bold outline-none placeholder:text-faint" />
           </div>
           <Button type="submit" variant="primary">
             Set
@@ -192,7 +194,7 @@ export default function ScenesPanel() {
           ]}
         />
         {[
-          { k: 'showMascot' as const, label: 'Show Flowy', sub: 'Your little focus buddy' },
+          { k: 'showMascot' as const, label: 'Show Flowy', sub: 'Your little cat buddy by the timer' },
           { k: 'showQuote' as const, label: 'Quote of the day', sub: 'A small nudge under the timer' },
         ].map((o) => (
           <label key={o.k} className="flex items-center justify-between gap-3 rounded-2xl bg-surface-strong/70 p-3 ring-1 ring-line">

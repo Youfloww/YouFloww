@@ -33,18 +33,26 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,webp,woff2}'],
-        globIgnores: ['**/*{cyrillic,greek,hebrew,vietnamese}*.woff2'],
+        // meme pop-ups load on demand (the app preloads the next one), so they stay out of the install
+        globIgnores: ['**/*{cyrillic,greek,hebrew,vietnamese}*.woff2', '**/img/memes/**'],
         navigateFallback: '/index.html',
+        // Google sign-in pages (proxied to Firebase) must never be answered with the app
+        navigateFallbackDenylist: [/^\/__\//],
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/sounds/'),
             handler: 'CacheFirst',
             options: {
               cacheName: 'floww-sounds',
-              expiration: { maxEntries: 40 },
+              expiration: { maxEntries: 200 },
               rangeRequests: true,
               cacheableResponse: { statuses: [0, 200] },
             },
+          },
+          {
+            urlPattern: ({ url }) => url.pathname.startsWith('/img/memes/'),
+            handler: 'CacheFirst',
+            options: { cacheName: 'floww-memes', expiration: { maxEntries: 80 } },
           },
         ],
       },

@@ -1,12 +1,14 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { bus } from '@/lib/bus';
 import { useUI } from '@/store/ui';
 import { useData } from '@/store/data';
 import { useTimer } from '@/store/timer';
+import { usePrefs } from '@/store/prefs';
+import { takeMeme } from './memes';
 import { Dialog } from '@/ui/Sheet';
 import { Button } from '@/ui/primitives';
-import { Flowy } from '../mascot/Flowy';
+import { CatSprite } from '../cat/CatSprite';
 import { formatDuration } from '@/lib/time';
 import { reset, start } from '../timer/engine';
 import { newlyUnlocked, ACHIEVEMENTS } from '../achievements/defs';
@@ -48,17 +50,29 @@ function CompletionDialog() {
   const stats = deriveStats(data);
 
   useEffect(() => setRating(null), [completion]);
+  const memePops = usePrefs((s) => s.memePops);
+  const meme = useMemo(() => (completion && memePops ? takeMeme('done') : null), [completion, memePops]);
   const close = () => setUI({ completion: null });
 
   return (
     <Dialog open={!!completion} onClose={close} labelledBy="done-title">
       <div className="flex flex-col items-center text-center">
         <div className="-mt-16 mb-1">
-          <Flowy mood="happy" size={110} track={false} />
+          <CatSprite anim="jump" height={110} />
         </div>
         <h2 id="done-title" className="font-display text-3xl font-semibold">
           Session complete!
         </h2>
+        {meme && (
+          <motion.img
+            src={meme}
+            alt=""
+            className="mt-3 w-full max-w-[300px] rounded-2xl bg-white p-1.5 shadow-[0_20px_40px_-18px_rgb(0_0_0/0.45)]"
+            initial={{ opacity: 0, scale: 0.4, rotate: -14 }}
+            animate={{ opacity: 1, scale: 1, rotate: -2 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 14, delay: 0.15 }}
+          />
+        )}
         <p className="mt-1 font-semibold text-muted">
           You focused for <span className="font-black text-ink">{formatDuration(completion?.seconds ?? 0, { long: true })}</span>
           {completion?.taskText ? (

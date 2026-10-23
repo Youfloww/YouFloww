@@ -1,6 +1,9 @@
+import { AnimatePresence } from 'motion/react';
 import { lazy, Suspense, type ReactNode } from 'react';
 import { useUI, type PanelId } from '@/store/ui';
-import { Sheet } from '@/ui/Sheet';
+import { usePrefs, type WindowRect } from '@/store/prefs';
+import { Sheet, useIsDesktop } from '@/ui/Sheet';
+import { FloatingWindow } from '@/ui/Window';
 
 const TasksPanel = lazy(() => import('../tasks/TasksPanel'));
 const SoundsPanel = lazy(() => import('../sounds/SoundsPanel'));
@@ -36,17 +39,63 @@ function Loading() {
   );
 }
 
+/** Where a window opens the first time: right side like the old drawer, cascading for each extra window. */
+function defaultRect(id: PanelId, index: number): WindowRect {
+  const w = Math.min(META[id].width ?? (id === 'planner' ? 760 : 440), innerWidth - 24);
+  const h = Math.min(innerHeight - 24, 780);
+  return { x: innerWidth - w - 12 - index * 36, y: 12 + index * 36, w, h };
+}
+
 export default function Panels() {
-  const panel = useUI((s) => s.panel);
+  const panels = useUI((s) => s.panels);
+  const front = useUI((s) => s.panel);
   const openPanel = useUI((s) => s.openPanel);
-  const m = panel ? META[panel] : null;
+  const closePanel = useUI((s) => s.closePanel);
+  const rects = usePrefs((s) => s.windowRects);
+  const desktop = useIsDesktop();
+
+  // Phones: one bottom sheet (the front window)
+  if (!desktop) {
+    const m = front ? META[front] : null;
+    return (
+      <Sheet open={!!m} onClose={() => front && closePanel(front)} title={m?.title} subtitle={m?.subtitle} icon={m?.icon} width={m?.width}>
+        {m && (
+          <Suspense fallback={<Loading />}>
+            <m.C key={front} />
+          </Suspense>
+        )}
+      </Sheet>
+    );
+  }
+
+  // Desktop: any number of floating windows. The DOM order stays fixed and only z-index follows the stack:
+  // moving a window's node to the front mid-click would make the browser drop that click (e.g. on ×).
+  const ORDER = Object.keys(META) as PanelId[];
+  const stable = [...panels].sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b));
   return (
-    <Sheet open={!!m} onClose={() => openPanel(null)} title={m?.title} subtitle={m?.subtitle} icon={m?.icon} width={m?.width}>
-      {m && (
-        <Suspense fallback={<Loading />}>
-          <m.C key={panel} />
-        </Suspense>
-      )}
-    </Sheet>
+    <AnimatePresence>
+      {stable.map((id) => {
+        const i = panels.indexOf(id);
+        const m = META[id];
+        return (
+          <FloatingWindow
+            key={id}
+            title={m.title}
+            subtitle={m.subtitle}
+            icon={m.icon}
+            rect={rects[id] ?? defaultRect(id, i)}
+            z={41 + i}
+            active={id === front}
+            onRect={(r) => usePrefs.getState().set({ windowRects: { ...usePrefs.getState().windowRects, [id]: r } })}
+            onFocus={() => id !== useUI.getState().panel && openPanel(id)}
+            onClose={() => closePanel(id)}
+          >
+            <Suspense fallback={<Loading />}>
+              <m.C />
+            </Suspense>
+          </FloatingWindow>
+        );
+      })}
+    </AnimatePresence>
   );
 }

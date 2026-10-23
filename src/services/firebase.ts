@@ -2,9 +2,16 @@
  * Firebase is loaded lazily (after first paint) so the timer is interactive
  * instantly. Same project + collections as YouFloww v2, so accounts carry over.
  */
+/**
+ * On the live site Google sign-in runs on our own domain (vercel.json passes /__/ through to Firebase).
+ * Safari, and Chrome with third-party storage blocked, break a sign-in hosted on firebaseapp.com,
+ * which is the fallback whenever the pop-up is blocked (iPhone home-screen app, in-app browsers).
+ */
+const OWN_AUTH_HOSTS = ['youfloww.vercel.app'];
+
 const firebaseConfig = {
   apiKey: 'AIzaSyBCi5Ea0r2c9tdgk_6RnpSuqDV5CE3nGbo',
-  authDomain: 'youfloww2.firebaseapp.com',
+  authDomain: OWN_AUTH_HOSTS.includes(location.hostname) ? location.hostname : 'youfloww2.firebaseapp.com',
   projectId: 'youfloww2',
   storageBucket: 'youfloww2.firbasestorage.app',
   messagingSenderId: '816836186464',

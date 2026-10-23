@@ -4,7 +4,7 @@ import { useData } from '@/store/data';
 import { useUI } from '@/store/ui';
 import { signOut } from '@/services/sync';
 import { Button, SectionTitle } from '@/ui/primitives';
-import { Flowy } from '../mascot/Flowy';
+import { CatSprite } from '../cat/CatSprite';
 import { formatDuration } from '@/lib/time';
 
 export default function AccountPanel() {
@@ -20,7 +20,7 @@ export default function AccountPanel() {
     <div className="space-y-6">
       <div className="flex flex-col items-center gap-2 text-center">
         <div className="relative">
-          {user?.photo ? <img src={user.photo} alt="" referrerPolicy="no-referrer" className="size-24 rounded-full object-cover ring-4 ring-accent-soft" /> : <Flowy mood="love" size={96} />}
+          {user?.photo ? <img src={user.photo} alt="" referrerPolicy="no-referrer" className="size-24 rounded-full object-cover ring-4 ring-accent-soft" /> : <CatSprite anim="idle" height={96} />}
         </div>
         {editing ? (
           <form

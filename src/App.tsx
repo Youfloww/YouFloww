@@ -13,15 +13,19 @@ import { TopBar } from './features/shell/TopBar';
 import { Dock } from './features/shell/Dock';
 import { FocusStage } from './features/timer/FocusStage';
 import { Celebrations, Toaster } from './features/celebrate/Celebrations';
+import { MemePop } from './features/celebrate/MemePop';
+import { BrainDump } from './features/timer/BrainDump';
+import { CoffeeButton, SupportDialog } from './features/support/Support';
+import { ConfirmEnd } from './features/timer/ConfirmEnd';
 import { CommandPalette } from './features/shell/CommandPalette';
 import { useShortcuts } from './features/shell/useShortcuts';
 import { PipPortal, usePip } from './features/pip/PipTimer';
-import { useIsDesktop } from './ui/Sheet';
 import { start } from './features/timer/engine';
 import { cn } from './lib/utils';
 
 const Panels = lazy(() => import('./features/panels/Panels'));
 const Overlays = lazy(() => import('./features/panels/Overlays'));
+const CatWorld = lazy(() => import('./features/cat/CatWorld'));
 
 function useAppEffects() {
   const theme = usePrefs((s) => s.theme);
@@ -95,31 +99,35 @@ export default function App() {
   const scene = usePrefs((s) => s.scene.kind);
   const onMedia = scene === 'youtube' || scene === 'image' || scene === 'video';
   const zen = useUI((s) => s.zen);
-  const panel = useUI((s) => s.panel);
+  const showCat = usePrefs((s) => s.showMascot);
   const setUI = useUI((s) => s.set);
-  const wide = useIsDesktop(1180);
-  const shift = wide && !!panel;
 
   return (
     <div className="relative h-dvh w-full overflow-hidden text-ink">
       <SceneLayer />
 
-      <div className="relative z-10 flex h-full flex-col">
+      {/* The stage scrolls under floating bars: its edges are the screen edges, and content
+          fades out near the bars instead of being cut off by a hard line. */}
+      <div className="relative z-10 h-full">
+        <main className={cn('no-scrollbar absolute inset-0 overflow-x-hidden overflow-y-auto overscroll-contain', !zen && 'scroll-fade')}>
+          <div className={cn('flex min-h-full items-center justify-center px-4 transition-[padding] duration-500', zen ? 'py-6' : 'pt-[84px] pb-[108px]')}>
+            <FocusStage onMedia={onMedia} />
+          </div>
+        </main>
+
         <AnimatePresence>
           {!zen && (
-            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ type: 'spring', stiffness: 300, damping: 30 }}>
+            <motion.div
+              className="pointer-events-none absolute inset-x-0 top-0 [&_header>*]:pointer-events-auto"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            >
               <TopBar onMedia={onMedia} />
             </motion.div>
           )}
         </AnimatePresence>
-
-        <motion.main
-          className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-4 py-4"
-          animate={{ paddingRight: shift ? 470 : 16 }}
-          transition={{ type: 'spring', stiffness: 260, damping: 32 }}
-        >
-          <FocusStage onMedia={onMedia} />
-        </motion.main>
 
         <AnimatePresence>
           {!zen && (
@@ -128,13 +136,19 @@ export default function App() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 30 }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className={cn(shift && 'pr-[460px]', 'transition-[padding] duration-500')}
+              className="pointer-events-none absolute inset-x-0 bottom-0"
             >
               <Dock onPip={pip.supported ? pip.open : undefined} />
             </motion.div>
           )}
         </AnimatePresence>
       </div>
+
+      <BrainDump onMedia={onMedia} />
+      <MemePop />
+      <CoffeeButton />
+      <SupportDialog />
+      <ConfirmEnd />
 
       <AnimatePresence>
         {zen && (
@@ -156,6 +170,7 @@ export default function App() {
       <Suspense fallback={null}>
         <Panels />
         <Overlays />
+        {showCat && <CatWorld />}
       </Suspense>
       <Celebrations />
       <CommandPalette onPip={pip.supported ? pip.open : undefined} />

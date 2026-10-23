@@ -4,7 +4,11 @@ import { useState, useRef, useEffect } from 'react';
 import { useTimer, MODE_META, type Mode } from '@/store/timer';
 import { useData } from '@/store/data';
 import { cn, haptic } from '@/lib/utils';
-import { endEarly, focusOnTodo, reset, setMode, toggle } from './engine';
+import { focusOnTodo, requestEnd, requestMode, requestReset, startQuick, toggle } from './engine';
+import { bus } from '@/lib/bus';
+import { play } from '@/audio/sfx';
+import { parseTask } from '../tasks/parse';
+import { useLiveLoggedSeconds } from './useTaskTime';
 import { formatDuration } from '@/lib/time';
 
 export function ModeSwitch({ onMedia }: { onMedia: boolean }) {
@@ -19,7 +23,7 @@ export function ModeSwitch({ onMedia }: { onMedia: boolean }) {
             key={m}
             role="tab"
             aria-selected={on}
-            onClick={() => setMode(m)}
+            onClick={() => requestMode(m)}
             className={cn(
               'relative rounded-full px-3.5 py-2 text-[13px] font-extrabold whitespace-nowrap transition-colors sm:px-4',
               on ? 'text-accent-ink' : onMedia ? 'text-white/80 hover:text-white' : 'text-muted hover:text-ink',
@@ -55,7 +59,7 @@ export function Controls({ onMedia }: { onMedia: boolean }) {
 
   return (
     <div className="flex items-center gap-5">
-      <button className={side} aria-label="Reset timer (R)" title="Reset (R)" onClick={() => reset()} disabled={status === 'idle'}>
+      <button className={side} aria-label="Reset timer (R)" title="Reset (R)" onClick={requestReset} disabled={status === 'idle'}>
         <RotateCcw size={22} strokeWidth={2.6} />
       </button>
 
@@ -92,7 +96,7 @@ export function Controls({ onMedia }: { onMedia: boolean }) {
         className={side}
         aria-label={mode === 'focus' ? 'End session & log time (E)' : 'Skip break (E)'}
         title={mode === 'focus' ? 'End & log (E)' : 'Skip break (E)'}
-        onClick={endEarly}
+        onClick={requestEnd}
         disabled={status === 'idle' && mode === 'focus'}
       >
         {mode === 'focus' ? <Square size={20} fill="currentColor" strokeWidth={0} /> : <SkipForward size={22} strokeWidth={2.6} />}
@@ -141,11 +145,12 @@ export function TaskChip({ onMedia }: { onMedia: boolean }) {
     };
   }, [show]);
 
+  const logged = useLiveLoggedSeconds(active);
   const est = active?.estimateMinutes ? active.estimateMinutes * 60 : 0;
-  const pct = est ? Math.min(1, (active?.loggedSeconds || 0) / est) : 0;
+  const pct = est ? Math.min(1, logged / est) : 0;
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative" data-cat-perch="ledge">
       <button
         onClick={() => {
           haptic(6);
@@ -153,7 +158,7 @@ export function TaskChip({ onMedia }: { onMedia: boolean }) {
         }}
         aria-expanded={show}
         className={cn(
-          'pressable flex max-w-[min(86vw,420px)] items-center gap-2 rounded-full py-2 pr-3 pl-2.5 text-sm font-extrabold',
+          'pressable relative flex max-w-[min(86vw,420px)] items-center gap-2 overflow-hidden rounded-full py-2 pr-3 pl-2.5 text-sm font-extrabold',
           onMedia ? 'bg-black/25 text-white backdrop-blur-md hover:bg-black/35' : 'glass text-ink',
         )}
       >
@@ -161,8 +166,17 @@ export function TaskChip({ onMedia }: { onMedia: boolean }) {
           <Target size={14} strokeWidth={2.8} />
         </span>
         <span className={cn('truncate', !active && (onMedia ? 'text-white/80' : 'text-muted'))}>{active ? active.text : 'What are you working on?'}</span>
-        {active && est > 0 && <span className="shrink-0 text-xs opacity-70">{Math.round(pct * 100)}%</span>}
+        {active && (est > 0 || logged > 0) && (
+          <span className="tabular shrink-0 text-xs opacity-70">{est > 0 ? `${formatDuration(logged)} / ${formatDuration(est)}` : formatDuration(logged)}</span>
+        )}
         <ChevronDown size={16} className={cn('shrink-0 transition-transform', show && 'rotate-180')} />
+        {active && est > 0 && (
+          <motion.span
+            className="absolute bottom-0 left-0 h-[3px] rounded-full bg-accent"
+            animate={{ width: `${pct * 100}%` }}
+            transition={{ type: 'spring', stiffness: 80, damping: 20 }}
+          />
+        )}
       </button>
 
       <AnimatePresence>
@@ -178,8 +192,12 @@ export function TaskChip({ onMedia }: { onMedia: boolean }) {
               className="flex items-center gap-2 p-1"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (!text.trim()) return;
-                const t = addTodo(text.trim());
+                const parsed = parseTask(text);
+                if (!parsed.text) return;
+                // "Essay 45m #school !" works here too: estimate, category and star
+                const canonicalId = parsed.tag ? useData.getState().ensureCategory(parsed.tag) : null;
+                const t = addTodo(parsed.text, { estimateMinutes: parsed.estimateMinutes, canonicalId, starred: parsed.starred });
+                play('taskAdd');
                 focusOnTodo(t.id);
                 setText('');
                 setShow(false);
@@ -189,7 +207,7 @@ export function TaskChip({ onMedia }: { onMedia: boolean }) {
                 autoFocus
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder="Type an intention…"
+                placeholder="Type an intention… (e.g. Essay 45m)"
                 className="h-10 min-w-0 flex-1 rounded-2xl bg-line px-3 text-sm font-bold outline-none placeholder:text-faint focus:ring-2 focus:ring-accent"
               />
               <button type="submit" aria-label="Add and focus" className="pressable grid size-10 place-items-center rounded-2xl bg-accent text-accent-ink">
@@ -225,5 +243,65 @@ export function TaskChip({ onMedia }: { onMedia: boolean }) {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+/** ADHD starters: a tiny sprint beats task paralysis, and a dice roll beats decision paralysis. */
+export function StarterChips({ onMedia }: { onMedia: boolean }) {
+  const status = useTimer((s) => s.status);
+  const mode = useTimer((s) => s.mode);
+  const todos = useData((s) => s.data.todos);
+  const [spinning, setSpinning] = useState<string | null>(null);
+  const open = todos.filter((t) => !t.completed);
+  const chip = cn(
+    'pressable flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-extrabold whitespace-nowrap',
+    onMedia ? 'bg-black/25 text-white backdrop-blur-md hover:bg-black/35' : 'glass text-ink hover:bg-surface-strong',
+  );
+
+  const roll = () => {
+    if (spinning || open.length < 2) return;
+    const picked = open[Math.floor(Math.random() * open.length)];
+    play('roll');
+    // slot-machine: fast at first, slowing down, then land on the pick
+    const delays = [60, 60, 70, 80, 90, 110, 130, 160, 200, 260];
+    let at = 0;
+    delays.forEach((d, i) => {
+      at += d;
+      setTimeout(() => {
+        setSpinning(i === delays.length - 1 ? picked.text : open[(i * 7 + Math.floor(Math.random() * open.length)) % open.length].text);
+        haptic(4);
+      }, at);
+    });
+    setTimeout(() => {
+      focusOnTodo(picked.id);
+      bus.emit('confetti', {});
+      setSpinning(null);
+    }, at + 650);
+  };
+
+  return (
+    <AnimatePresence>
+      {status === 'idle' && mode === 'focus' && (
+        <motion.div
+          className="flex flex-wrap items-center justify-center gap-2"
+          initial={{ opacity: 0, y: 10, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 10, scale: 0.9 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 26 }}
+        >
+          <motion.button whileHover={{ y: -2, rotate: -2 }} className={chip} onClick={() => startQuick(5)} title="Too hard to start? Do just 5 minutes.">
+            🐢 Just 5 min
+          </motion.button>
+          {open.length >= 2 && (
+            <motion.button whileHover={{ y: -2, rotate: 2 }} className={cn(chip, 'max-w-[min(70vw,260px)]')} onClick={roll} title="Can't choose? Let the dice decide.">
+              <motion.span animate={spinning ? { rotate: 360 } : { rotate: 0 }} transition={spinning ? { duration: 0.35, repeat: Infinity, ease: 'linear' } : {}}>
+                🎲
+              </motion.span>
+              <span className="truncate">{spinning ?? 'Pick a task for me'}</span>
+            </motion.button>
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

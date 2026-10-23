@@ -6,7 +6,7 @@ export const DEFAULT_SETTINGS: Required<Settings> = {
   workDuration: 25 * 60,
   shortBreakDuration: 5 * 60,
   longBreakDuration: 15 * 60,
-  soundProfile: 'chimes',
+  soundProfile: 'indian',
   isAccountabilityOn: false,
   longBreakInterval: 4,
   autoStartBreaks: false,
@@ -184,6 +184,8 @@ export interface RecordSessionInput {
   completed: boolean;
   startedAt: number;
   todoId?: string | null;
+  /** Seconds of this session spent on `todoId` (earlier parts were credited when the task changed). Defaults to all of it. */
+  todoSeconds?: number;
 }
 
 export interface RecordSessionResult {
@@ -196,6 +198,20 @@ export interface RecordSessionResult {
  * Pure-ish session accounting. Mutates a draft copy of the user data. Ported
  * from v2's handleEndOfWorkSession + updateStreak, plus v3 history.
  */
+/** Credit focused seconds to a task (or to "no task") for its logged time and the per-task / per-category stats. */
+export function creditTask(d: UserData, todo: Todo | undefined, sec: number) {
+  if (!(sec > 0)) return;
+  const today = dateKey();
+  d.weeklyCategorySecondsByDate[today] ??= {};
+  d.weeklyTaskSecondsByDate[today] ??= {};
+  if (todo) {
+    todo.loggedSeconds = (todo.loggedSeconds || 0) + sec;
+    inc(d.weeklyTaskSecondsByDate[today], todo.text.slice(0, 60), sec);
+  }
+  if (todo?.canonicalId) inc(d.weeklyCategorySecondsByDate[today], String(todo.canonicalId), sec);
+  else inc(d.weeklyAnonymousSeconds, today, sec);
+}
+
 export function recordFocusSession(d: UserData, input: RecordSessionInput): RecordSessionResult {
   const sec = Math.max(0, Math.round(Math.min(input.seconds, 6 * 3600)));
   const today = dateKey();
@@ -236,14 +252,9 @@ export function recordFocusSession(d: UserData, input: RecordSessionInput): Reco
   const todo = input.todoId ? d.todos.find((t) => t.id === input.todoId && !t.completed) : undefined;
   d.weeklyCategorySecondsByDate[today] ??= {};
   d.weeklyTaskSecondsByDate[today] ??= {};
+  creditTask(d, todo, Math.min(sec, Math.max(0, Math.round(input.todoSeconds ?? sec))));
+  if (!todo?.canonicalId) inc(d.weeklyAnonymousSessions, today);
   if (todo) {
-    todo.loggedSeconds = (todo.loggedSeconds || 0) + sec;
-    inc(d.weeklyTaskSecondsByDate[today], todo.text.slice(0, 60), sec);
-    if (todo.canonicalId) inc(d.weeklyCategorySecondsByDate[today], String(todo.canonicalId), sec);
-    else {
-      inc(d.weeklyAnonymousSeconds, today, sec);
-      inc(d.weeklyAnonymousSessions, today);
-    }
     const est = (todo.estimateMinutes || 0) * 60;
     if (est > 0 && (todo.loggedSeconds || 0) >= est) {
       todo.completed = true;
@@ -254,9 +265,6 @@ export function recordFocusSession(d: UserData, input: RecordSessionInput): Reco
       }
       result.autoCompletedTodo = todo;
     }
-  } else {
-    inc(d.weeklyAnonymousSeconds, today, sec);
-    inc(d.weeklyAnonymousSessions, today);
   }
 
   d.longestSession = Math.max(d.longestSession, Math.floor(sec / 60));

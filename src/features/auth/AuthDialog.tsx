@@ -5,7 +5,7 @@ import { useUI, toast } from '@/store/ui';
 import { useData } from '@/store/data';
 import { Dialog } from '@/ui/Sheet';
 import { Button, Segmented } from '@/ui/primitives';
-import { Flowy, type FlowyMood } from '../mascot/Flowy';
+import { CatSprite } from '../cat/CatSprite';
 import { authErrorMessage, resetPassword, signInWithEmail, signInWithGoogle, signUpWithEmail } from '@/services/sync';
 
 function GoogleIcon() {
@@ -52,13 +52,16 @@ export function AuthDialog() {
     }
   };
 
-  // The classic YouFloww monkey, reimagined: Flowy covers its eyes when you type a password
-  const mood: FlowyMood = error ? 'sad' : pwFocus ? (show ? 'wow' : 'sleepy') : email ? 'happy' : 'idle';
+  // The classic YouFloww monkey, reimagined: the cat looks away (🙈) while you type a password
+  const hideEyes = pwFocus && !show;
 
   return (
     <Dialog open={open} onClose={() => setUI({ auth: false })} labelledBy="auth-title">
       <div className="-mt-16 mb-1 flex justify-center">
-        <Flowy mood={mood} size={104} />
+        <div className="relative">
+          <CatSprite anim={error ? 'hurt' : email && !pwFocus ? 'jump' : 'idle'} height={104} loop={!error} />
+          {hideEyes && <span className="absolute top-[30%] left-1/2 -translate-x-1/2 text-4xl">🙈</span>}
+        </div>
       </div>
       <h2 id="auth-title" className="font-display text-center text-2xl font-semibold">
         {mode === 'signup' ? 'Save your progress' : 'Welcome back'}

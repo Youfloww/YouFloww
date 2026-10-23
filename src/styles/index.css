@@ -132,9 +132,23 @@ html {
 body {
   font-family: var(--font-sans);
   overflow: hidden;
+  /* App-like: no accidental text highlighting while clicking, dragging windows or double-tapping */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
   overscroll-behavior: none;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+input,
+textarea,
+select,
+[contenteditable='true'] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+img {
+  -webkit-user-drag: none;
 }
 ::selection {
   background: color-mix(in oklab, var(--accent) 35%, transparent);
@@ -203,6 +217,15 @@ button:disabled {
   scrollbar-width: thin;
   scrollbar-color: color-mix(in oklab, var(--ink) 18%, transparent) transparent;
   overscroll-behavior: contain;
+}
+/* Soft top/bottom fade for scroll areas: content dissolves instead of hitting a hard edge */
+@utility scroll-fade {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 76px, #000 calc(100% - 100px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 76px, #000 calc(100% - 100px), transparent 100%);
+}
+@utility sheet-fade {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 18px, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 18px, #000 calc(100% - 28px), transparent 100%);
 }
 @utility tabular {
   font-variant-numeric: tabular-nums;
@@ -295,4 +318,24 @@ input[type='range'].floww-range:active::-webkit-slider-thumb {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* the cat's speech bubble: a little tail pointing at her head (or up, when the bubble sits below her) */
+.cat-bubble::after {
+  content: '';
+  position: absolute;
+  left: var(--tail, 50%);
+  bottom: -6px;
+  width: 12px;
+  height: 12px;
+  transform: translateX(-50%) rotate(45deg);
+  background: var(--surface-strong);
+  border-right: 1px solid var(--glass-border);
+  border-bottom: 1px solid var(--glass-border);
+  border-radius: 0 0 3px 0;
+}
+[data-below='1'] .cat-bubble::after {
+  bottom: auto;
+  top: -6px;
+  transform: translateX(-50%) rotate(225deg);
 }

@@ -5,14 +5,14 @@ import { usePrefs, THEMES } from '@/store/prefs';
 import { useUI } from '@/store/ui';
 import { Dialog } from '@/ui/Sheet';
 import { Button, Kbd } from '@/ui/primitives';
-import { Flowy } from '../mascot/Flowy';
+import { CatSprite } from '../cat/CatSprite';
 import { cn, isMac, withViewTransition } from '@/lib/utils';
 import { start } from '../timer/engine';
 import { previewPack } from '@/audio/sfx';
 import { APP_VERSION } from '@/lib/version';
 
 const NEW_STUFF = [
-  ['🫧', 'Meet Flowy', 'A little buddy who reacts to your focus. Poke them!'],
+  ['🐱', 'Meet Flowy', 'A little cat who walks, jumps and cheers you on. Poke them!'],
   ['🎧', 'Sound mixer', 'Layer rain, café, brown noise & 40Hz focus beats.'],
   ['🌈', 'Living scenes', 'WebGL aurora, 7 themes, live wallpapers, particles.'],
   ['📈', 'Deeper stats', 'Focus garden heatmap, power hours, shareable wrap.'],
@@ -42,7 +42,7 @@ export function Onboarding() {
     ? [
         <div key="new" className="text-center">
           <div className="-mt-16 mb-2 flex justify-center">
-            <Flowy mood="wow" size={110} track={false} />
+            <CatSprite anim="jump" height={110} />
           </div>
           <h2 className="font-display text-3xl font-semibold">YouFloww 3.0 is here!</h2>
           <p className="mt-1 font-semibold text-muted">Everything you loved — streaks, stats, memes — rebuilt to be cuter and smoother.</p>
@@ -63,7 +63,7 @@ export function Onboarding() {
     : [
         <div key="hi" className="text-center">
           <div className="-mt-16 mb-2 flex justify-center">
-            <Flowy mood="happy" size={120} track={false} />
+            <CatSprite anim="jump" height={120} />
           </div>
           <h2 className="font-display text-3xl font-semibold">Hi, I’m Flowy!</h2>
           <p className="mt-1 font-semibold text-muted">I’ll keep you company while you focus. What should I call you?</p>
@@ -126,7 +126,7 @@ export function Onboarding() {
         </div>,
         <div key="go" className="text-center">
           <div className="-mt-16 mb-2 flex justify-center">
-            <Flowy mood="focus" size={110} track={false} />
+            <CatSprite anim="idle" height={110} />
           </div>
           <h2 className="font-display text-2xl font-semibold">You’re all set!</h2>
           <ul className="mt-4 space-y-2 text-left text-sm font-bold">

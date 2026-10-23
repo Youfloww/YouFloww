@@ -8,7 +8,7 @@ import { TRACKS, PRESETS, useMixerStatus, customTrack, setCustomMusic, hasCustom
 import { previewPack } from '@/audio/sfx';
 import { cn } from '@/lib/utils';
 import { Button, Segmented, SectionTitle, Slider, Switch } from '@/ui/primitives';
-import { youtubeId } from '../scene/SceneLayer';
+import { parseYouTube } from '@/lib/youtube';
 import { toast } from '@/store/ui';
 
 function Bars({ on }: { on: boolean }) {
@@ -190,15 +190,16 @@ export default function SoundsPanel() {
           className="flex gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            const id = youtubeId(yt);
-            if (!id) return toast({ emoji: '🤔', title: 'That link didn’t look like YouTube' });
-            setPrefs({ musicVideo: { ...usePrefs.getState().musicVideo, id, open: true } });
+            const link = parseYouTube(yt);
+            if (!link) return toast({ emoji: '🤔', title: 'That link didn’t look like YouTube' });
+            setPrefs({ musicVideo: { ...usePrefs.getState().musicVideo, ...link, open: true } });
+            if (link.list) toast({ emoji: '🎶', title: 'Playlist loaded', body: 'Skip back and forth with ⏮ ⏭ in the player.' });
             setYt('');
           }}
         >
           <div className="flex h-11 flex-1 items-center gap-2 rounded-2xl bg-line px-3">
             <Youtube size={18} className="text-[#ff0033]" />
-            <input value={yt} onChange={(e) => setYt(e.target.value)} placeholder="Paste a YouTube link (lofi, podcasts…)" className="min-w-0 flex-1 bg-transparent text-sm font-bold outline-none placeholder:text-faint" />
+            <input value={yt} onChange={(e) => setYt(e.target.value)} placeholder="Paste a YouTube video or playlist link" className="min-w-0 flex-1 bg-transparent text-sm font-bold outline-none placeholder:text-faint" />
           </div>
           <Button variant="primary" type="submit">
             Play
@@ -206,11 +207,11 @@ export default function SoundsPanel() {
         </form>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {[
-            ['jfKfPfyJRdk', '📚 lofi hip hop'],
+            ['rFZHOHl-L8A', '📚 lofi hip hop'],
             ['4xDzrJKXOOY', '🌆 synthwave'],
-            ['HuFYqnbVbzY', '🎹 jazz piano'],
+            ['E2vONfzoyRI', '🎷 jazz lofi'],
           ].map(([id, l]) => (
-            <button key={id} onClick={() => setPrefs({ musicVideo: { ...usePrefs.getState().musicVideo, id, open: true } })} className="rounded-full bg-line px-3 py-1 text-xs font-extrabold hover:bg-accent-soft">
+            <button key={id} onClick={() => setPrefs({ musicVideo: { ...usePrefs.getState().musicVideo, id, list: null, open: true } })} className="rounded-full bg-line px-3 py-1 text-xs font-extrabold hover:bg-accent-soft">
               {l}
             </button>
           ))}
@@ -232,7 +233,7 @@ export default function SoundsPanel() {
             { value: 'off', label: '🔕 Off' },
           ]}
         />
-        <p className="text-xs font-semibold text-muted">Meme mode plays a random meme when you finish (and a sad one if you quit early). It’s the YouFloww classic.</p>
+        <p className="text-xs font-semibold text-muted">Meme mode plays a meme for every moment: starting, pausing (“ruko zara…”), resuming, finishing, quitting early, streaks, your daily goal, badges, adding and finishing tasks, parking thoughts and break over. It’s the YouFloww classic, turned up.</p>
         <label className="flex items-center justify-between gap-3 rounded-2xl bg-surface-strong/70 p-3 ring-1 ring-line">
           <span>
             <span className="block text-sm font-extrabold">Ambience only while focusing</span>

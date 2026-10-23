@@ -108,7 +108,7 @@ export function Sheet({ open, onClose, title, subtitle, icon, actions, children,
                 </IconButton>
               </div>
             </header>
-            <div className="soft-scroll min-h-0 flex-1 overflow-y-auto px-5 pb-6">{children}</div>
+            <div className="soft-scroll sheet-fade min-h-0 flex-1 overflow-y-auto px-5 pt-2 pb-6">{children}</div>
           </motion.aside>
         </>
       )}

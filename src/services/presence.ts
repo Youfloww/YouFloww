@@ -95,9 +95,9 @@ export async function startPresence(fb: FB, userId: string) {
 }
 
 function removeDoc() {
-  if (!fbRef || !docId) return;
+  if (!fbRef || !docId) return Promise.resolve();
   const { fsMod, db } = fbRef;
-  void fsMod.deleteDoc(fsMod.doc(db, 'presence', docId)).catch(() => {});
+  return fsMod.deleteDoc(fsMod.doc(db, 'presence', docId)).catch(() => {});
 }
 
 export async function stopPresence() {
@@ -106,7 +106,8 @@ export async function stopPresence() {
   unsubTimer?.();
   unsubTimer = null;
   removeEventListener('pagehide', removeDoc);
-  removeDoc();
+  const gone = removeDoc();
   docId = null;
   myUid = null;
+  await gone;
 }

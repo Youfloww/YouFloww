@@ -66,7 +66,7 @@ function DockIcon({ item, mouseX, active, badge, onClick, magnify }: { item: Ite
 }
 
 export function Dock({ onPip }: { onPip?: () => void }) {
-  const panel = useUI((s) => s.panel);
+  const openPanels = useUI((s) => s.panels);
   const togglePanel = useUI((s) => s.togglePanel);
   const setUI = useUI((s) => s.set);
   const openTasks = useData((s) => s.data.todos.filter((t) => !t.completed).length);
@@ -87,6 +87,7 @@ export function Dock({ onPip }: { onPip?: () => void }) {
         initial={{ y: 40, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 260, damping: 26, delay: 0.15 }}
+        data-cat-perch="dock"
         className="glass no-scrollbar pointer-events-auto flex max-w-full items-end gap-1.5 overflow-x-auto rounded-[26px] p-2 md:overflow-visible"
       >
         {DOCK_ITEMS.map((it) => (
@@ -95,7 +96,7 @@ export function Dock({ onPip }: { onPip?: () => void }) {
             item={it}
             mouseX={mouseX}
             magnify={desktop}
-            active={panel === it.id}
+            active={openPanels.includes(it.id as PanelId)}
             badge={it.id === 'tasks' ? openTasks : undefined}
             onClick={() => togglePanel(it.id as PanelId)}
           />

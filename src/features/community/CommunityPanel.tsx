@@ -6,7 +6,7 @@ import { useUI } from '@/store/ui';
 import { usePresence, refreshCount } from '@/services/presence';
 import { fetchFocusLeaders, fetchStreakLeaders, type LeaderRow } from '@/services/community';
 import { Button, Segmented } from '@/ui/primitives';
-import { Flowy } from '../mascot/Flowy';
+import { CatSprite } from '../cat/CatSprite';
 import { cn } from '@/lib/utils';
 import { formatDuration } from '@/lib/time';
 import { getFb } from '@/services/sync';
@@ -44,7 +44,7 @@ export default function CommunityPanel() {
         <div className="absolute -right-4 -bottom-6 flex opacity-90">
           {[0, 1, 2].map((i) => (
             <motion.div key={i} animate={{ y: [0, -6, 0] }} transition={{ duration: 2 + i * 0.3, repeat: Infinity, delay: i * 0.25 }} className="-ml-6">
-              <Flowy mood={i === 1 ? 'focus' : 'idle'} size={70 - i * 6} track={false} />
+              <CatSprite anim={i === 0 ? 'jump' : 'idle'} height={64 - i * 6} />
             </motion.div>
           ))}
         </div>

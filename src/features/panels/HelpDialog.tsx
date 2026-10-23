@@ -4,7 +4,7 @@ import { Kbd } from '@/ui/primitives';
 import { isMac } from '@/lib/utils';
 
 const GROUPS: [string, [string, string][]][] = [
-  ['Timer', [['Space', 'Start / pause'], ['R', 'Reset'], ['E', 'End & log / skip break'], ['1 2 3', 'Focus / short / long'], ['+ −', 'Add or remove 5 min']]],
+  ['Timer', [['Space', 'Start / pause'], ['R', 'Reset'], ['E', 'End & log / skip break'], ['1 2 3', 'Focus / short / long'], ['+ −', 'Add or remove 5 min'], ['D', 'Park a distracting thought']]],
   ['Panels', [['T', 'Tasks'], ['S', 'Sounds'], ['B', 'Scenes'], ['G', 'Stats'], ['J', 'Journal'], ['P', 'Planner'], ['L', 'Community'], ['A', 'Badges'], [',', 'Settings']]],
   ['Vibes', [['Z', 'Zen mode'], ['O', 'Pop-out timer'], ['M', 'Mute ambience'], [isMac ? '⌘ K' : 'Ctrl K', 'Command menu'], ['Esc', 'Close / exit']]],
 ];

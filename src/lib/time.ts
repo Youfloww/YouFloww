@@ -77,7 +77,7 @@ export const hmToMin = (hm: string) => {
 export function formatHM(hm: string, h24 = false) {
   const [h, m] = hm.split(':').map(Number);
   if (h24) return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-  const ap = h >= 12 ? 'pm' : 'am';
+  const ap = h >= 12 && h < 24 ? 'pm' : 'am'; // 24:00 is midnight, the end of the day
   const hh = h % 12 || 12;
   return `${hh}:${String(m).padStart(2, '0')}${ap}`;
 }

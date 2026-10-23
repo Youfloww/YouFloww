@@ -6,11 +6,12 @@ import { useTimer } from '@/store/timer';
 import { toast } from '@/store/ui';
 import { bus } from '@/lib/bus';
 import { cn, haptic } from '@/lib/utils';
-import { formatDuration } from '@/lib/time';
+import { formatDuration, formatHM } from '@/lib/time';
 import { Empty, Segmented } from '@/ui/primitives';
 import type { Todo } from '@/data/types';
 import { focusOnTodo, start } from '../timer/engine';
 import { parseTask } from './parse';
+import { useLiveLoggedSeconds } from '../timer/useTaskTime';
 import { play } from '@/audio/sfx';
 
 const TAG_COLORS = ['#ff8a4c', '#9d7bff', '#2fc39a', '#5b8cff', '#ff5c8a', '#e7a93f', '#1e9fd6'];
@@ -46,8 +47,10 @@ function TaskItem({ todo, draggable }: { todo: Todo; draggable: boolean }) {
   const [editing, setEditing] = useState(false);
   const [sub, setSub] = useState('');
   const cat = s.data.regularTasks.find((r) => r.id === todo.canonicalId);
+  const block = todo.plan && s.data.timetable[todo.plan.slot];
   const est = (todo.estimateMinutes || 0) * 60;
-  const pct = est ? Math.min(1, (todo.loggedSeconds || 0) / est) : 0;
+  const logged = useLiveLoggedSeconds(todo);
+  const pct = est ? Math.min(1, logged / est) : 0;
   const subDone = todo.subtasks.filter((x) => x.completed).length;
   const isActive = activeId === todo.id;
 
@@ -107,17 +110,22 @@ function TaskItem({ todo, draggable }: { todo: Todo; draggable: boolean }) {
               <span className={cn('block truncate text-[15px] font-bold', todo.completed && 'line-through decoration-2')}>{todo.text}</span>
             </button>
           )}
-          {(cat || est > 0 || todo.subtasks.length > 0 || !!todo.loggedSeconds) && (
+          {(cat || block || est > 0 || todo.subtasks.length > 0 || logged > 0) && (
             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] font-extrabold text-muted">
+              {block && (
+                <span className="tabular rounded-full bg-accent-soft px-2 py-0.5 text-ink" title="From your planner">
+                  🗓️ {formatHM(block.start, !!s.data.settings.use24h)}–{formatHM(block.end, !!s.data.settings.use24h)}
+                </span>
+              )}
               {cat && (
                 <span className="rounded-full px-2 py-0.5" style={{ background: `color-mix(in oklab, ${tagColor(cat.id)} 18%, transparent)`, color: tagColor(cat.id) }}>
                   #{cat.name}
                 </span>
               )}
-              {(est > 0 || !!todo.loggedSeconds) && (
-                <span className="inline-flex items-center gap-1">
+              {(est > 0 || logged > 0) && (
+                <span className="tabular inline-flex items-center gap-1">
                   <Clock size={11} strokeWidth={3} />
-                  {formatDuration(todo.loggedSeconds || 0)}
+                  {formatDuration(logged)}
                   {est > 0 && ` / ${formatDuration(est)}`}
                 </span>
               )}
@@ -176,7 +184,7 @@ function TaskItem({ todo, draggable }: { todo: Todo; draggable: boolean }) {
                     aria-checked={st.completed}
                     onClick={() => {
                       s.toggleSubtask(todo.id, st.id!);
-                      play(st.completed ? 'pop' : 'task');
+                      play(st.completed ? 'pop' : 'subtask');
                     }}
                     className={cn('grid size-[18px] shrink-0 place-items-center rounded-md border-2', st.completed ? 'border-good bg-good text-white' : 'border-faint')}
                   >
@@ -278,7 +286,7 @@ export default function TasksPanel() {
     if (!parsed.text) return;
     const canonicalId = parsed.tag ? ensureCategory(parsed.tag) : null;
     addTodo(parsed.text, { estimateMinutes: parsed.estimateMinutes, canonicalId, starred: parsed.starred });
-    play('pop');
+    play('taskAdd');
     setText('');
     inputRef.current?.focus();
   };
