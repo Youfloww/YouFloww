@@ -17,7 +17,7 @@
     "clsx": "^2.1.1",
     "docx-preview": "^0.4.1",
     "firebase": "^12.3.0",
-    "firebase-admin": "^14.5.0",
+    "firebase-admin": "^13.10.0",
     "idb-keyval": "^6.2.2",
     "jszip": "^3.10.2",
     "lucide-react": "^0.544.0",
