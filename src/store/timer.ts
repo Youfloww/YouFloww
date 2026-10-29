@@ -30,6 +30,10 @@ interface TimerState {
   taskMarkMs: number;
   /** set when auto-paused by presence guard */
   autoPaused: boolean;
+  /** last moment this page was seen open while running: a crash or a killed tab never counts later time as focus */
+  aliveAt: number | null;
+  /** the page closed mid-focus, so the session was paused right then (a welcome-back note offers Resume) */
+  leftMidSession: boolean;
 
   set: (p: Partial<TimerState>) => void;
 }
@@ -54,6 +58,8 @@ export const useTimer = create<TimerState>()(
       activeTodoId: null,
       taskMarkMs: 0,
       autoPaused: false,
+      aliveAt: null,
+      leftMidSession: false,
       set: (p) => set(p),
     }),
     { name: 'floww:timer', version: 1 },

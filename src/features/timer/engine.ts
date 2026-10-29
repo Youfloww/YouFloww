@@ -59,6 +59,8 @@ function tick() {
   if (s.status !== 'running') return;
   const rem = remainingAt(s, now);
   const sec = Math.ceil(rem / 1000);
+  // heartbeat, so a crash or a killed tab can be cut off at the last moment we know the page was open
+  if (now - (s.aliveAt ?? 0) > 5000) useTimer.setState({ aliveAt: now });
   if (sec !== lastSecond) {
     lastSecond = sec;
     updateTitle(rem, s.mode);
@@ -96,6 +98,8 @@ export function start() {
     sessionStartedAt: fresh ? now : s.sessionStartedAt ?? now,
     taskMarkMs: fresh ? 0 : s.taskMarkMs,
     autoPaused: false,
+    aliveAt: now,
+    leftMidSession: false,
   });
   startTicking();
   haptic(12);
@@ -161,6 +165,8 @@ export function reset(mode: Mode = useTimer.getState().mode) {
     sessionStartedAt: null,
     taskMarkMs: 0,
     autoPaused: false,
+    aliveAt: null,
+    leftMidSession: false,
   });
   stopTicking();
   lastSecond = -1;
@@ -309,16 +315,83 @@ export function complete() {
   }
 }
 
-/** Called once on boot: resume a persisted running timer, or close out one that finished while we were away. */
+/* ------------------------------------------------------------------ */
+/* Leaving the page: focus time only counts while the page is open      */
+/* ------------------------------------------------------------------ */
+const focusing = () => {
+  const s = useTimer.getState();
+  return s.status === 'running' && s.mode === 'focus';
+};
+
+/** Stop a running focus session at `at` (the moment the page went away) and keep it paused there. */
+function freezeAt(at: number) {
+  const s = useTimer.getState();
+  if (s.status !== 'running' || s.mode !== 'focus' || !s.endAt || !s.runStartedAt) return;
+  const cut = Math.max(s.runStartedAt, Math.min(at, s.endAt));
+  useTimer.setState({
+    status: 'paused',
+    remainingMs: Math.max(0, s.endAt - cut),
+    focusedMs: s.focusedMs + (cut - s.runStartedAt),
+    endAt: null,
+    runStartedAt: null,
+    autoPaused: false,
+    aliveAt: null,
+    leftMidSession: true,
+  });
+  stopTicking();
+}
+
+function welcomeBack() {
+  const s = useTimer.getState();
+  if (s.status !== 'paused' || !s.leftMidSession) return;
+  updateTitle(s.remainingMs, s.mode);
+  setTimeout(
+    () =>
+      toast({
+        emoji: '⏸',
+        title: 'Paused when you left',
+        body: `${formatClock(s.remainingMs)} left · time away wasn’t counted`,
+        action: { label: 'Resume', run: start },
+        ms: 12000,
+      }),
+    1500,
+  );
+}
+
+/** Run `fn` now, or as soon as no focus session is running (used to apply app updates between sessions). */
+export function whenNotFocusing(fn: () => void) {
+  if (!focusing()) return fn();
+  const off = useTimer.subscribe(() => {
+    if (focusing()) return;
+    off();
+    fn();
+  });
+}
+
+/** Called once on boot: restore the timer honestly, and watch for the page closing mid-session. */
 export function hydrateTimer() {
   const s = useTimer.getState();
   if (s.status === 'running') {
-    // Finished while the tab was closed: wrap it up once the UI is listening
-    if (s.endAt && s.endAt <= Date.now()) setTimeout(complete, 900);
+    const now = Date.now();
+    if (s.mode === 'focus') {
+      // The page closed without saying so (crash, killed tab): stop the clock at the last moment it was open
+      const cut = Math.min(now, s.aliveAt ?? now);
+      if (s.endAt && s.endAt <= cut) setTimeout(complete, 900);
+      else freezeAt(cut);
+    } else if (s.endAt && s.endAt <= now) setTimeout(complete, 900);
     else startTicking();
   } else if (s.status === 'idle') {
     reset(s.mode);
   }
+  welcomeBack();
+  // Closing or refreshing mid-focus asks first (the browser's own "Leave site?"); leaving pauses the session right there
+  window.addEventListener('beforeunload', (e: BeforeUnloadEvent) => {
+    if (!focusing()) return;
+    e.preventDefault();
+    e.returnValue = ''; // older Chrome/Edge need this too
+  });
+  window.addEventListener('pagehide', () => freezeAt(Date.now()));
+  window.addEventListener('pageshow', (e: PageTransitionEvent) => e.persisted && welcomeBack());
   // Settings changes refresh an idle timer's duration
   let prev = useData.getState().data.settings;
   let prevTodo = useData.getState().data.todos.find((x) => x.id === useTimer.getState().activeTodoId);
