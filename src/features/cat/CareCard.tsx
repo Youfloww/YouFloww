@@ -3,7 +3,7 @@ import { useWallet } from '@/features/economy/wallet';
 import { useFeatureData } from '@/lib/featureData';
 import { cn } from '@/lib/utils';
 import { MAX_LEVEL, MOOD_FACE, levelOf, levelProgress, moodOf, nextMilestone, unlocked, useCat } from './brain';
-import { FOODS, foodImg, serve, type Food } from './care';
+import { FOODS, foodImg, priceOf, serve, type Food } from './care';
 import { SKINS } from './skins';
 import { CRAFT_VERB, HOME_EMPTY, HOME_KEY, craftName, studyProgress, type CatHomeData } from './study';
 
@@ -40,7 +40,7 @@ export function CareCard({ onAction, onClose, onHome, skins = true, className }:
   };
   const give = (f: Food) => {
     const r = serve(f.id);
-    if (r === 'poor') return say(`Needs 🐟 ${f.price}. Focus a little to earn more!`);
+    if (r === 'poor') return say(`Needs 🐟 ${priceOf(f.price)}. Focus a little to earn more!`);
     if (r === 'full') return say(`${name} is full! Maybe a toy? 😸`);
     onAction({ kind: 'food', food: f });
   };
@@ -110,16 +110,17 @@ export function CareCard({ onAction, onClose, onHome, skins = true, className }:
         </button>
         {FOODS.map((f) => {
           const own = wallet.items[f.id] ?? 0;
+          const price = priceOf(f.price);
           return (
             <button
               key={f.id}
               onClick={() => give(f)}
-              title={`${f.name}${own ? ` (you have ${own})` : ` · 🐟 ${f.price}`}`}
-              aria-label={`${f.toy ? 'Give' : 'Feed'} ${f.name}${own ? `, ${own} owned` : `, costs ${f.price} fish coins`}`}
-              className={cn('pressable flex flex-col items-center rounded-xl bg-line/70 px-0.5 pt-1 pb-0.5', !own && wallet.coins < f.price && 'opacity-55')}
+              title={`${f.name}${own ? ` (you have ${own})` : price ? ` · 🐟 ${price}` : ' · free'}`}
+              aria-label={`${f.toy ? 'Give' : 'Feed'} ${f.name}${own ? `, ${own} owned` : `${price ? `, costs ${price} fish coins` : ', free'}`}`}
+              className={cn('pressable flex flex-col items-center rounded-xl bg-line/70 px-0.5 pt-1 pb-0.5', !own && wallet.coins < price && 'opacity-55')}
             >
               <img src={foodImg(f.id)} alt="" width={30} height={30} decoding="async" draggable={false} className="size-[30px] object-contain" />
-              <span className="text-[10px] font-black">{own ? `×${own}` : `🐟${f.price}`}</span>
+              <span className="text-[10px] font-black">{own ? `×${own}` : price ? `🐟${price}` : 'free'}</span>
             </button>
           );
         })}

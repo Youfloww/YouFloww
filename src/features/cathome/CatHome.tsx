@@ -8,6 +8,7 @@ import { useWallet } from '@/features/economy/wallet';
 import { CatSprite, FEET } from '../cat/CatSprite';
 import { catSound, moodOf, useCat } from '../cat/brain';
 import { CareCard, type CareAction } from '../cat/CareCard';
+import { priceOf } from '../cat/care';
 import { foodImg } from '../cat/care';
 import { preloadSkin, type SkinId } from '../cat/skins';
 import { CRAFT_EMOJI, craftName, settleStudy } from '../cat/study';
@@ -299,7 +300,7 @@ export default function CatHome() {
                   role="tab"
                   aria-selected={on}
                   onClick={() => (open ? goRoom(r.id) : openShop('rooms'))}
-                  title={open ? r.name : `${r.name}: 🐟 ${r.price}`}
+                  title={open ? r.name : `${r.name}: ${priceOf(r.price) ? `🐟 ${r.price}` : 'free'}`}
                   className={cn('pressable flex h-8 shrink-0 items-center gap-1 rounded-xl px-2.5 text-[13px] font-extrabold whitespace-nowrap', on ? 'bg-accent text-accent-ink' : 'hover:bg-line', !open && 'opacity-60')}
                 >
                   <span>{r.emoji}</span>

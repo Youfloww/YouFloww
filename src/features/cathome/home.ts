@@ -1,6 +1,7 @@
 import { buy, getWallet, giveItem, spend } from '@/features/economy/wallet';
 import { getFeatureData, updateFeatureData, useFeatureData } from '@/lib/featureData';
 import { HOME_EMPTY, HOME_KEY, type CatHomeData } from '../cat/study';
+import { priceOf } from '../cat/care';
 import { DECOR, ROOMS, itemOf, roomOf, slotsOf, type RoomId } from './catalog';
 
 /** The Cat's Home state lives in data.catHome next to her crafts (see cat/study.ts). */
@@ -47,7 +48,7 @@ export const goRoom = (room: RoomId) => write((d) => void (d.room = room));
 export function buyRoom(room: RoomId): boolean {
   const r = ROOMS.find((x) => x.id === room);
   if (!r || unlockedRooms(read()).includes(room)) return false;
-  if (!spend(r.price, `room:${room}`)) return false;
+  if (!spend(priceOf(r.price), `room:${room}`)) return false;
   write((d) => {
     d.rooms = [...unlockedRooms(d), room];
     d.room = room;
@@ -59,7 +60,7 @@ export function buyRoom(room: RoomId): boolean {
 export function buyDecor(id: string, room: RoomId): 'poor' | string | null {
   const it = itemOf(id);
   if (!it) return 'poor';
-  if (!buy(DECOR(id), it.price)) return 'poor';
+  if (!buy(DECOR(id), priceOf(it.price))) return 'poor';
   const d = read();
   const taken = placed(d, room);
   const free = slotsOf(roomOf(room)).filter((s) => s.kind === it.kind && !taken[s.id]);

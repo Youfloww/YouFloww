@@ -3,7 +3,7 @@ import { buy, useWallet } from '@/features/economy/wallet';
 import { cn } from '@/lib/utils';
 import { CatSprite } from '../cat/CatSprite';
 import { MAX_LEVEL, MILESTONES, levelOf, levelProgress, nextMilestone, useCat } from '../cat/brain';
-import { FOODS, foodImg } from '../cat/care';
+import { FOODS, foodImg, priceOf } from '../cat/care';
 import { CraftIcon } from '../cat/crafts';
 import { CRAFTS, CRAFT_VERB, craftName, studyProgress, type CraftKind } from '../cat/study';
 import { DECOR, ITEMS, ROOMS, itemOf, type RoomId, type SlotKind } from './catalog';
@@ -36,7 +36,7 @@ function Price({ price, coins, onBuy, label = 'Buy' }: { price: number; coins: n
       title={short ? `${price - coins} more fish coins (1 per focused minute)` : undefined}
       className="pressable mt-1.5 w-full rounded-xl bg-accent py-1.5 text-[12px] font-extrabold text-accent-ink disabled:bg-line disabled:text-muted"
     >
-      {short ? `🐟 ${price} · need ${price - coins}` : `${label} · 🐟 ${price}`}
+      {short ? `🐟 ${price} · need ${price - coins}` : price ? `${label} · 🐟 ${price}` : `${label} · Free`}
     </button>
   );
 }
@@ -83,7 +83,7 @@ export function ShopPanel({ tab, setTab, room, onPlaced }: { tab: ShopTab; setTa
                     </button>
                   ) : (
                     <div className="w-40">
-                      <Price price={r.price} coins={wallet.coins} label="Unlock" onBuy={() => buyRoom(r.id) && setNote(`${r.name} unlocked! ✨`)} />
+                      <Price price={priceOf(r.price)} coins={wallet.coins} label="Unlock" onBuy={() => buyRoom(r.id) && setNote(`${r.name} unlocked! ✨`)} />
                     </div>
                   )}
                 </div>
@@ -101,7 +101,7 @@ export function ShopPanel({ tab, setTab, room, onPlaced }: { tab: ShopTab; setTa
                 <img src={foodImg(f.id)} alt="" loading="lazy" decoding="async" className="h-14 w-auto object-contain" />
                 <span className="mt-1 text-center text-[12.5px] leading-tight font-extrabold">{f.name}</span>
                 <span className="text-[10.5px] font-bold text-muted">{f.toy ? `💖 +${f.joy} joy` : `🍗 +${f.hunger} full · 💖 +${f.joy}`}</span>
-                <Price price={f.price} coins={wallet.coins} onBuy={() => buy(f.id, f.price) && setNote(`${f.name} is in her pantry 🐟 Feed it from 💕 Care.`)} />
+                <Price price={priceOf(f.price)} coins={wallet.coins} onBuy={() => buy(f.id, priceOf(f.price)) && setNote(`${f.name} is in her pantry 🐟 Feed it from 💕 Care.`)} />
               </div>
             );
           })}
@@ -121,7 +121,7 @@ export function ShopPanel({ tab, setTab, room, onPlaced }: { tab: ShopTab; setTa
                   <span className="mt-1 text-center text-[12.5px] leading-tight font-extrabold">{it.name}</span>
                   {it.use && <span className="text-[10.5px] font-bold text-muted">{USE_NOTE[it.use]}</span>}
                   <Price
-                    price={it.price}
+                    price={priceOf(it.price)}
                     coins={wallet.coins}
                     onBuy={() => {
                       const r = buyDecor(it.id, room);

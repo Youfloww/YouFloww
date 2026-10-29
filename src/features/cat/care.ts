@@ -38,10 +38,17 @@ export function serve(id: string): 'ok' | 'poor' | 'full' {
   const f = foodOf(id);
   if (!f) return 'poor';
   if (!f.toy && useCat.getState().hunger < 4) return 'full';
-  if (itemCount(id) < 1 && !buy(id, f.price)) return 'poor';
+  if (itemCount(id) < 1 && !buy(id, priceOf(f.price))) return 'poor';
   takeItem(id);
   useCat.getState().treat({ hunger: f.hunger, joy: f.joy, energy: f.energy, xp: f.xp });
   return 'ok';
 }
 
-export const canAfford = (price: number) => getWallet().coins >= price;
+export const canAfford = (price: number) => getWallet().coins >= priceOf(price);
+
+/** For now her snacks and everything in the Cat's Home (rooms, furniture) are free. Set to false to bring the prices back. */
+export const FREE_FOR_NOW = true;
+/** What something costs today (the catalogs keep the real prices) */
+export function priceOf(price: number) {
+  return FREE_FOR_NOW ? 0 : price;
+}
