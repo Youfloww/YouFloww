@@ -44,6 +44,10 @@ interface UIState {
   onboarding: boolean;
   /** Buy Me a Coffee / UPI support dialog */
   support: boolean;
+  /** The open full-screen mode (a feature id from src/features/registry, e.g. 'cafe'), or null */
+  mode: string | null;
+  /** The Worlds launcher (every mode and layer) */
+  launcher: boolean;
   confirm: ConfirmSpec | null;
   completion: { seconds: number; taskText?: string | null } | null;
   toasts: Toast[];
@@ -70,11 +74,13 @@ export const useUI = create<UIState>()((set) => ({
   auth: false,
   onboarding: false,
   support: false,
+  mode: null,
+  launcher: false,
   confirm: null,
   completion: null,
   toasts: [],
-  openPanel: (p) => set((s) => (p ? raise(s.panels, p) : stack([]))),
-  togglePanel: (p) => set((s) => (s.panel === p ? stack(s.panels.filter((x) => x !== p)) : raise(s.panels, p))),
+  openPanel: (p) => set((s) => (p ? { ...raise(s.panels, p), mode: null } : stack([]))),
+  togglePanel: (p) => set((s) => (s.panel === p ? stack(s.panels.filter((x) => x !== p)) : { ...raise(s.panels, p), mode: null })),
   closePanel: (p) => set((s) => stack(s.panels.filter((x) => x !== p))),
   // `panel` in a patch keeps its old meaning: open that window (or close all with null)
   set: (patch) =>

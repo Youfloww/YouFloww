@@ -11,6 +11,7 @@ import { cn, withViewTransition, pick } from '@/lib/utils';
 import { bus } from '@/lib/bus';
 import { TIPS } from '../mascot/lines';
 import { DOCK_ITEMS } from './Dock';
+import { MODES } from '../registry';
 import { Kbd } from '@/ui/primitives';
 import { signOut } from '@/services/sync';
 
@@ -69,8 +70,10 @@ export function CommandPalette({ onPip }: { onPip?: () => void }) {
       { id: 'minus5', group: 'Timer', label: 'Remove 5 minutes', icon: '➖', kbd: '-', run: () => adjust(-5) },
       ...DOCK_ITEMS.map((d) => ({ id: `p-${d.id}`, group: 'Open', label: d.label, icon: <span className="[&_svg]:size-4">{d.icon}</span>, kbd: d.kbd, run: panel(d.id as PanelId) })),
       { id: 'p-ach', group: 'Open', label: 'Achievements', icon: '🏅', kbd: 'A', run: panel('achievements') },
+      { id: 'worlds', group: 'Worlds', label: 'All worlds', icon: '✨', kbd: 'W', keywords: 'modes launcher features', run: () => setUI({ launcher: true }) },
+      ...MODES.map((m) => ({ id: `m-${m.id}`, group: 'Worlds', label: m.label, icon: m.emoji, kbd: m.key?.toUpperCase(), keywords: m.description, run: () => setUI({ mode: m.id, panel: null }) })),
       { id: 'zen', group: 'View', label: 'Zen mode', icon: '🧘', kbd: 'Z', run: () => setUI({ zen: true, panel: null }) },
-      ...(onPip ? [{ id: 'pip', group: 'View', label: 'Pop-out timer (Picture-in-Picture)', icon: '🪟', kbd: 'O', run: onPip }] : []),
+      ...(onPip ? [{ id: 'pip', group: 'View', label: 'Floating buddy (stays on top of other apps)', icon: '🪟', kbd: 'O', run: onPip }] : []),
       { id: 'mascot', group: 'View', label: p.showMascot ? 'Hide Flowy' : 'Show Flowy', icon: '🐱', run: () => p.set({ showMascot: !p.showMascot }) },
       { id: 'style', group: 'View', label: 'Toggle timer style (orb / minimal)', icon: '⭕', run: () => p.set({ timerStyle: p.timerStyle === 'orb' ? 'minimal' : 'orb' }) },
       ...THEMES.map((t) => ({ id: `t-${t.id}`, group: 'Theme', label: `Theme: ${t.name}`, icon: t.emoji, keywords: 'color palette dark light', run: () => withViewTransition(() => p.set({ theme: t.id })) })),

@@ -68,12 +68,18 @@ interface CatState extends CatNeeds {
   set: (patch: Partial<Pick<CatState, 'purrs' | 'cheers' | 'showFamily'>>) => void;
   onSessionDone: (minutes: number) => void;
   onSessionEarly: () => void;
+  /** A snack or a toy from the care card: nudges her needs; meals add a little bond (capped per day) */
+  treat: (fx: { hunger?: number; joy?: number; energy?: number; affection?: number; xp?: number }) => void;
 }
 
 const clamp = (v: number) => Math.max(0, Math.min(100, v));
 const HOUR = 3_600_000;
 let recentPets: number[] = [];
 let petXpToday = { day: '', n: 0 };
+let treatXpToday = { day: '', n: 0 };
+let countedAt = 0;
+/** start time of the most recently logged focus session */
+const lastSessionAt = () => useData.getState().data.sessionLog?.at(-1)?.at ?? 0;
 
 /* ------------------------------------------------------------------ */
 /* Bond levels & the family journey                                     */
@@ -215,6 +221,10 @@ export const useCat = create<CatState>()(
         setSkin: (skin) => unlocked(skin, get().xp) && set({ skin }),
         set: (patch) => set(patch),
         onSessionDone: (minutes) => {
+          // one session counts once, whoever hears about it first (CatWorld, the Cat's Home, life.ts)
+          const at = lastSessionAt();
+          if (at && at === countedAt) return;
+          countedAt = at;
           set((s) => ({ joy: clamp(s.joy + 15), affection: clamp(s.affection + 3), treats: Math.min(9, s.treats + 1), together: s.together + 1 }));
           grow(minutes >= 20 ? 12 : 8);
           const s = get();
@@ -226,7 +236,27 @@ export const useCat = create<CatState>()(
             toast({ emoji: '🐱', title: `Kittens! Meet ${a.name} & ${b.name}`, body: 'Rename them in Settings → Your cat.' });
           }
         },
-        onSessionEarly: () => set((s) => ({ joy: clamp(s.joy - 8) })),
+        // ending early makes her a little wistful, never punished: a small dip that drifts back
+        onSessionEarly: () => {
+          const at = lastSessionAt();
+          if (at && at === countedAt) return;
+          countedAt = at;
+          set((s) => ({ joy: clamp(s.joy - 3) }));
+        },
+        treat: (fx) => {
+          set((s) => ({
+            hunger: clamp(s.hunger - (fx.hunger ?? 0)),
+            joy: clamp(s.joy + (fx.joy ?? 0)),
+            energy: clamp(s.energy + (fx.energy ?? 0)),
+            affection: clamp(s.affection + (fx.affection ?? 1)),
+            asleep: false,
+          }));
+          const day = new Date().toDateString();
+          if (treatXpToday.day !== day) treatXpToday = { day, n: 0 };
+          const xp = Math.min(fx.xp ?? 0, Math.max(0, 10 - treatXpToday.n));
+          treatXpToday.n += xp;
+          if (xp > 0) grow(xp);
+        },
       };
     },
     {

@@ -22,10 +22,17 @@ import { useShortcuts } from './features/shell/useShortcuts';
 import { PipPortal, usePip } from './features/pip/PipTimer';
 import { start } from './features/timer/engine';
 import { cn } from './lib/utils';
+import { LayerHost, ModeHost, useTabPresence } from './features/shell/FeatureHosts';
+import { startEarnings } from './features/economy/earnings';
+
+startEarnings();
+// the cat hears about sessions even while a world (café, flights, ...) covers her: loaded right after boot, off the main bundle
+void import('./features/cat/life').then((m) => m.startCatLife());
 
 const Panels = lazy(() => import('./features/panels/Panels'));
 const Overlays = lazy(() => import('./features/panels/Overlays'));
 const CatWorld = lazy(() => import('./features/cat/CatWorld'));
+const Launcher = lazy(() => import('./features/shell/Launcher'));
 
 function useAppEffects() {
   const theme = usePrefs((s) => s.theme);
@@ -88,6 +95,16 @@ function useAppEffects() {
     const panel = p.get('panel');
     if (panel) useUI.getState().openPanel(panel as never);
     if (p.get('start') === 'focus' && useTimer.getState().status !== 'running') setTimeout(start, 400);
+    // a Study Hall invite (?together=ABCDE): remember it, the hall joins the group after the person picks an animal
+    const together = p.get('together');
+    if (together) {
+      try {
+        sessionStorage.setItem('together:invite', together);
+      } catch {
+        /* private mode */
+      }
+      useUI.getState().set({ mode: 'together' });
+    }
     if (p.size) history.replaceState(null, '', location.pathname);
   }, []);
 }
@@ -95,11 +112,14 @@ function useAppEffects() {
 export default function App() {
   useAppEffects();
   const pip = usePip();
-  useShortcuts(pip.supported ? pip.open : undefined);
+  useShortcuts(pip.open);
   const scene = usePrefs((s) => s.scene.kind);
   const onMedia = scene === 'youtube' || scene === 'image' || scene === 'video';
   const zen = useUI((s) => s.zen);
   const showCat = usePrefs((s) => s.showMascot);
+  const mode = useUI((s) => s.mode);
+  const launcher = useUI((s) => s.launcher);
+  useTabPresence();
   const setUI = useUI((s) => s.set);
 
   return (
@@ -170,7 +190,10 @@ export default function App() {
       <Suspense fallback={null}>
         <Panels />
         <Overlays />
-        {showCat && <CatWorld />}
+        {showCat && !mode && <CatWorld />}
+        <LayerHost />
+        <ModeHost />
+        {launcher && <Launcher />}
       </Suspense>
       <Celebrations />
       <CommandPalette onPip={pip.supported ? pip.open : undefined} />

@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  @font-face { font-family: Fredoka; src: url('../../node_modules/@fontsource-variable/fredoka/files/fredoka-latin-wght-normal.woff2') format('woff2'); font-weight: 300 700; }
+  @font-face { font-family: Nunito; src: url('../../node_modules/@fontsource-variable/nunito/files/nunito-latin-wght-normal.woff2') format('woff2'); font-weight: 200 1000; }
+  * { margin: 0; box-sizing: border-box; }
+  body { width: 1200px; height: 630px; overflow: hidden; position: relative; background: #fbe9ec; font-family: Nunito, sans-serif; color: #2a1b3d; }
+  .blob { position: absolute; border-radius: 50%; filter: blur(70px); }
+  .logo { position: absolute; left: 118px; top: 165px; width: 300px; height: 300px; filter: drop-shadow(0 26px 40px rgb(140 70 150 / .28)); }
+  .text { position: absolute; left: 468px; top: 178px; right: 60px; }
+  h1 { font-family: Fredoka, sans-serif; font-weight: 600; font-size: 104px; line-height: 1; letter-spacing: -1px; }
+  h1 span { background: linear-gradient(100deg, #ff9d5c, #ff6fa6 45%, #8a5cf6); -webkit-background-clip: text; color: transparent; }
+  p { margin-top: 26px; font-weight: 800; font-size: 40px; line-height: 1.32; color: #5b4566; }
+  small { display: block; margin-top: 30px; font-weight: 800; font-size: 23px; color: #6f5a78; }
+</style>
+</head>
+<body>
+  <div class="blob" style="left:-120px;top:-140px;width:620px;height:520px;background:#ffd2a6"></div>
+  <div class="blob" style="right:-160px;top:40px;width:640px;height:460px;background:#ffc2d6"></div>
+  <div class="blob" style="left:260px;bottom:-280px;width:820px;height:480px;background:#dccbff"></div>
+  <img class="logo" src="../../public/favicon.svg" alt="" />
+  <div class="text">
+    <h1>You<span>Floww</span></h1>
+    <p>The cozy focus timer that makes you <i>want</i> to work.</p>
+    <small>Timer · Sound mixer · Live scenes · Tasks · Stats · Streaks</small>
+  </div>
+</body>
+</html>

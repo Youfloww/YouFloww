@@ -108,7 +108,7 @@ export function start() {
 }
 
 /** Planner "Focus now": a focus round sized to a time block, locked onto its task when there is one. */
-export function startFocusFor(minutes: number, label: string, todoId?: string | null) {
+export function startFocusFor(minutes: number, label: string, todoId?: string | null, emoji = '🗓️') {
   const s = useTimer.getState();
   if (s.status !== 'idle' && s.mode === 'focus') endEarly();
   if (todoId !== undefined) useTimer.setState({ activeTodoId: todoId });
@@ -116,7 +116,7 @@ export function startFocusFor(minutes: number, label: string, todoId?: string | 
   const ms = Math.max(1, Math.min(360, Math.round(minutes))) * 60_000;
   useTimer.setState({ remainingMs: ms, durationMs: ms });
   start();
-  toast({ emoji: '🗓️', title: `Focusing: ${label}`, body: `${formatDuration(ms / 1000, { long: true })} on the clock` });
+  toast({ emoji, title: `Focusing: ${label}`, body: `${formatDuration(ms / 1000, { long: true })} on the clock` });
 }
 
 /** ADHD starter: a tiny focus sprint is easier to begin than a full session. */
@@ -202,7 +202,8 @@ export function requestMode(mode: Mode) {
 export const requestEnd = () => askToEnd('end', endEarly);
 export const requestReset = () => askToEnd('reset', resetTimer);
 /** `task` runs only once the user agrees, and returns the task to lock onto */
-export const requestFocusFor = (minutes: number, label: string, task?: () => string | null) => askToEnd('replace', () => startFocusFor(minutes, label, task?.()));
+export const requestFocusFor = (minutes: number, label: string, task?: () => string | null, emoji?: string) =>
+  askToEnd('replace', () => startFocusFor(minutes, label, task?.(), emoji));
 
 /** The Reset button: the session isn't logged, but time already spent on a task still counts for that task. */
 export function resetTimer() {

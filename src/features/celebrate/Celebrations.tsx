@@ -208,7 +208,8 @@ export function Celebrations() {
       bus.on('session:complete', (p) => {
         void confetti({ big: true });
         const s = useData.getState().data.settings;
-        if (!s.autoStartBreaks) useUI.getState().set({ completion: { seconds: p.seconds, taskText: p.taskText } });
+        // inside a world (café, flight, train, ...) the world shows its own ending: no dialog on top of it
+        if (!s.autoStartBreaks && !useUI.getState().mode) useUI.getState().set({ completion: { seconds: p.seconds, taskText: p.taskText } });
         if (p.goalReached) setTimeout(() => useUI.getState().toast({ emoji: '🏆', title: 'Daily goal reached!', body: 'Anything more is bonus flow.' }), 1200);
       }),
       bus.on('task:done', (p) => {

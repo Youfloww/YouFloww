@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { CafeOrder } from '@/features/cafe/menu';
 
 export type ThemeId = 'peach' | 'matcha' | 'lavender' | 'ocean' | 'strawberry' | 'midnight' | 'nebula';
 export type SceneKind = 'aurora' | 'youtube' | 'image' | 'video' | 'plain';
@@ -43,6 +44,10 @@ interface PrefsState {
   /** Where each panel window was last left (desktop) */
   windowRects: Partial<Record<string, WindowRect>>;
   lastSeenVersion: string | null;
+  /** Last order at the café */
+  cafeOrder: CafeOrder | null;
+  /** Layers (src/features/registry) switched on or off by the person; missing = the layer's default */
+  layers: Record<string, boolean>;
 
   set: (patch: Partial<Omit<PrefsState, 'set' | 'toggleEffect' | 'setVolume' | 'toggleTrack'>>) => void;
   toggleEffect: (id: EffectId) => void;
@@ -69,6 +74,8 @@ export const usePrefs = create<PrefsState>()(
       musicVideo: { id: null, open: false, x: 24, y: 96 },
       windowRects: {},
       lastSeenVersion: null,
+      cafeOrder: null,
+      layers: {},
 
       set: (patch) => set(patch),
       toggleEffect: (id) => set((s) => ({ effects: { ...s.effects, [id]: !s.effects[id] } })),

@@ -305,6 +305,24 @@ input[type='range'].floww-range:active::-webkit-slider-thumb {
 @keyframes spin-slow { to { transform: rotate(360deg); } }
 .spin-slow { animation: spin-slow 6s linear infinite; }
 
+/* Café: steam off a hot drink, rain outside the window */
+@keyframes cafe-steam {
+  0% { opacity: 0; transform: translateY(14px) scaleY(0.8); }
+  35% { opacity: 0.55; }
+  100% { opacity: 0; transform: translateY(-22px) scaleY(1.15); }
+}
+.cafe-steam { opacity: 0; animation: cafe-steam 3.6s ease-out infinite; transform-box: fill-box; transform-origin: bottom; }
+@keyframes cafe-rain { to { background-position: 0 180px, 37px 260px, 71px 140px; } }
+.cafe-rain {
+  background-image:
+    radial-gradient(1px 10px at 50% 50%, rgb(255 255 255 / 0.55), transparent),
+    radial-gradient(1px 13px at 50% 50%, rgb(255 255 255 / 0.4), transparent),
+    radial-gradient(1px 8px at 50% 50%, rgb(255 255 255 / 0.5), transparent);
+  background-size: 53px 90px, 79px 130px, 41px 70px;
+  background-position: 0 0, 37px 0, 71px 0;
+  animation: cafe-rain 0.9s linear infinite;
+}
+
 /* View transitions: soft cross-fade on theme switch */
 ::view-transition-old(root),
 ::view-transition-new(root) {

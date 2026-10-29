@@ -37,7 +37,23 @@ export const HALFWAY = ['Halfway there! 🌗', "Halfway! You're crushing it 💪
 export const PURR_LINES = ['*purrrr* 💤', '*soft purring* 🎶', 'prrrrr… 💛'];
 
 export const DONE = ['You earned me a 🐟! Proud of you 💖', 'WE DID IT! 🎉', "Session done! You're amazing 😻", 'Look at you finishing things! 🏆', 'Treat time! Thank you 🐟💕'];
-export const EARLY = ['Oof. Emotional damage 😿', "It's okay, next one counts 💛", '*dramatic cat collapse*', "That's fine. Restarting is a skill too 🌱"];
+/** Ended early: a little sad, never a guilt trip. `w` = what she was working on */
+export const EARLY = (w: string) => [
+  `That's okay. Our ${w} will wait right here 💛`,
+  "It's okay, next one counts 💛",
+  `I'll keep our ${w} safe for next time 🌱`,
+  "Restarting is a skill too 🌱",
+];
+/** You left the tab mid-session */
+export const AWAY = ["I'll keep your seat warm…", 'I’ll wait right here… 🥺', 'Come back soon, okay? 💛'];
+/** …and came back */
+export const BACK = ["You're back! 💛 Let's keep going", 'Yay, you came back! 😻', 'I kept your seat warm! 🐾'];
+/** Settling in at her desk when a session starts */
+export const STUDY = {
+  scarf: ['Knitting time! 🧶', 'One row for every minute 🧶', "I'll knit while you work 🧣"],
+  book: ['Story time while you work 📖', "Let's both get lost in something 📖", "I'll read, you focus 📚"],
+  journal: ['Let me write that down 📓', 'Dear diary, today we focus ✏️', "I'll take notes 📝"],
+};
 export const BREAK_START = ['Break time! Stretch with me 🙆', 'Paws up! Rest those eyes 👀', 'Snack break? 🐟', 'Go drink some water! 💧'];
 export const BREAK_END = ["Break's over, let's go! ✨", 'Ready for another round? 🐾', 'Back to it, champ! 💪'];
 

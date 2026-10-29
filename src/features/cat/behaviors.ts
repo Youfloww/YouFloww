@@ -26,6 +26,10 @@ export interface Ctx {
   cloud: (b: Body, on: boolean) => void;
   pointer: { x: number; y: number; at: number };
   focus: () => boolean;
+  /** a focus session is on the clock (running or paused): her study corner is out */
+  studying: () => boolean;
+  /** where her desk stands (floor x) */
+  nookX: () => number;
   breakTime: () => boolean;
   music: () => boolean;
   reduced: () => boolean;
@@ -229,13 +233,16 @@ const napAct: Act = async (c, b) => {
   await nap(c, b, rand(20000, 45000));
 };
 
-/** Pop a food bowl next to her, eat a treat */
+/** Pop a food bowl next to her, eat a treat (or a snack from the care card, already paid for) */
 export const eat: Act = async (c, b, tok) => {
   const st = useCat.getState();
   if (!st.feed()) return beg(c, b, tok);
+  return munch(c, b, '🐟', FED);
+};
+export async function munch(c: Ctx, b: Body, emoji: string, lines: string[]) {
   if (b.ground.kind !== 'floor' && !(await toFloor(c, b))) return;
   const room = innerWidth - b.x > b.W;
-  const bowl = c.show('bowl', b.x + (room ? 1 : -1) * b.W * 0.42, floorY());
+  const bowl = c.show('bowl', b.x + (room ? 1 : -1) * b.W * 0.42, floorY(), emoji);
   b.flip = !room;
   b.anim('idle');
   b.face('happy');
@@ -247,11 +254,15 @@ export const eat: Act = async (c, b, tok) => {
   }
   c.hide('bowl');
   b.bob = 'breathe';
-  c.say(b, pick(FED), 2200);
-  c.emote(b, '😋');
-  await b.wait(1600);
+  b.face('love');
+  c.say(b, pick(lines), 2200);
+  c.burst(b, ['💕', '❤️'], 'float');
+  if (useCat.getState().purrs) sound(b, 'purr', 0.12);
+  b.bob = 'purr';
+  await b.wait(1800);
+  b.bob = 'breathe';
   b.face('normal');
-};
+}
 
 const beg: Act = async (c, b) => {
   if (b.ground.kind !== 'floor' && !(await toFloor(c, b))) return;
@@ -264,7 +275,7 @@ const beg: Act = async (c, b) => {
   b.face('normal');
 };
 
-const yarn: Act = async (c, b, tok) => {
+export const yarn: Act = async (c, b, tok) => {
   if (c.reduced()) return void c.emote(b, '🧶');
   if (!(await toFloor(c, b))) return;
   const y = floorY();
@@ -503,18 +514,38 @@ export function chooseMom(c: Ctx, last: string[]): [string, Act] {
 
 export const ACTS: Record<string, Act> = { wander, zoomies, perch, orbClimb, orbLoop, curious, groom, stretch, nap: napAct, eat, beg, yarn, sad, annoyed, happy, butterfly, box, knock, gift, dance, tail: tailChase, care };
 
-/** While you focus she stays calm: naps on the ring's shoulder, sometimes strolls along it or grooms */
-export async function focusStep(c: Ctx, b: Body) {
-  if (!onOrb(b, c)) {
-    if (!(await toOrb(c, b, pick(SHOULDERS), true))) return;
+/**
+ * While you focus she works beside you: walks to her desk next to the timer and knits / reads / writes.
+ * Her face drifts between concentrating, content and pleased; the desk and the project are drawn by CatWorld.
+ */
+export async function studyStep(c: Ctx, b: Body) {
+  const x = c.nookX();
+  if (b.ground.kind !== 'floor' && !(await toFloor(c, b))) return;
+  if (Math.abs(b.x - x) > 3) {
+    if (!(await (Math.abs(b.x - x) > 260 ? b.run(x) : b.walk(x, 95)))) return;
+    b.flip = false;
+    c.burst(b, ['✨'], 'spark');
   }
-  const r = Math.random();
-  if (r < 0.62) await nap(c, b, rand(45000, 80000));
-  else if (r < 0.82) {
-    const other = SHOULDERS.find((a) => Math.abs(normAngle(a - b.angle)) > 40) ?? SHOULDERS[0];
-    await b.arc(nearAngle(other, b.angle), 28);
-    await sit(b, rand(6000, 12000));
-  } else await groom(c, b, 0);
+  b.flip = false;
+  b.anim('idle');
+  for (let i = 0; i < 12; i++) {
+    if (!c.focus()) {
+      // paused: she rests her paws and waits for you
+      b.face('normal');
+      if (!(await b.wait(1500))) return;
+      continue;
+    }
+    const r = Math.random();
+    b.face(r < 0.22 ? 'happy' : 'normal');
+    if (!(await b.wait(rand(3500, 7000)))) return;
+    if (r > 0.9) {
+      b.face('star');
+      c.burst(b, [pick(['✨', '💡', '🎶'])], 'spark');
+      if (!(await b.wait(1100))) return;
+    }
+    // drift back to her spot if something nudged her
+    if (Math.abs(b.x - c.nookX()) > 6) return;
+  }
 }
 
 /** A pep talk now and then while you focus */
@@ -531,11 +562,13 @@ export function cheer(c: Ctx) {
 export async function kittenStep(c: Ctx, k: Body, tok: number) {
   const mom = c.mom;
   const sibs = c.kittens().filter((x) => x.id !== k.id);
-  if (c.focus()) {
-    // nap beside mom: on the ring next to her if she's there, else at its foot
-    if (onOrb(mom, c) && !onOrb(k, c)) {
-      if (!(await toOrb(c, k, mom.angle + (Math.random() < 0.5 ? -1 : 1) * rand(14, 26), false))) return;
-    } else if (!onOrb(mom, c) && k.ground.kind !== 'floor') await toFloor(c, k);
+  if (c.studying()) {
+    // nap beside mom's desk while she works
+    if (k.ground.kind !== 'floor' && !(await toFloor(c, k))) return;
+    const side = k.x < c.nookX() ? -1 : 1;
+    const spot = clamp(c.nookX() + side * rand(mom.W * 0.62, mom.W * 0.95), k.foot, innerWidth - k.foot);
+    if (Math.abs(spot - k.x) > 30 && !(await k.walk(spot, 70))) return;
+    k.flip = side > 0;
     await nap(c, k, rand(30000, 60000));
     return;
   }

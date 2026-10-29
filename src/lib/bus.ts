@@ -10,6 +10,15 @@ export type BusEvents = {
   'confetti': { x?: number; y?: number; big?: boolean };
   /** the cat's journey: bond level ups, a partner, kittens */
   'cat:event': { kind: 'level' | 'partner' | 'expecting' | 'born' | 'kitten'; level?: number; names?: string[] };
+  /** fish coins moved (src/features/economy) */
+  'wallet:earn': { amount: number; reason: string };
+  'wallet:spend': { amount: number; reason: string };
+  /** the tab was hidden / shown again; `focusing` = a focus session was running */
+  'tab:away': { focusing: boolean };
+  'tab:back': { focusing: boolean; awayMs: number };
+  /** a full-screen mode (src/features/registry) opened or closed */
+  'mode:open': { id: string };
+  'mode:close': { id: string };
 };
 
 type Handler<T> = (payload: T) => void;

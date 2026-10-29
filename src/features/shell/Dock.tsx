@@ -1,13 +1,13 @@
 import { motion, useMotionValue, useSpring, useTransform, type MotionValue } from 'motion/react';
 import { useRef, type ReactNode } from 'react';
-import { BarChart3, BookHeart, CalendarDays, Headphones, ListTodo, Maximize2, Palette, Settings2, Trophy, PictureInPicture2, Command } from 'lucide-react';
+import { BarChart3, BookHeart, CalendarDays, Sparkles, Headphones, ListTodo, Maximize2, Palette, Settings2, Trophy, PictureInPicture2, Command } from 'lucide-react';
 import { useUI, type PanelId } from '@/store/ui';
 import { useData } from '@/store/data';
 import { cn, haptic } from '@/lib/utils';
 import { useIsDesktop } from '@/ui/Sheet';
 
 interface Item {
-  id: PanelId | 'zen' | 'pip' | 'palette';
+  id: PanelId | 'worlds' | 'zen' | 'pip' | 'palette';
   label: string;
   icon: ReactNode;
   kbd?: string;
@@ -74,8 +74,9 @@ export function Dock({ onPip }: { onPip?: () => void }) {
   const desktop = useIsDesktop(768);
 
   const extras: Item[] = [
+    { id: 'worlds', label: 'Worlds', icon: <Sparkles />, kbd: 'W' },
     { id: 'zen', label: 'Zen mode', icon: <Maximize2 />, kbd: 'Z' },
-    ...(onPip ? [{ id: 'pip' as const, label: 'Pop-out timer', icon: <PictureInPicture2 />, kbd: 'O' }] : []),
+    ...(onPip ? [{ id: 'pip' as const, label: 'Floating buddy', icon: <PictureInPicture2 />, kbd: 'O' }] : []),
     { id: 'palette', label: 'Command menu', icon: <Command />, kbd: '⌘K' },
   ];
 
@@ -110,7 +111,8 @@ export function Dock({ onPip }: { onPip?: () => void }) {
             magnify={desktop}
             active={false}
             onClick={() => {
-              if (it.id === 'zen') setUI({ zen: true, panel: null });
+              if (it.id === 'worlds') setUI({ launcher: true });
+              else if (it.id === 'zen') setUI({ zen: true, panel: null });
               else if (it.id === 'pip') onPip?.();
               else setUI({ palette: true });
             }}

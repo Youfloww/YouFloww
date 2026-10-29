@@ -1,0 +1,73 @@
+/* Garden mode animations: transform / opacity only. --W / --H are the painting size in px. */
+.gd-paused *, .gd-paused *::before, .gd-paused *::after { animation-play-state: paused !important; }
+
+/* butterflies wander across the painting */
+@keyframes gd-wander-a {
+  0% { transform: translate(calc(var(--W) * -0.05), calc(var(--H) * 0.55)) rotate(10deg) }
+  20% { transform: translate(calc(var(--W) * 0.18), calc(var(--H) * 0.38)) rotate(-8deg) }
+  40% { transform: translate(calc(var(--W) * 0.37), calc(var(--H) * 0.5)) rotate(12deg) }
+  60% { transform: translate(calc(var(--W) * 0.58), calc(var(--H) * 0.34)) rotate(-6deg) }
+  80% { transform: translate(calc(var(--W) * 0.8), calc(var(--H) * 0.47)) rotate(8deg) }
+  100% { transform: translate(calc(var(--W) * 1.05), calc(var(--H) * 0.3)) rotate(-4deg) }
+}
+@keyframes gd-wander-b {
+  0% { transform: translate(calc(var(--W) * 1.05), calc(var(--H) * 0.42)) rotate(-10deg) scaleX(-1) }
+  25% { transform: translate(calc(var(--W) * 0.74), calc(var(--H) * 0.6)) rotate(6deg) scaleX(-1) }
+  50% { transform: translate(calc(var(--W) * 0.5), calc(var(--H) * 0.41)) rotate(-8deg) scaleX(-1) }
+  75% { transform: translate(calc(var(--W) * 0.24), calc(var(--H) * 0.56)) rotate(6deg) scaleX(-1) }
+  100% { transform: translate(calc(var(--W) * -0.05), calc(var(--H) * 0.36)) rotate(-6deg) scaleX(-1) }
+}
+.gd-wander { position: absolute; left: 0; top: 0; will-change: transform; }
+.gd-wander-a { animation: gd-wander-a 46s linear infinite; }
+.gd-wander-b { animation: gd-wander-b 58s linear infinite; }
+@keyframes gd-bob { 0%, 100% { margin-top: 0 } 50% { margin-top: -14px } }
+.gd-flutter { animation: gd-flap .3s ease-in-out infinite; }
+@keyframes gd-flap { 0%, 100% { transform: scaleX(1) } 50% { transform: scaleX(.25) } }
+
+/* bees circle a flower */
+@keyframes gd-orbit { from { transform: rotate(0deg) translateX(var(--r, 26px)) rotate(0deg) } to { transform: rotate(360deg) translateX(var(--r, 26px)) rotate(-360deg) } }
+.gd-orbit { animation: gd-orbit var(--t, 5s) linear infinite; }
+@keyframes gd-buzz { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-3px) } }
+.gd-buzz { animation: gd-buzz .25s ease-in-out infinite; }
+
+/* fireflies at night */
+@keyframes gd-drift { 0%, 100% { transform: translate(0, 0) } 33% { transform: translate(22px, -16px) } 66% { transform: translate(-14px, -6px) } }
+@keyframes gd-glow { 0%, 100% { opacity: .1 } 50% { opacity: 1 } }
+.gd-firefly { position: absolute; animation: gd-drift 8s ease-in-out infinite; }
+.gd-firefly > i { display: block; width: 6px; height: 6px; border-radius: 9px; background: #fff5b0; box-shadow: 0 0 10px 4px #ffe76a88; animation: gd-glow 2.6s ease-in-out infinite; }
+
+/* stars twinkle */
+@keyframes gd-twinkle { 0%, 100% { opacity: .2 } 50% { opacity: 1 } }
+
+/* an empty spot breathes when you can plant there */
+/* (centring uses the separate `translate` property from Tailwind, so only scale here) */
+@keyframes gd-breathe { 0%, 100% { transform: scale(1); opacity: .85 } 50% { transform: scale(1.08); opacity: 1 } }
+.gd-breathe { animation: gd-breathe 1.8s ease-in-out infinite; }
+
+/* a newly planted plant pops in */
+@keyframes gd-plant-in { 0% { transform: translateY(18px) scale(.6); opacity: 0 } 60% { transform: translateY(-6px) scale(1.04); opacity: 1 } 100% { transform: none } }
+.gd-plant-in { animation: gd-plant-in .8s cubic-bezier(.2, 1.2, .4, 1) both; transform-origin: 50% 100%; }
+
+/* hop when watered / tapped */
+@keyframes gd-hop { 0%, 100% { transform: none } 30% { transform: translateY(-8px) scale(1.03, .97) } 60% { transform: scale(.98, 1.02) } }
+.gd-hop { animation: gd-hop .7s ease-out; transform-origin: 50% 100%; }
+
+/* watering can pours */
+@keyframes gd-can {
+  0% { transform: translate(30px, -20px) rotate(0deg); opacity: 0 }
+  15% { transform: translate(0, 0) rotate(-6deg); opacity: 1 }
+  30%, 75% { transform: translate(0, 0) rotate(-34deg); opacity: 1 }
+  100% { transform: translate(24px, -20px) rotate(0deg); opacity: 0 }
+}
+.gd-can { animation: gd-can 2.1s ease-in-out forwards; transform-origin: 75% 60%; }
+@keyframes gd-drop { 0% { transform: translateY(0); opacity: 0 } 20% { opacity: .95 } 100% { transform: translateY(var(--fall, 60px)); opacity: 0 } }
+.gd-drop { animation: gd-drop .75s ease-in infinite; }
+@keyframes gd-sparkle { 0% { transform: translate(-50%, 0) scale(.4); opacity: 0 } 30% { opacity: 1 } 100% { transform: translate(-50%, -40px) scale(1.2); opacity: 0 } }
+.gd-sparkle { animation: gd-sparkle 1.4s ease-out forwards; }
+
+/* the watering can follows the pointer */
+.gd-cursor { position: fixed; left: 0; top: 0; pointer-events: none; z-index: 60; will-change: transform; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gd-wander-a, .gd-wander-b, .gd-orbit, .gd-buzz, .gd-firefly, .gd-flutter, .gd-breathe { animation: none !important; }
+}

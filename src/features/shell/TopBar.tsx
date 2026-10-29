@@ -1,6 +1,7 @@
 import { motion } from 'motion/react';
 import { useData } from '@/store/data';
 import { useUI } from '@/store/ui';
+import { useWallet } from '../economy/wallet';
 import { usePresence } from '@/services/presence';
 import { deriveStats } from '@/data/model';
 import { cn } from '@/lib/utils';
@@ -50,6 +51,7 @@ export function TopBar({ onMedia }: { onMedia: boolean }) {
   const openPanel = useUI((s) => s.openPanel);
   const setUI = useUI((s) => s.set);
   const stats = useMemo(() => deriveStats(data), [data]);
+  const coins = useWallet().coins;
 
   const pill = cn(
     'pressable flex h-10 items-center gap-2 rounded-full px-3.5 text-sm font-extrabold',
@@ -82,6 +84,12 @@ export function TopBar({ onMedia }: { onMedia: boolean }) {
           <span className="tabular">{stats.streak}</span>
           <span className="mx-0.5 h-4 w-px bg-current opacity-20" />
           <GoalRing value={stats.goalProgress} />
+        </button>
+        <button className={pill} onClick={() => setUI({ launcher: true })} title="Fish coins: 1 per focused minute. Spend them in the worlds.">
+          <span className="text-base">🐟</span>
+          <motion.span key={coins} initial={{ scale: 1.5, color: 'var(--accent)' }} animate={{ scale: 1, color: 'currentColor' }} transition={{ duration: 0.5 }} className="tabular">
+            {coins}
+          </motion.span>
         </button>
         <button onClick={() => setUI({ support: true })} aria-label="Buy me a coffee" title="Buy me a coffee" className={cn(pill, 'w-auto px-3 text-base lg:hidden')}>
           ☕

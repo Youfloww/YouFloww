@@ -17,7 +17,7 @@ const NEW_STUFF = [
   ['🌈', 'Living scenes', 'WebGL aurora, 7 themes, live wallpapers, particles.'],
   ['📈', 'Deeper stats', 'Focus garden heatmap, power hours, shareable wrap.'],
   ['⌨️', 'Command menu', 'Do anything from the keyboard with ⌘K.'],
-  ['🪟', 'Pop-out timer', 'Float your timer above any window.'],
+  ['🪟', 'Floating buddy', 'The cat and your timer float above any app.'],
 ];
 
 export function Onboarding() {

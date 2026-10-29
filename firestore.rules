@@ -72,6 +72,38 @@ service cloud.firestore {
     }
     
     // ========================================
+    // FOCUS FLIGHTS
+    // ========================================
+    // Focus Flights: a public, anonymous departures board (route + minutes only). Signed-in people only, so it can't be spammed.
+    match /flights/{flightId} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['from', 'to', 'minutes', 'createdAt'])
+        && request.resource.data.keys().hasAll(['from', 'to', 'minutes', 'createdAt'])
+        && request.resource.data.from is string && request.resource.data.from.matches('^[A-Z]{3}$')
+        && request.resource.data.to is string && request.resource.data.to.matches('^[A-Z]{3}$')
+        && request.resource.data.minutes is int
+        && request.resource.data.minutes >= 1 && request.resource.data.minutes <= 360
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    // ========================================
+    // FOCUS PLEDGE (written only by the server, api/pledge)
+    // ========================================
+    match /pledges/{pledgeId} {
+      // a person can read their own pledges; nobody can write them from a browser
+      allow read: if request.auth != null && request.auth.uid == resource.data.uid;
+      allow write: if false;
+    }
+    match /pledgeStats/{doc} {
+      // public running totals for the charity card
+      allow read: if true;
+      allow write: if false;
+    }
+    // pledgeOrders/* and pledgeUsers/* are server-only: covered by the deny-all fallback below
+
+    // ========================================
     // FALLBACK - Deny all other collections
     // ========================================
     match /{document=**} {

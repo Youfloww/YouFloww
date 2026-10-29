@@ -3,6 +3,7 @@ import { useUI, type PanelId } from '@/store/ui';
 import { usePrefs } from '@/store/prefs';
 import { isTypingTarget } from '@/lib/utils';
 import { adjust, requestEnd, requestMode, requestReset, toggle } from '../timer/engine';
+import { MODES } from '../registry';
 
 const PANEL_KEYS: Record<string, PanelId> = {
   t: 'tasks',
@@ -30,6 +31,9 @@ export function useShortcuts(onPip?: () => void) {
       if (ui.palette || ui.auth || ui.completion || ui.onboarding || ui.confirm || ui.support) return;
 
       const k = e.key.toLowerCase();
+      if (ui.mode && e.key === 'Escape') return ui.set({ mode: null });
+      if (ui.launcher && e.key === 'Escape') return ui.set({ launcher: false });
+      if (ui.mode && !(e.key === ' ' || k === 'k' || k === 'e')) return;
       if (e.key === ' ' || k === 'k') {
         e.preventDefault();
         toggle();
@@ -40,6 +44,8 @@ export function useShortcuts(onPip?: () => void) {
       else if (k === '3') requestMode('long');
       else if (e.key === '+' || e.key === '=') adjust(5);
       else if (e.key === '-' || e.key === '_') adjust(-5);
+      else if (k === 'w') ui.set({ launcher: !ui.launcher });
+      else if (MODES.some((m) => m.key === k)) ui.set({ mode: MODES.find((m) => m.key === k)!.id, panel: null, launcher: false });
       else if (k === 'z' || k === 'f') ui.set({ zen: !ui.zen, panel: null });
       else if (k === 'o') onPip?.();
       else if (k === 'd') dispatchEvent(new Event('floww:braindump'));

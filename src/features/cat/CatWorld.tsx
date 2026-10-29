@@ -1,17 +1,23 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useTimer } from '@/store/timer';
-import { useUI } from '@/store/ui';
+import { toast, useUI } from '@/store/ui';
+import { useFeatureData } from '@/lib/featureData';
 import { usePrefs } from '@/store/prefs';
 import { useMixerStatus } from '@/audio/mixer';
 import { bus } from '@/lib/bus';
 import { pick } from '@/lib/utils';
 import { CatSprite, FEET } from './CatSprite';
-import { useCat, moodOf, MOOD_FACE, catSound, levelOf, levelProgress, nextMilestone, unlocked, MAX_LEVEL } from './brain';
-import { SKINS, preloadSkin, type SkinId } from './skins';
-import { Body, Thing, clamp, floorY, rand, scoped, type BodyView } from './world';
+import { useCat, moodOf, catSound } from './brain';
+import { preloadSkin, type SkinId } from './skins';
+import { Body, Thing, circleOf, clamp, floorY, orbEl, rand, scoped, type BodyView } from './world';
 import * as L from './lines';
-import { ACTS, annoyed, chooseMom, cheer, eat, focusStep, happy, kittenStep, nap, partnerVisit, sleep, sound, toOrb, SHOULDERS, type Ctx, type ParticleKind, type ThingKind } from './behaviors';
+import { ACTS, annoyed, chooseMom, cheer, eat, happy, kittenStep, munch, partnerVisit, sleep, sound, studyStep, toOrb, yarn, type Ctx, type ParticleKind, type ThingKind } from './behaviors';
+import { StudyNook } from './StudyNook';
+import { CareCard, type CareAction } from './CareCard';
+import { foodImg } from './care';
+import { CraftIcon } from './crafts';
+import { CRAFT_EMOJI, HOME_EMPTY, HOME_KEY, beginStudy, craftName, currentProject, settleStudy, type CatHomeData, type Made, type Project } from './study';
 
 /**
  * The cat (and later her family) living on the whole screen. Bodies move in world.ts, decisions live in
@@ -31,7 +37,7 @@ let seq = 1;
 export default function CatWorld() {
   const zen = useUI((s) => s.zen);
   const cat = useCat();
-  const { name, skin, kittens, showFamily, partner, treats, hunger, energy, joy, xp } = cat;
+  const { name, skin, kittens, showFamily, partner } = cat;
   const mood = moodOf(cat);
 
   const [H, setH] = useState(sizeFor);
@@ -53,6 +59,23 @@ export default function CatWorld() {
   const [tag, setTag] = useState<string | null>(null);
   const [visiting, setVisiting] = useState(false);
   const [ready, setReady] = useState(false);
+  // her study corner: out while a focus session is on the clock (and a moment after it ends)
+  const studyOn = useTimer((s) => s.mode === 'focus' && s.status !== 'idle');
+  const running = useTimer((s) => s.status === 'running');
+  const project = useFeatureData<CatHomeData>(HOME_KEY, HOME_EMPTY).project;
+  const lastProject = useRef<Project | null>(null);
+  if (project) lastProject.current = project;
+  const [hold, setHold] = useState<'early' | 'done' | null>(null);
+  const [seated, setSeated] = useState(false);
+  const [away, setAway] = useState(false);
+  const [made, setMade] = useState<Made | null>(null);
+  const showNook = (studyOn || !!hold) && !!lastProject.current;
+  const showNookRef = useRef(false);
+  showNookRef.current = showNook;
+  const nookEl = useRef<HTMLDivElement | null>(null);
+  const madeEl = useRef<HTMLDivElement | null>(null);
+  const awayRef = useRef(false);
+  const cardPinned = useRef(false);
 
   const speechEls = useRef(new Map<string, HTMLElement>());
   const hitEls = useRef(new Map<string, HTMLElement>());
@@ -66,6 +89,14 @@ export default function CatWorld() {
   const reduced = useRef(false);
   const timers = useRef(new Map<string, number>());
 
+  /** Her desk stands on the floor just left of the timer, fully on screen */
+  const nookX = () => {
+    const H = mom.current.H;
+    const half = H * 0.6125 + 6;
+    const c = circleOf(orbEl());
+    const want = c ? c.cx - c.r - H * 0.42 : innerWidth * 0.25;
+    return clamp(want, half, innerWidth - half);
+  };
   const bodies = () => [mom.current, ...kitBodies.current.values(), ...(partnerBody.current ? [partnerBody.current] : [])];
   const later = (key: string, fn: () => void, ms: number) => {
     clearTimeout(timers.current.get(key));
@@ -120,6 +151,11 @@ export default function CatWorld() {
         const t = useTimer.getState();
         return t.mode === 'focus' && t.status === 'running';
       },
+      studying: () => {
+        const t = useTimer.getState();
+        return t.mode === 'focus' && t.status !== 'idle';
+      },
+      nookX,
       breakTime: () => {
         const t = useTimer.getState();
         return t.mode !== 'focus' && t.status === 'running';
@@ -172,6 +208,10 @@ export default function CatWorld() {
     const onMq = (e: MediaQueryListEvent) => (reduced.current = e.matches);
     mq.addEventListener('change', onMq);
 
+    // a session may have finished while she was off screen (another mode was open): her piece is done
+    const doneWhileAway = settleStudy();
+    if (doneWhileAway) toast({ emoji: CRAFT_EMOJI[doneWhileAway.k], title: `${useCat.getState().name} finished ${craftName(doneWhileAway.k, doneWhileAway.p)}`, body: 'It’s waiting in her home 🏡' });
+    beginStudy();
     const away = Date.now() - useCat.getState().lastTick;
     useCat.getState().tick();
     const tickId = setInterval(() => useCat.getState().tick(), 60_000);
@@ -202,12 +242,12 @@ export default function CatWorld() {
       await loaded;
       await sleep(4500);
       while (alive) {
-        if (m.reacting || m.dragging || cardOpen.current) {
+        if (m.reacting || m.dragging || cardOpen.current || awayRef.current) {
           await sleep(400);
           continue;
         }
         const tok = m.interrupt();
-        if (ctx.focus()) await Promise.race([focusStep(ctx, scoped(m, tok)), sleep(90_000)]);
+        if (ctx.studying()) await Promise.race([studyStep(ctx, scoped(m, tok)), sleep(90_000)]);
         else {
           const [k, act] = chooseMom(ctx, last);
           last.push(k);
@@ -215,7 +255,7 @@ export default function CatWorld() {
           await Promise.race([act(ctx, scoped(m, tok), tok), sleep(30_000)]);
         }
         if (!alive) break;
-        if (m.alive(tok) && !m.reacting) await m.wait(ctx.focus() ? rand(4000, 9000) : rand(2200, 5500));
+        if (m.alive(tok) && !m.reacting) await m.wait(ctx.studying() ? 300 : rand(2200, 5500));
       }
     })();
 
@@ -355,23 +395,36 @@ export default function CatWorld() {
     const kids = () => [...kitBodies.current.values()];
     const offs = [
       bus.on('session:start', () => {
-        void react(m, async (tok, m) => {
+        beginStudy();
+        setHold(null);
+        const pr = currentProject();
+        void react(m, async (_t, m) => {
           m.face('star');
-          ctx.say(m, pick(L.START), 3800);
+          ctx.say(m, pr ? pick(L.STUDY[pr.k]) : pick(L.START), 3800);
           await m.hop(30);
-          if (!m.alive(tok)) return;
           m.face('normal');
-          await toOrb(ctx, m, pick(SHOULDERS), Math.random() < 0.5);
-          await nap(ctx, m, 4000);
         });
       }),
       bus.on('session:complete', (p) => {
+        const piece = settleStudy(true);
         useCat.getState().onSessionDone(Math.round(p.seconds / 60));
         setCrown(true);
         later('crown', () => setCrown(false), 7000);
+        if (piece) {
+          setHold('done');
+          later('hold', () => setHold(null), 2600);
+          setMade(piece);
+          later('made', () => setMade(null), 5200);
+          toast({
+            emoji: CRAFT_EMOJI[piece.k],
+            title: `${useCat.getState().name} finished ${craftName(piece.k, piece.p)}!`,
+            body: 'Made together during your session. It lives in her home now.',
+            action: { label: 'See it 🏡', run: () => useUI.getState().set({ mode: 'cathome' }) },
+          });
+        }
         void react(m, async (_t, m) => {
           m.face('star');
-          ctx.say(m, p.goalReached ? 'Daily goal smashed!! 🏆' : pick(L.DONE), 4500);
+          ctx.say(m, p.goalReached ? 'Daily goal smashed!! 🏆' : piece ? `I finished my ${piece.k === 'scarf' ? 'scarf' : piece.k === 'book' ? 'book' : 'journal'}! ${CRAFT_EMOJI[piece.k]} You did it too!` : pick(L.DONE), 4500);
           ctx.burst(m, ['💖', '✨', '💕', '⭐'], 'float');
           if (m.ground.kind === 'orb' && !reduced.current) {
             await m.arc(m.angle + (Math.random() < 0.5 ? 360 : -360), 300, 'run');
@@ -394,16 +447,50 @@ export default function CatWorld() {
         });
       }),
       bus.on('session:early', () => {
+        // she stops, a little sad; everything she made so far stays for next time
+        settleStudy(true);
         useCat.getState().onSessionEarly();
+        const pr = currentProject();
+        setHold('early');
+        later('hold', () => setHold(null), 4600);
         void react(m, async (_t, m) => {
-          ctx.say(m, pick(L.EARLY), 3800);
-          m.anim('dead', { loop: false });
-          await m.wait(1600);
           m.anim('idle');
           m.face('sad');
-          await m.wait(1400);
+          ctx.say(m, pick(L.EARLY(pr?.k === 'book' ? 'book' : pr?.k === 'journal' ? 'journal' : 'scarf')), 4200);
+          await m.wait(900);
+          ctx.burst(m, ['💧'], 'drop');
+          await m.wait(2600);
           m.face('normal');
         });
+      }),
+      bus.on('tab:away', (p) => {
+        if (!p.focusing) return;
+        awayRef.current = true;
+        setAway(true);
+        void react(m, async (_t, m) => {
+          m.anim('idle');
+          m.face('sad');
+          ctx.say(m, pick(L.AWAY), 3_600_000);
+          while (awayRef.current) await sleep(500);
+        });
+      }),
+      bus.on('tab:back', () => {
+        if (!awayRef.current) return;
+        // a beat to see her waiting, then she perks up
+        later('back', () => {
+          awayRef.current = false;
+          setAway(false);
+          void react(m, async (_t, m) => {
+            m.face('star');
+            ctx.say(m, pick(L.BACK), 3400);
+            ctx.burst(m, ['💛', '✨'], 'float');
+            sound(m, 'meow');
+            await m.hop(30);
+            m.face('love');
+            await m.wait(1300);
+            m.face('normal');
+          });
+        }, 1200);
       }),
       bus.on('break:complete', () => {
         void react(m, async (_t, m) => {
@@ -528,6 +615,18 @@ export default function CatWorld() {
           tagEl.current.style.transform = `translate3d(${h.x - tagEl.current.offsetWidth / 2}px, ${h.y - tagEl.current.offsetHeight}px, 0)`;
         }
       }
+      const nk = nookEl.current;
+      const m = mom.current;
+      if (nk) nk.style.transform = `translate3d(${nookX() - m.H * 0.6125}px, ${floorY() - m.H}px, 0)`;
+      const sit = showNookRef.current && m.ground.kind === 'floor' && !m.dragging && Math.abs(m.x - nookX()) < 8 && m.view.anim === 'idle' && m.view.frame === undefined;
+      if (sit !== seatedRef.current) {
+        seatedRef.current = sit;
+        setSeated(sit);
+      }
+      if (madeEl.current) {
+        const h = m.head(30);
+        madeEl.current.style.transform = `translate3d(${h.x - 24}px, ${h.y - 56}px, 0)`;
+      }
       placeCard();
       raf = requestAnimationFrame(loop);
     };
@@ -558,6 +657,7 @@ export default function CatWorld() {
 
   /** The info card sits beside her (never over what she's saying) and follows her */
   const cardSide = useRef(1);
+  const seatedRef = useRef(false);
   const placeCard = () => {
     const el = cardEl.current;
     if (!el) return;
@@ -577,7 +677,9 @@ export default function CatWorld() {
   const hoverIn = useRef(0);
   const hoverOut = useRef(0);
   const cardOpenedAt = useRef(0);
-  const openCard = (open: boolean) => {
+  const openCard = (open: boolean, pin = false) => {
+    if (open && pin) cardPinned.current = true;
+    if (!open) cardPinned.current = false;
     if (open === cardOpen.current) return;
     if (open) cardOpenedAt.current = performance.now();
     setCard(open);
@@ -624,6 +726,50 @@ export default function CatWorld() {
     }
   };
 
+  /** Buttons on her care card (the card already did the bookkeeping) */
+  const care = (a: CareAction) => {
+    const m = mom.current;
+    if (a.kind === 'pet') return pet(m);
+    openCard(false);
+    if (a.kind === 'treat') return void react(m, (tok, me) => eat(ctx, me, tok));
+    if (a.kind === 'play') {
+      useCat.getState().treat({ joy: 8, energy: -6 });
+      return void react(m, async (tok, me) => {
+        if (reduced.current) return happy(ctx, me, tok);
+        await yarn(ctx, me, tok);
+        await happy(ctx, me, tok);
+      });
+    }
+    const f = a.food;
+    void react(m, async (tok, me) => {
+      if (!f.toy) return munch(ctx, me, foodImg(f.id), f.lines);
+      // the catnip toy: a happy little frenzy
+      me.face('love');
+      ctx.say(me, pick(f.lines), 2400);
+      ctx.burst(me, ['🌿', '💚', '✨'], 'float');
+      if (!reduced.current) await me.twirl(2, 1.1);
+      await happy(ctx, me, tok);
+    });
+  };
+
+  // a pinned card closes when you tap anywhere else
+  useEffect(() => {
+    if (!card) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (cardEl.current?.contains(t) || hitEls.current.get('mom')?.contains(t)) return;
+      openCard(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && openCard(false);
+    addEventListener('pointerdown', onDown, true);
+    addEventListener('keydown', onKey);
+    return () => {
+      removeEventListener('pointerdown', onDown, true);
+      removeEventListener('keydown', onKey);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card]);
+
   const handlers = (b: Body) => {
     let down: { x: number; y: number; t: number; drag: boolean; vx: number; lx: number; lt: number; long: number } | null = null;
     const isMom = b === mom.current;
@@ -636,7 +782,7 @@ export default function CatWorld() {
         // a click means petting, not reading her card
         clearTimeout(hoverIn.current);
         // touch has no hover: a long press opens her card
-        if (isMom && e.pointerType !== 'mouse') down.long = window.setTimeout(() => down && !down.drag && openCard(true), 450);
+        if (isMom && e.pointerType !== 'mouse') down.long = window.setTimeout(() => down && !down.drag && openCard(true, true), 450);
       },
       onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
         if (!down) return;
@@ -670,7 +816,11 @@ export default function CatWorld() {
         clearTimeout(d.long);
         if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
         if (!d.drag) {
-          if (performance.now() - d.t < 450) pet(b);
+          if (performance.now() - d.t < 450) {
+            // a tap pets her and opens her care card (it stays until you close it or tap elsewhere)
+            if (isMom) openCard(true, true);
+            pet(b);
+          }
           return;
         }
         b.dragging = false;
@@ -708,7 +858,7 @@ export default function CatWorld() {
         if (e.pointerType !== 'mouse') return;
         if (!isMom) return setTag((t) => (t === b.id ? null : t));
         clearTimeout(hoverIn.current);
-        hoverOut.current = window.setTimeout(() => openCard(false), 380);
+        if (!cardPinned.current) hoverOut.current = window.setTimeout(() => openCard(false), 380);
       },
     };
   };
@@ -724,9 +874,6 @@ export default function CatWorld() {
   const all = bodies();
   const skinFor = (b: Body): SkinId => (b === mom.current ? skin : b.id === 'partner' ? (partner?.skin ?? 'tabby') : (kittens.find((k) => `k:${k.id}` === b.id)?.skin ?? 'tabby'));
   const nameFor = (b: Body) => (b === mom.current ? name : b.id === 'partner' ? (partner?.name ?? '') : (kittens.find((k) => `k:${k.id}` === b.id)?.name ?? ''));
-  const lv = levelOf(xp);
-  const prog = levelProgress(xp);
-  const next = nextMilestone(cat);
   void visiting;
   void H;
 
@@ -779,8 +926,13 @@ export default function CatWorld() {
                 ref={(el) => void (el ? hitEls.current.set(b.id, el) : hitEls.current.delete(b.id))}
                 role="button"
                 tabIndex={b === mom.current ? 0 : -1}
-                aria-label={b === mom.current ? `${name} the cat, feeling ${mood}. Click to pet, drag to move` : `${nameFor(b)}, a kitten`}
-                onKeyDown={(e) => e.key === 'Enter' && pet(b)}
+                aria-label={b === mom.current ? `${name} the cat, feeling ${mood}. Tap to pet and open her care card, drag to move` : `${nameFor(b)}, a kitten`}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter' && e.key !== ' ') return;
+                  e.preventDefault();
+                  if (b === mom.current) openCard(true, true);
+                  pet(b);
+                }}
                 className="pointer-events-auto absolute cursor-grab touch-none rounded-[40%] outline-none focus-visible:ring-2 focus-visible:ring-accent active:cursor-grabbing"
                 style={{ left: b.W * (FEET.x - 0.22), top: b.H * 0.12, width: b.W * 0.44, height: b.H * 0.85 }}
               />
@@ -788,6 +940,21 @@ export default function CatWorld() {
           );
         })}
         {shown.boxFront !== undefined && <BoxPart part="front" H={mom.current.H} thing={things.current.get('boxFront')} />}
+        <AnimatePresence>
+          {showNook && (
+            <div key="nook" ref={nookEl} className="absolute top-0 left-0 will-change-transform" style={{ zIndex: 4 }}>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.7, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.8, y: 10, transition: { duration: 0.35 } }}
+                transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+                style={{ transformOrigin: '50% 100%' }}
+              >
+                <StudyNook H={mom.current.H} project={project ?? lastProject.current} done={hold === 'done'} skin={skin} seated={seated && hold !== 'done'} working={seated && running && !away && !hold} />
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
         {(['bowl', 'yarn', 'item', 'gift', 'butterfly'] as const).map(
           (k) =>
             shown[k] !== undefined && (
@@ -912,6 +1079,25 @@ export default function CatWorld() {
           ))}
         </AnimatePresence>
 
+        <AnimatePresence>
+          {made && (
+            <motion.div key={made.t} ref={madeEl} className="absolute top-0 left-0" exit={{ opacity: 0, transition: { duration: 0.3 } }}>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.3, y: 30, rotate: -12 }}
+                animate={{ opacity: 1, scale: 1, y: 0, rotate: [0, -6, 6, 0] }}
+                transition={{ type: 'spring', stiffness: 300, damping: 14 }}
+                className="glass-strong relative grid size-12 place-items-center rounded-2xl shadow-lg"
+                title={craftName(made.k, made.p)}
+              >
+                <CraftIcon k={made.k} p={made.p} size={38} />
+                <motion.span className="absolute -top-2 -right-2 text-sm" animate={{ scale: [0.6, 1.2, 0.6], opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.2, repeat: Infinity }}>
+                  ✨
+                </motion.span>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {tag && (
           <div ref={(el) => void (tagEl.current = el)} className="glass-strong absolute top-0 left-0 rounded-full px-2.5 py-1 text-[11px] font-black text-ink shadow-md">
             🐾 {nameFor(kitBodies.current.get(tag) ?? mom.current)}
@@ -933,89 +1119,14 @@ export default function CatWorld() {
               onPointerEnter={() => clearTimeout(hoverOut.current)}
               // a long press opens the card under the finger: the lift that follows must not press a button in it
               onClickCapture={(e) => performance.now() - cardOpenedAt.current < 600 && (e.stopPropagation(), e.preventDefault())}
-              onPointerLeave={(e) => e.pointerType === 'mouse' && (hoverOut.current = window.setTimeout(() => openCard(false), 380))}
-              className="glass-strong pointer-events-auto absolute top-0 left-0 w-[248px] rounded-3xl p-3.5 text-ink shadow-[0_18px_50px_-18px_rgb(0_0_0/0.45)]"
+              onPointerLeave={(e) => e.pointerType === 'mouse' && !cardPinned.current && (hoverOut.current = window.setTimeout(() => openCard(false), 380))}
+              onPointerDown={() => (cardPinned.current = true)}
+              className="glass-strong pointer-events-auto absolute top-0 left-0 max-h-[calc(100dvh-16px)] w-[264px] overflow-y-auto rounded-3xl p-3.5 text-ink shadow-[0_18px_50px_-18px_rgb(0_0_0/0.45)]"
+              role="dialog"
+              aria-label={`${name}'s care card`}
             >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-display truncate text-base font-bold">{name}</span>
-                <span className="flex items-center gap-1 text-xs font-bold text-muted capitalize">
-                  {MOOD_FACE[mood]} {mood}
-                </span>
-                <button onClick={() => openCard(false)} aria-label="Close" className="pressable grid size-6 shrink-0 place-items-center rounded-full bg-line text-xs font-black md:hidden">
-                  ✕
-                </button>
-              </div>
-              {speech.mom && <p className="mt-2 rounded-2xl bg-accent-soft px-3 py-1.5 text-[12.5px] font-bold">💬 {speech.mom.text}</p>}
-
-              <div className="mt-2.5">
-                <div className="flex items-center justify-between text-[11px] font-black text-muted">
-                  <span>
-                    💞 Bond lv {lv}
-                    {lv >= MAX_LEVEL && ' (max!)'}
-                  </span>
-                  {prog.need > 0 && <span>{prog.need} to go</span>}
-                </div>
-                <div className="mt-1 h-2 overflow-hidden rounded-full bg-line">
-                  <div className="h-full rounded-full bg-gradient-to-r from-accent to-secondary transition-[width] duration-500" style={{ width: `${prog.pct * 100}%` }} />
-                </div>
-                {next && <p className="mt-1 text-[11px] font-bold text-muted">{next}</p>}
-              </div>
-
-              <div className="mt-2.5 space-y-1.5 text-[11px] font-bold text-muted">
-                {(
-                  [
-                    ['🍗 Full', 100 - hunger],
-                    ['⚡ Energy', energy],
-                    ['💖 Happy', joy],
-                  ] as const
-                ).map(([label, v]) => (
-                  <div key={label} className="flex items-center gap-2">
-                    <span className="w-16 shrink-0">{label}</span>
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-line">
-                      <div className="h-full rounded-full bg-accent transition-[width] duration-300" style={{ width: `${clamp(v, 0, 100)}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {kittens.length > 0 && <p className="mt-2 truncate text-[11px] font-bold text-muted">🐾 Kittens: {kittens.map((k) => k.name).join(', ')}</p>}
-
-              <div className="mt-2.5 flex flex-wrap items-center gap-1.5" aria-label="Skins">
-                {SKINS.map((s) => {
-                  const ok = unlocked(s.id, xp);
-                  return (
-                    <button
-                      key={s.id}
-                      title={ok ? s.name : `${s.name}: unlocks at bond level ${s.unlock}`}
-                      aria-label={ok ? `Skin: ${s.name}` : `${s.name}, locked`}
-                      disabled={!ok}
-                      onClick={() => useCat.getState().setSkin(s.id)}
-                      className="pressable relative grid size-6 place-items-center rounded-full text-[10px] disabled:opacity-40"
-                      style={{
-                        background: s.ramp ? `linear-gradient(135deg, ${s.ramp[2]}, ${s.ramp[0]})` : 'linear-gradient(135deg,#8a8a8a,#3a3a3a)',
-                        boxShadow: skin === s.id ? '0 0 0 2px var(--surface-strong), 0 0 0 4px var(--accent)' : undefined,
-                      }}
-                    >
-                      {!ok && '🔒'}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-line pt-2">
-                <span className="text-xs font-black">🐟 × {treats}</span>
-                <button
-                  type="button"
-                  disabled={treats === 0}
-                  onClick={() => {
-                    openCard(false);
-                    void react(mom.current, (tok, me) => eat(ctx, me, tok));
-                  }}
-                  className="pressable rounded-xl bg-accent px-2.5 py-1 text-[11px] font-extrabold text-accent-ink disabled:pointer-events-none disabled:opacity-45"
-                >
-                  {treats === 0 ? 'Focus to earn 🐟' : 'Feed 🐟'}
-                </button>
-              </div>
+              {speech.mom && <p className="mb-2 rounded-2xl bg-accent-soft px-3 py-1.5 text-[12.5px] font-bold">💬 {speech.mom.text}</p>}
+              <CareCard onAction={care} onClose={() => openCard(false)} onHome={() => useUI.getState().set({ mode: 'cathome' })} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -1032,7 +1143,11 @@ function Prop({ kind, emoji, H }: { kind: 'bowl' | 'yarn' | 'item' | 'gift' | 'b
   if (kind === 'bowl')
     return (
       <div className="flex flex-col items-center" style={{ width: 54 * s }}>
-        <span style={{ fontSize: 22 * s, lineHeight: 1, marginBottom: -4 * s }}>🐟</span>
+        {emoji.startsWith('/') ? (
+          <img src={emoji} alt="" draggable={false} style={{ width: 34 * s, height: 34 * s, objectFit: 'contain', marginBottom: -6 * s }} />
+        ) : (
+          <span style={{ fontSize: 22 * s, lineHeight: 1, marginBottom: -4 * s }}>{emoji || '🐟'}</span>
+        )}
         <div className="rounded-t-md rounded-b-[999px] bg-accent shadow-md ring-2 ring-white/50" style={{ width: 54 * s, height: 20 * s }} />
       </div>
     );

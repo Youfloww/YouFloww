@@ -1,0 +1,113 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ========================================
+    // PRESENCE COLLECTION - For live user count
+    // ========================================
+    match /presence/{sessionId} {
+      // Anyone can see the live count; only signed-in users write, and only their own
+      // small check-in doc (the exact fields YouFloww writes, with a current timestamp)
+      function validPresence(d) {
+        return d.keys().hasOnly(['uid', 'createdAt', 'lastActive', 'lastActiveMs', 'isFocusing', 'userAgent'])
+          && d.uid == request.auth.uid
+          && d.lastActiveMs is int
+          && d.lastActiveMs > request.time.toMillis() - 900000
+          && d.lastActiveMs < request.time.toMillis() + 900000
+          && (!('isFocusing' in d) || d.isFocusing is bool)
+          && (!('userAgent' in d) || (d.userAgent is string && d.userAgent.size() <= 512));
+      }
+      allow read: if true;
+      allow create: if request.auth != null && sessionId.size() <= 64 && validPresence(request.resource.data);
+      allow update: if request.auth != null && resource.data.uid == request.auth.uid && validPresence(request.resource.data);
+      allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+    }
+
+    // ========================================
+    // PUBLIC USERS - For leaderboards
+    // ========================================
+    match /publicUsers/{userId} {
+      // Anyone can read the leaderboards
+      allow read: if true;
+
+      // Owners write their own entry; values must be believable (a day has 1440 minutes)
+      function validEntry(d) {
+        return d.profileName is string && d.profileName.size() <= 60
+          && d.todayFocusMinutes is number && d.todayFocusMinutes >= 0 && d.todayFocusMinutes <= 1440
+          && d.currentStreak is int && d.currentStreak >= 0 && d.currentStreak <= 10000
+          && d.date is string && d.date.size() <= 10
+          && d.lastStreakUpdate is string && d.lastStreakUpdate.size() <= 10
+          && (!('isGuest' in d) || d.isGuest is bool);
+      }
+      function fields() {
+        return ['profileName', 'todayFocusMinutes', 'currentStreak', 'lastStreakUpdate', 'date', 'isGuest'];
+      }
+      allow create: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(fields()) && validEntry(request.resource.data);
+      allow update: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields()) && validEntry(request.resource.data);
+
+      // Only allow deletion by the owner
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ========================================
+    // USER DATA - Private user data
+    // ========================================
+    match /userData/{userId} {
+      // Users can only access their own data when authenticated
+      allow read, write, create, update, delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // ========================================
+    // USERS COLLECTION (if it exists)
+    // ========================================
+    match /users/{userId} {
+      // Users can only access their own data when authenticated
+      allow read, write, create, update, delete: if request.auth != null && request.auth.uid == userId;
+
+      match /{allSubcollections=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    // ========================================
+    // FOCUS FLIGHTS
+    // ========================================
+    // Focus Flights: a public, anonymous departures board (route + minutes only). Signed-in people only, so it can't be spammed.
+    match /flights/{flightId} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['from', 'to', 'minutes', 'createdAt'])
+        && request.resource.data.keys().hasAll(['from', 'to', 'minutes', 'createdAt'])
+        && request.resource.data.from is string && request.resource.data.from.matches('^[A-Z]{3}$')
+        && request.resource.data.to is string && request.resource.data.to.matches('^[A-Z]{3}$')
+        && request.resource.data.minutes is int
+        && request.resource.data.minutes >= 1 && request.resource.data.minutes <= 360
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    // ========================================
+    // FOCUS PLEDGE - written only by the server (Admin SDK in api/pledge)
+    // ========================================
+    match /pledges/{pledgeId} {
+      // a person can read their own pledges; nobody can write them from a browser
+      allow read: if request.auth != null && request.auth.uid == resource.data.uid;
+      allow write: if false;
+    }
+    match /pledgeStats/{doc} {
+      // public running totals for the charity card
+      allow read: if true;
+      allow write: if false;
+    }
+    // pledgeOrders/* and pledgeUsers/* are server-only: covered by the deny-all fallback below
+
+    // ========================================
+    // FALLBACK - Deny all other collections
+    // ========================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
