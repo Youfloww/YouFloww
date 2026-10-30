@@ -19,6 +19,21 @@ const firebaseConfig = {
   measurementId: 'G-TBY81E0BC4',
 };
 
+/**
+ * Dev only (stripped from production builds): `?emu` points this tab at local Auth + Firestore emulators, never the
+ * live project. Read at module load, before the app tidies the address bar, and kept for the tab's later reloads.
+ */
+const EMU =
+  import.meta.env.DEV &&
+  (() => {
+    try {
+      if (new URLSearchParams(location.search).has('emu')) sessionStorage.setItem('floww:emu', '1');
+      return sessionStorage.getItem('floww:emu') === '1';
+    } catch {
+      return false;
+    }
+  })();
+
 async function load() {
   const [appMod, authMod, fsMod] = await Promise.all([import('firebase/app'), import('firebase/auth'), import('firebase/firestore')]);
   const app = appMod.initializeApp(firebaseConfig);
@@ -31,8 +46,7 @@ async function load() {
   } catch {
     db = fsMod.getFirestore(app);
   }
-  // Dev only (stripped from production builds): `?emu` talks to local Auth + Firestore emulators, never the live project
-  if (import.meta.env.DEV && new URLSearchParams(location.search).has('emu')) {
+  if (EMU) {
     authMod.connectAuthEmulator(auth, 'http://127.0.0.1:9199', { disableWarnings: true });
     fsMod.connectFirestoreEmulator(db, '127.0.0.1', 8188);
   }
