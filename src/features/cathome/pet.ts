@@ -1,4 +1,5 @@
 import type { CatAnim, CatFace } from '../cat/CatSprite';
+import { zOfY } from './catalog';
 
 /**
  * A cat walking around a room. Positions are fractions of the room (x of its width, y of its height,
@@ -18,6 +19,9 @@ export class Pet {
   x: number;
   y: number;
   lift = 0;
+  /** while she sits on a piece of furniture: paint over it (until her feet pass below `perchY`) */
+  perchZ = 0;
+  perchY = 0;
   /** room aspect (width / height), so speeds feel the same both ways */
   aspect = 16 / 9;
   view: PetView = { anim: 'idle', face: 'normal', flip: false };
@@ -90,6 +94,7 @@ export class Pet {
     if (!this.el) return;
     this.el.style.left = `${this.x * 100}%`;
     this.el.style.top = `${this.y * 100}%`;
+    this.el.style.zIndex = String(this.perchZ && this.y < this.perchY ? this.perchZ : zOfY(this.y) + 1);
     this.el.style.transform = `translate(-50%, -100%) translateY(${-this.lift}px)`;
   }
 

@@ -2,7 +2,7 @@ import { buy, getWallet, giveItem, spend } from '@/features/economy/wallet';
 import { getFeatureData, updateFeatureData, useFeatureData } from '@/lib/featureData';
 import { HOME_EMPTY, HOME_KEY, type CatHomeData } from '../cat/study';
 import { priceOf } from '../cat/care';
-import { DECOR, ROOMS, itemOf, roomOf, slotsOf, type RoomId } from './catalog';
+import { DECOR, ROOMS, fitsSlot, itemOf, roomOf, slotsOf, type RoomId } from './catalog';
 
 /** The Cat's Home state lives in data.catHome next to her crafts (see cat/study.ts). */
 export const useHome = () => useFeatureData<CatHomeData>(HOME_KEY, HOME_EMPTY);
@@ -63,10 +63,10 @@ export function buyDecor(id: string, room: RoomId): 'poor' | string | null {
   if (!buy(DECOR(id), priceOf(it.price))) return 'poor';
   const d = read();
   const taken = placed(d, room);
-  const free = slotsOf(roomOf(room)).filter((s) => s.kind === it.kind && !taken[s.id]);
+  const free = slotsOf(roomOf(room)).filter((s) => fitsSlot(it, s) && !taken[s.id]);
   if (!free.length) return null;
-  // floor pieces fill from the middle out, so the room grows evenly
-  const pickSlot = it.kind === 'floor' ? [...free].sort((a, b) => Math.abs(a.x - 0.5) - Math.abs(b.x - 0.5))[0] : free[0];
+  // floor pieces fill the back row from the middle out, then the front row
+  const pickSlot = it.kind === 'floor' ? [...free].sort((a, b) => (a.row ?? 0) - (b.row ?? 0) || Math.abs(a.x - 0.5) - Math.abs(b.x - 0.5))[0] : free[0];
   placeAt(room, pickSlot.id, id);
   return pickSlot.id;
 }

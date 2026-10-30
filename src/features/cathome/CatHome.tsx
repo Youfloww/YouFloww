@@ -13,7 +13,8 @@ import { foodImg } from '../cat/care';
 import { preloadSkin, type SkinId } from '../cat/skins';
 import { CRAFT_EMOJI, craftName, settleStudy } from '../cat/study';
 import * as L from '../cat/lines';
-import { ROOMS, itemOf, roomImg, roomOf, slotsOf, type Item, type RoomId, type Slot } from './catalog';
+import { ROOMS, fitsSlot, itemOf, roomImg, depthScale, roomOf, sizeOf, slotsOf, zOfY, type Item, type Room, type RoomId, type Slot } from './catalog';
+import { PIC } from './picmeta';
 import { currentRoom, goRoom, placeAt, placed, putAway, unlockedRooms, useHome, welcome } from './home';
 import { Pet, rand, sleep, type PetView } from './pet';
 import { RoomPic } from './RoomArt';
@@ -132,7 +133,13 @@ export default function CatHome() {
   /* ---------------- placing things (drag or tap) ---------------- */
   const slotEls = useRef(new Map<string, HTMLElement>());
   const free = (id: string) => (wallet.items[`home:${id}`] ?? 0) - Object.values(home.place ?? {}).reduce((n, r) => n + Object.values(r).filter((v) => v === id).length, 0);
-  const fits = (id: string, s: Slot) => itemOf(id)?.kind === s.kind;
+  const fits = (id: string, s: Slot, from?: string) => {
+    if (!fitsSlot(itemOf(id), s)) return false;
+    // a swap sends whatever stands there back to `from`, so that has to fit there too
+    const other = here[s.id];
+    const back = from ? slots.find((x) => x.id === from) : undefined;
+    return !other || !back || other === id || fitsSlot(itemOf(other), back);
+  };
   const drop = (id: string, slot: string, from?: string) => {
     placeAt(room, slot, id, from);
     setFlash(slot);
@@ -149,7 +156,7 @@ export default function CatHome() {
       let best: string | null = null;
       let bd = Infinity;
       for (const s of slots) {
-        if (!fits(id, s)) continue;
+        if (!fits(id, s, from)) continue;
         const r = slotEls.current.get(s.id)?.getBoundingClientRect();
         if (!r) continue;
         const pad = 34;
@@ -253,20 +260,25 @@ export default function CatHome() {
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_40%,transparent_55%,rgb(80_40_20/0.18))]" />
 
               {slots.map((s) => {
+                const it = itemOf(here[s.id] ?? '');
+                return it?.kind === 'floor' ? <FloorShadow key={`sh-${s.id}${it.id}`} item={it} slot={s} room={R} box={box} /> : null;
+              })}
+              {slots.map((s) => {
                 const id = here[s.id];
                 const it = id ? itemOf(id) : undefined;
-                return it ? <Placed key={s.id + id} item={it} slot={s} box={box} editing={editing} selected={sel?.from === s.id} dragging={drag?.from === s.id} flash={flash === s.id} onDown={(e) => (editing ? startDrag(e, it.id, s.id) : cats.visit(s.id))} /> : null;
+                return it ? <Placed key={s.id + id} item={it} slot={s} room={R} box={box} editing={editing} selected={sel?.from === s.id} dragging={drag?.from === s.id} flash={flash === s.id} onDown={(e) => (editing ? startDrag(e, it.id, s.id) : cats.visit(s.id))} /> : null;
               })}
 
               {editing &&
                 slots.map((s) => {
                   const want = drag?.id ?? sel?.id;
-                  const ok = want ? fits(want, s) : true;
+                  const ok = want ? fits(want, s, drag?.from ?? sel?.from) : true;
                   const filled = !!here[s.id];
                   return (
                     <SlotMark
                       key={s.id}
                       slot={s}
+                      room={R}
                       box={box}
                       filled={filled}
                       hot={!!want && ok}
@@ -274,7 +286,7 @@ export default function CatHome() {
                       dim={!!want && !ok}
                       refFn={(el) => void (el ? slotEls.current.set(s.id, el) : slotEls.current.delete(s.id))}
                       onTap={() => {
-                        if (sel && fits(sel.id, s)) drop(sel.id, s.id, sel.from);
+                        if (sel && fits(sel.id, s, sel.from)) drop(sel.id, s.id, sel.from);
                       }}
                     />
                   );
@@ -374,17 +386,38 @@ interface Box {
   w: number;
   h: number;
 }
-function itemStyle(it: Item, s: Slot, box: Box): React.CSSProperties {
-  if (it.kind === 'rug') return { left: `${s.x * 100}%`, top: `${s.y * 100}%`, width: it.h * box.w, transform: 'translate(-50%, -50%)', zIndex: 2 };
-  if (it.kind === 'wall') return { left: `${s.x * 100}%`, top: `${s.y * 100}%`, height: it.h * box.h, transform: 'translate(-50%, -50%)', zIndex: 1 };
-  return { left: `${s.x * 100}%`, top: `${s.y * 100}%`, height: it.h * box.h, transform: 'translate(-50%, -100%)', zIndex: 3 };
+/** Where a piece is on the stage, in px (its bottom-centre for floor pieces sits exactly on the slot's floor line) */
+function geom(it: Item, s: Slot, R: Room, box: Box) {
+  const m = PIC[it.id];
+  const { k, s: sc } = sizeOf(it, s, R);
+  if (it.kind === 'rug') {
+    const w = k * box.w;
+    return { w, h: m ? (w * m.h) / m.w : w * 0.5, sc };
+  }
+  const h = k * box.h;
+  return { w: m ? (h * m.w) / m.h : h, h, sc };
 }
 
-function Placed({ item, slot, box, editing, selected, dragging, flash, onDown }: { item: Item; slot: Slot; box: Box; editing: boolean; selected: boolean; dragging: boolean; flash: boolean; onDown: (e: React.PointerEvent) => void }) {
+function Placed({ item, slot, room, box, editing, selected, dragging, flash, onDown }: { item: Item; slot: Slot; room: Room; box: Box; editing: boolean; selected: boolean; dragging: boolean; flash: boolean; onDown: (e: React.PointerEvent) => void }) {
+  const g = geom(item, slot, room, box);
+  const bs = box.h / 800;
+  const { dx } = room.light;
+  const glow = selected ? ' drop-shadow(0 0 6px var(--accent)) drop-shadow(0 0 2px var(--accent))' : '';
+  // colour grade so the cut-out sits in the room's light, plus how it touches its surface
+  const filter =
+    item.kind === 'wall'
+      ? `${room.grade} drop-shadow(${Math.max(-5, Math.min(5, dx * 30)) * bs}px ${4.5 * bs}px ${4 * bs}px rgb(70 40 64/0.3)) drop-shadow(0 ${1.2 * bs}px ${1 * bs}px rgb(70 40 64/0.35))${glow}`
+      : item.kind === 'rug'
+        ? `${room.grade} drop-shadow(0 ${2 * bs}px ${2.5 * bs}px rgb(70 40 64/0.38))${glow}`
+        : `${room.grade}${glow}`;
+  const style: React.CSSProperties =
+    item.kind === 'floor'
+      ? { left: `${slot.x * 100}%`, top: `${slot.y * 100}%`, width: g.w, height: g.h, transform: 'translate(-50%, -100%)', zIndex: zOfY(slot.y) }
+      : { left: `${slot.x * 100}%`, top: `${slot.y * 100}%`, width: g.w, height: g.h, transform: 'translate(-50%, -50%)', zIndex: item.kind === 'rug' ? 2 : 1 };
   return (
-    <div className="absolute" style={itemStyle(item, slot, box)}>
+    <div className="absolute" style={style}>
       <motion.div
-        className={cn('h-full', item.kind === 'rug' && 'h-auto w-full')}
+        className="size-full"
         initial={{ scale: 0.6, opacity: 0 }}
         animate={{ scale: flash ? [1, 1.12, 1] : 1, opacity: dragging ? 0.35 : 1 }}
         transition={{ type: 'spring', stiffness: 380, damping: 18 }}
@@ -395,12 +428,8 @@ function Placed({ item, slot, box, editing, selected, dragging, flash, onDown }:
           room
           title={editing ? `${item.name}: drag to move, tap to select` : item.name}
           onPointerDown={onDown}
-          className={cn(
-            'block select-none',
-            item.kind === 'rug' ? 'h-auto w-full' : 'h-full w-auto max-w-none',
-            editing ? 'cursor-grab touch-none' : item.use ? 'cursor-pointer' : '',
-            selected && '[filter:drop-shadow(0_0_6px_var(--accent))_drop-shadow(0_0_2px_var(--accent))]',
-          )}
+          className={cn('block size-full max-w-none select-none', editing ? 'cursor-grab touch-none' : item.use ? 'cursor-pointer' : '')}
+          style={{ filter, ...(item.kind === 'rug' ? { transform: 'perspective(560px) rotateX(28deg)', transformOrigin: '50% 60%' } : null) }}
         />
       </motion.div>
       {flash && (
@@ -412,8 +441,41 @@ function Placed({ item, slot, box, editing, selected, dragging, flash, onDown }:
   );
 }
 
-function SlotMark({ slot, box, filled, hot, over, dim, refFn, onTap }: { slot: Slot; box: Box; filled: boolean; hot: boolean; over: boolean; dim: boolean; refFn: (el: HTMLElement | null) => void; onTap: () => void }) {
-  const size = slot.kind === 'wall' ? { w: box.h * 0.17, h: box.h * 0.17 } : slot.kind === 'rug' ? { w: box.w * 0.22, h: box.h * 0.1 } : { w: box.w * 0.1, h: box.h * 0.06 };
+/** A soft contact shadow under a floor piece: sized to its footprint, leaning away from the room's light, multiplied into the floor */
+function FloorShadow({ item, slot, room, box }: { item: Item; slot: Slot; room: Room; box: Box }) {
+  const m = PIC[item.id];
+  const g = geom(item, slot, room, box);
+  const { dx, dark } = room.light;
+  const fp = (m?.fw ?? 0.7) * g.w;
+  const lean = Math.abs(dx) * g.h;
+  const sw = fp * 1.18 + lean * 0.6;
+  const sh = Math.max(sw * 0.27, 8 * (box.h / 800));
+  const cx = slot.x * box.w + (m?.fx ?? 0) * g.w + dx * g.h * 0.4;
+  const cy = slot.y * box.h - sh * 0.3;
+  const ell = (w: number, h: number, a: number, rgb: string, blur: number): React.CSSProperties => ({
+    position: 'absolute',
+    left: cx - w / 2,
+    top: cy - h / 2,
+    width: w,
+    height: h,
+    borderRadius: '50%',
+    background: `radial-gradient(closest-side, rgb(${rgb}/${a}) 0%, rgb(${rgb}/${a * 0.8}) 55%, rgb(${rgb}/0) 100%)`,
+    filter: blur ? `blur(${blur}px)` : undefined,
+    mixBlendMode: 'multiply',
+    zIndex: 3,
+    pointerEvents: 'none',
+  });
+  return (
+    <>
+      <div aria-hidden style={ell(sw, sh, Math.min(0.95, dark * 1.15), '86 52 84', 0)} />
+      <div aria-hidden style={ell(fp * 0.88, sh * 0.55, 0.8, '50 28 50', 1)} />
+    </>
+  );
+}
+
+function SlotMark({ slot, room, box, filled, hot, over, dim, refFn, onTap }: { slot: Slot; room: Room; box: Box; filled: boolean; hot: boolean; over: boolean; dim: boolean; refFn: (el: HTMLElement | null) => void; onTap: () => void }) {
+  const sc = slot.kind === 'wall' ? 1 : depthScale(room, slot.y);
+  const size = slot.kind === 'wall' ? { w: box.h * 0.17, h: box.h * 0.17 } : slot.kind === 'rug' ? { w: box.w * 0.22 * sc, h: box.h * 0.1 * sc } : { w: box.w * 0.1 * sc, h: box.h * 0.06 * sc };
   return (
     <button
       ref={refFn}
@@ -496,10 +558,12 @@ function useCats({ room, R, here, box, stage }: CatsArgs) {
     if (!sp?.it.use) return;
     const { s, it } = sp;
     const B = boxRef.current;
-    const front = WALK[0] + 0.01;
+    const front = Math.min(0.97, Math.max(WALK[0] + 0.01, s.y + 0.025));
     if (it.perch) {
       if (!(await p.walk(s.x + (p.x < s.x ? -0.025 : 0.025), front))) return;
-      const top = s.y - it.h * it.perch;
+      const top = s.y - sizeOf(it, s, roomRef.current).k * it.perch;
+      p.perchZ = zOfY(s.y) + 2;
+      p.perchY = s.y - 0.004;
       if (!(await p.hopTo(s.x, top, B.h * 0.12, 0.55))) return;
       if (it.use === 'nap') {
         p.anim('slide', 3);
@@ -829,7 +893,8 @@ function useCats({ room, R, here, box, stage }: CatsArgs) {
         const v = views[id] ?? p.view;
         const b = bubble[id];
         return (
-          <div key={id} ref={(el) => void ((p.el = el), p.paint())} className="absolute top-0 left-0 will-change-transform" style={{ width: h * (336 / 288), height: h, zIndex: id === 'mom' ? 6 : 5, marginLeft: (0.5 - FEET.x) * h * (336 / 288) }}>
+          <div key={id} ref={(el) => void ((p.el = el), p.paint())} className="absolute top-0 left-0 will-change-transform" style={{ width: h * (336 / 288), height: h, zIndex: zOfY(p.y) + 1, marginLeft: (0.5 - FEET.x) * h * (336 / 288) }}>
+            <div aria-hidden className="pointer-events-none absolute rounded-[50%] bg-[radial-gradient(closest-side,rgb(60_32_56/0.34),rgb(60_32_56/0.16)_55%,transparent)]" style={{ left: `${FEET.x * 100 - 22}%`, width: '44%', bottom: -h * 0.03, height: h * 0.12 }} />
             <CatSprite anim={v.anim} face={v.face} frame={v.frame} flip={v.flip} loop={v.anim !== 'jump' && v.anim !== 'fall'} skin={sk} height={h} />
             <div
               role="button"

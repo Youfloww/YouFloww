@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { itemImg, type Item } from './catalog';
 
 /** A furniture picture; if it can't load, a soft emoji token takes its place (never a broken image) */
-export function ItemPic({ item, className, onPointerDown, title, room }: { item: Item; className?: string; onPointerDown?: (e: React.PointerEvent) => void; title?: string; room?: boolean }) {
+export function ItemPic({ item, className, onPointerDown, title, room, style }: { item: Item; className?: string; style?: React.CSSProperties; onPointerDown?: (e: React.PointerEvent) => void; title?: string; room?: boolean }) {
   const [bad, setBad] = useState(false);
   if (bad)
     return (
@@ -22,5 +22,5 @@ export function ItemPic({ item, className, onPointerDown, title, room }: { item:
         </text>
       </svg>
     );
-  return <img src={itemImg(item.id)} alt={item.name} title={title} draggable={false} decoding="async" onError={() => setBad(true)} onPointerDown={onPointerDown} className={className} />;
+  return <img src={itemImg(item.id)} alt={item.name} title={title} draggable={false} decoding="async" onError={() => setBad(true)} onPointerDown={onPointerDown} className={className} style={style} />;
 }
