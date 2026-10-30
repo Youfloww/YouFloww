@@ -64,8 +64,11 @@ export function buildWrites(fs: FsHelpers, base: UserData, cur: UserData): Write
   // wallet: coins and owned items are counters too (two devices earning/spending must both count)
   const cw = asRec(c.wallet);
   const bw = asRec(b.wallet);
-  add(n(cw.coins) - n(bw.coins), 'wallet', 'coins');
-  add(n(cw.earned) - n(bw.earned), 'wallet', 'earned');
+  // a field the server copy doesn't have (or holds a non-number) is set, not incremented, so it can't stay missing
+  for (const f of ['coins', 'earned'] as const) {
+    if (typeof bw[f] === 'number' && Number.isFinite(bw[f])) add(n(cw[f]) - n(bw[f]), 'wallet', f);
+    else put(n(cw[f]), 'wallet', f);
+  }
   const items = new Set([...Object.keys(asRec(cw.items)), ...Object.keys(asRec(bw.items))]);
   for (const id of items) add(n(asRec(cw.items)[id]) - n(asRec(bw.items)[id]), 'wallet', 'items', id);
 

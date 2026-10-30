@@ -2,6 +2,7 @@
  * Fish coins 🐟: earned by focusing, spent in the cat's shop, the garden and other worlds.
  * One wallet for every feature, saved with the user's data (data.wallet).
  */
+import { useMemo } from 'react';
 import { bus } from '@/lib/bus';
 import { getFeatureData, updateFeatureData, useFeatureData } from '@/lib/featureData';
 
@@ -16,13 +17,31 @@ export interface Wallet {
 const KEY = 'wallet';
 const EMPTY: Wallet = { coins: 0, earned: 0, items: {} };
 
-export const useWallet = () => useFeatureData<Wallet>(KEY, EMPTY);
-export const getWallet = () => getFeatureData<Wallet>(KEY, EMPTY);
+/** A stored wallet can miss fields (an older or partly synced copy): fill them in, never NaN. */
+const fill = (w: Partial<Wallet> | undefined): Wallet => ({
+  coins: Number.isFinite(w?.coins) ? (w!.coins as number) : 0,
+  earned: Number.isFinite(w?.earned) ? (w!.earned as number) : 0,
+  items: w?.items && typeof w.items === 'object' ? w.items : {},
+});
+
+export function useWallet() {
+  const raw = useFeatureData<Partial<Wallet>>(KEY, EMPTY);
+  return useMemo(() => fill(raw), [raw]);
+}
+export const getWallet = () => fill(getFeatureData<Partial<Wallet>>(KEY, EMPTY));
+
+/** Change the wallet, repairing missing fields first. */
+function edit(fn: (w: Wallet) => void) {
+  updateFeatureData<Wallet>(KEY, EMPTY, (w) => {
+    Object.assign(w, fill(w));
+    fn(w);
+  });
+}
 
 export function earn(amount: number, reason: string) {
   const n = Math.max(0, Math.round(amount));
   if (!n) return;
-  updateFeatureData<Wallet>(KEY, EMPTY, (w) => {
+  edit((w) => {
     w.coins += n;
     w.earned += n;
   });
@@ -33,7 +52,7 @@ export function earn(amount: number, reason: string) {
 export function spend(amount: number, reason: string): boolean {
   const n = Math.max(0, Math.round(amount));
   if (getWallet().coins < n) return false;
-  updateFeatureData<Wallet>(KEY, EMPTY, (w) => {
+  edit((w) => {
     w.coins -= n;
   });
   bus.emit('wallet:spend', { amount: n, reason });
@@ -43,7 +62,7 @@ export function spend(amount: number, reason: string): boolean {
 export const itemCount = (id: string) => getWallet().items[id] ?? 0;
 
 export function giveItem(id: string, n = 1) {
-  updateFeatureData<Wallet>(KEY, EMPTY, (w) => {
+  edit((w) => {
     w.items[id] = (w.items[id] ?? 0) + n;
   });
 }
@@ -51,7 +70,7 @@ export function giveItem(id: string, n = 1) {
 /** Use up an owned item. False when there is none left. */
 export function takeItem(id: string, n = 1): boolean {
   if (itemCount(id) < n) return false;
-  updateFeatureData<Wallet>(KEY, EMPTY, (w) => {
+  edit((w) => {
     w.items[id] -= n;
     if (w.items[id] <= 0) delete w.items[id];
   });
