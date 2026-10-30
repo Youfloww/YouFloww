@@ -1,0 +1,27 @@
+<!doctype html><html><body style="margin:0;background:#fbf3e6"><canvas id="c"></canvas>
+<script type="module">
+import { paintPlant } from '../render/plants.ts';
+const SP = ['sunflower','tulip','rose','lavender','sakura'];
+const q = new URLSearchParams(location.search);
+const GS = (q.get('g') || '0,0.03,0.1,0.25,0.5,0.75,0.9,1').split(',').map(Number);
+const only = q.get('sp');
+const wilt = Number(q.get('wilt') || 0);
+const seed = Number(q.get('seed') || 7);
+const sc = Number(q.get('k') || 1);
+const rows = only ? [only] : SP;
+const T = q.get('T');
+const W = Math.round(224*sc), H = Math.round(420*sc);
+const cv = document.getElementById('c'); cv.width = W*(T?rows.length:GS.length); cv.height = H*(T?GS.length:rows.length);
+const ctx = cv.getContext('2d'); ctx.fillStyle='#fbf3e6'; ctx.fillRect(0,0,cv.width,cv.height);
+const pot = new Image(); pot.src = '/img/garden/pot.webp';
+await pot.decode();
+rows.forEach((sp, r0) => GS.forEach((g, i0) => {
+  const r = T ? i0 : r0, i = T ? r0 : i0;
+  const t = document.createElement('canvas'); t.width = W; t.height = H;
+  ctx.drawImage(pot, i*W + 53*sc, r*H + 284*sc, 122*sc, 132*sc);
+  paintPlant(t, { species: sp, g, seed, wilt });
+  ctx.drawImage(t, i*W, r*H);
+  ctx.fillStyle = '#5b3f2c'; ctx.font = '12px sans-serif'; ctx.fillText(sp+' '+Math.round(g*100)+'%', i*W+6, r*H+14);
+}));
+window.__done = true;
+</script></body></html>

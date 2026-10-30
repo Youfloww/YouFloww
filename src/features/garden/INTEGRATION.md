@@ -4,7 +4,7 @@ Both features plug in through their own `meta.ts` (`src/features/garden/meta.ts`
 `src/features/gardenstrip/meta.ts` = layer, on by default). Nothing below is required for them to work.
 
 ## 1. PWA: don't precache the garden art (vite.config.ts)
-`public/img/garden/` holds 36 WebP files (≈ 750 KB: 35 plant stages of 5–25 KB + the 200 KB garden painting).
+`public/img/garden/` now holds only `garden-day.webp` (200 KB) and `pot.webp`; plants are painted live (no stage images).
 Only what is on screen is downloaded, so keep them out of the install like the café art:
 
 ```ts
@@ -38,3 +38,10 @@ Key `n` opens the Garden (the shell already reads `meta.key`). If HelpDialog lis
   colours: the image bridge was down when they were due. A painted sheet would match the plants better.
 - Night in the garden is the day painting under a moonlit CSS wash, moon, stars and fireflies (no night painting).
 - The garden painting is 1024×572 upscaled to 1600 px: a little soft on big desktop screens.
+
+## Live-painted plants (growth rebuild)
+- Nothing required. `render/plants.ts` is its own lazy chunk (~30 KB, 13 KB gzip). Main index unchanged.
+- Dev contact sheet: `npx vite` then open `/src/features/garden/dev/sheet.html?T=1&g=1` (params: sp, g=list, seed, wilt, k);
+  rendered copy at `src/features/garden/dev/contact-sheet.png`. Dev-only `window.__garden.set('rose', 0.5)` fast-forwards the pot.
+- `PlantView` gained `seed` (unique look per plant; pass pot/plant id) and `growth={-1}` for an empty pot. Together's usage
+  (species, growth, wilt, size) keeps working unchanged.

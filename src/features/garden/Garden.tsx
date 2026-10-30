@@ -11,7 +11,7 @@ import { cn, haptic, hashString } from '@/lib/utils';
 import { dateKey } from '@/lib/time';
 import { useWallet } from '../economy/wallet';
 import { useTimerView } from '../timer/TimerOrb';
-import { PLANT_RATIO, PlantView, STAGE_NAMES, plantTop, stageOf, type PlantSpeciesId } from './PlantView';
+import { PLANT_RATIO, PlantView, STAGE_NAMES, plantTop, plantTopAt, stageOf, type PlantSpeciesId } from './PlantView';
 import { SPECIES, speciesOf } from './species';
 import {
   MAX_SPOTS,
@@ -19,6 +19,7 @@ import {
   firstFreeSpot,
   hasFreeSeed,
   movePlant,
+  liveFocusSec,
   moveToGarden,
   needSec,
   plantSeed,
@@ -213,7 +214,7 @@ function PlantCard({ plant, onMove, onClose }: { plant: GardenPlant; onMove: () 
     <Panel label={sp.name} className="w-[min(92vw,360px)]">
       <div className="flex gap-3">
         <div className="grid shrink-0 place-items-end rounded-2xl bg-[#f3ead8]" style={{ width: 84, height: 124 }}>
-          <PlantView species={plant.species} growth={1} size={120} sway={false} />
+          <PlantView species={plant.species} growth={1} size={120} sway={false} seed={plant.id} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
@@ -325,7 +326,7 @@ function SeedShop({ onClose, hasPot }: { onClose: () => void; hasPot: boolean })
 /** Seconds of the running focus session (planting mid-session only counts the rest of it). */
 function useLive() {
   const v = useTimerView();
-  return v.mode === 'focus' && v.status !== 'idle' ? Math.max(0, v.durationMs - v.rem) / 1000 : 0;
+  return liveFocusSec(v);
 }
 
 /* ------------------------------------------------------------------ */
@@ -338,7 +339,7 @@ function Bench({ compact, onShop, onPlace, onWater, pouring }: { compact: boolea
     return (
       <div className={cn('flex items-center gap-3 rounded-[24px] p-3 pr-4', PAPER, INK)}>
         <div className="relative shrink-0" style={{ width: size * PLANT_RATIO, height: size }}>
-          <PlantView species="sunflower" growth={0} size={size} sway={false} alt="An empty pot" />
+          <PlantView species="sunflower" growth={-1} size={size} sway={false} alt="An empty pot" />
         </div>
         <div className="min-w-0">
           <p className="font-display text-lg leading-tight font-semibold">Your pot is empty</p>
@@ -358,9 +359,9 @@ function Bench({ compact, onShop, onPlace, onWater, pouring }: { compact: boolea
     <div className={cn('flex items-end gap-3 rounded-[24px] p-3 pr-4', PAPER, INK)}>
       <button onClick={onWater} aria-label={`Water your ${sp.name.toLowerCase()}`} className="relative shrink-0 cursor-pointer" style={{ width: size * PLANT_RATIO, height: size }}>
         <div key={`hop${pouring}`} className={cn('absolute inset-0', pouring > 0 && 'gd-hop')}>
-          <PlantView species={pot.species} growth={growth} wilt={thirst.wilt} size={size} />
+          <PlantView species={pot.species} growth={growth} wilt={thirst.wilt} size={size} seed={pot.id} />
         </div>
-        {pouring > 0 && <Pour key={`can${pouring}`} size={size} top={plantTop(pot.species, stage)} />}
+        {pouring > 0 && <Pour key={`can${pouring}`} size={size} top={plantTopAt(pot.species, growth)} />}
       </button>
       <div className="min-w-0 pb-0.5">
         <p className="font-display text-lg leading-tight font-semibold">
@@ -546,7 +547,7 @@ export default function Garden() {
                     className={cn('absolute inset-0 cursor-pointer rounded-2xl outline-none focus-visible:ring-4 focus-visible:ring-white/70', moving && placing.id !== plant.id && 'ring-2 ring-white/70 ring-offset-0', can && 'cursor-none')}
                   >
                     <div key={`${pours[plant.id] ?? 0}`} className={cn('absolute inset-0', fresh === plant.id ? 'gd-plant-in' : pours[plant.id] && 'gd-hop')}>
-                      <PlantView species={plant.species} growth={1} size={size} sway={!night} />
+                      <PlantView species={plant.species} growth={1} size={size} sway={!night} seed={plant.id} />
                     </div>
                   </button>
                   {!night && hashString(plant.id) % 3 === 0 && (

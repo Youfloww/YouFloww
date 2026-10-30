@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useUI } from '@/store/ui';
 import { bus } from '@/lib/bus';
 import { cn, haptic, prefersReducedMotion } from '@/lib/utils';
-import { PLANT_INFO, PLANT_RATIO, PlantView, STAGE_NAMES, plantTop, stageOf, type PlantSpeciesId } from '../garden/PlantView';
+import { PLANT_INFO, PLANT_RATIO, PlantView, STAGE_NAMES, plantTopAt, stageOf, type PlantSpeciesId } from '../garden/PlantView';
 import { hasFreeSeed, needSec, usePot, useGardenSync, waterPot, type GardenPlant } from '../garden/model';
 import { speciesOf } from '../garden/species';
 import { Butterfly as ButterflySvg, WateringCan } from '../garden/sprites';
@@ -169,7 +169,7 @@ export default function GardenStrip() {
   const small = Math.round(size * 0.8);
   const w = Math.round(size * PLANT_RATIO);
   const wilt = Math.max(pot ? thirst.wilt : 0, awayWilt);
-  const potTop = pot ? plantTop(pot.species, stage) : 0.68;
+  const potTop = pot ? plantTopAt(pot.species, growth) : 0.68;
   const cardLeft = Math.min(0, innerWidth - 12 - place.x - 272);
 
   const water = () => {
@@ -197,9 +197,9 @@ export default function GardenStrip() {
         >
           <div key={`hop${watering}`} className={cn('absolute inset-0', watering > 0 && 'gs-hop')}>
             {pot ? (
-              <PlantView species={pot.species} growth={growth} wilt={wilt} size={size} sway={!night} />
+              <PlantView species={pot.species} growth={growth} wilt={wilt} size={size} sway={!night} seed={pot.id} />
             ) : (
-              <PlantView species="sunflower" growth={0} size={size} sway={false} alt="" style={{ filter: 'saturate(.9)' }} />
+              <PlantView species="sunflower" growth={-1} size={size} sway={false} alt="" />
             )}
           </div>
           {!pot && (
@@ -248,7 +248,7 @@ export default function GardenStrip() {
             className={cn('pointer-events-auto relative cursor-pointer rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-accent', mode === 'perch' ? '-mr-2' : '-ml-2')}
             style={{ width: Math.round(small * PLANT_RATIO), height: small, zIndex: -1 - i }}
           >
-            <PlantView species={p.species} growth={1} size={small} sway={!night} />
+            <PlantView species={p.species} growth={1} size={small} sway={!night} seed={p.id} />
           </button>
         ))}
       </div>

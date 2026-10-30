@@ -14,6 +14,7 @@ import { dateKey, diffDays } from '@/lib/time';
 import { uid } from '@/lib/utils';
 import { useData } from '@/store/data';
 import { buy, itemCount, spend, takeItem } from '../economy/wallet';
+import { elapsedAt, useTimer } from '@/store/timer';
 import { useTimerView } from '../timer/TimerOrb';
 import type { PlantSpeciesId } from './PlantView';
 import { speciesOf } from './species';
@@ -124,13 +125,22 @@ export function bank(): boolean {
   return bloomed;
 }
 
+/**
+ * Real focused seconds of the session running right now: only time the timer actually ran (a paused session, a
+ * break or an idle timer give 0 more). Read-only from the timer store.
+ */
+export function liveFocusSec(v: { mode: string; status: 'idle' | 'running' | 'paused'; focusedMs: number; runStartedAt: number | null }) {
+  if (v.mode !== 'focus' || v.status === 'idle') return 0;
+  return Math.max(0, elapsedAt(v, Date.now())) / 1000;
+}
+
 /** Live view of the pot for components (re-renders with the timer while focusing). */
 export function usePot() {
   const g = useGarden();
   const total = useData((s) => s.data.totalFocusSeconds ?? 0);
   const v = useTimerView();
   const focusing = v.mode === 'focus' && v.status !== 'idle';
-  const liveSec = focusing ? Math.max(0, v.durationMs - v.rem) / 1000 : 0;
+  const liveSec = liveFocusSec(v);
   const p = g.pot;
   if (!p) return { garden: g, pot: null, growth: 0, thirst: thirstOf(dateKey()), focusing, running: false };
   return { garden: g, pot: p, growth: growthOf(p, total, liveSec), thirst: thirstOf(p.watered), focusing, running: focusing && v.status === 'running' };
@@ -240,4 +250,25 @@ export function unlockSpot(): boolean {
   if (!spend(spotPrice(g.spots), 'garden-spot')) return false;
   update((d) => void (d.spots = Math.min(MAX_SPOTS, d.spots + 1)));
   return true;
+}
+
+/* Dev only: fast-forward the pot for screenshots (window.__garden.set('rose', 0.5)). Not in production builds. */
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  (window as unknown as Record<string, unknown>).__garden = {
+    /** plant `species` (free) and set its growth 0..1 */
+    set(species: PlantSpeciesId, g: number) {
+      update((d) => {
+        const total = totalFocus();
+        if (!d.pot || d.pot.species !== species) d.pot = { id: uid(), species, planted: Date.now(), sec: 0, raw: 0, mark: total, watered: dateKey() };
+        d.pot.sec = g * needSec(d.pot);
+        d.pot.raw = d.pot.sec;
+        d.pot.mark = total;
+        d.pot.watered = dateKey();
+        d.pot.bloomed = g >= 1 ? Date.now() : undefined;
+        d.freeUsed = true;
+      });
+    },
+    get: () => getGarden().pot,
+    growth: () => { const p = getGarden().pot; return p ? growthOf(p, totalFocus(), liveFocusSec(useTimer.getState())) : 0; },
+  };
 }

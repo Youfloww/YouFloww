@@ -3,76 +3,34 @@
  * "together" shared plant, ...).
  *
  *   import { PlantView } from '@/features/garden/PlantView';
- *   <PlantView species="sunflower" growth={0.4} wilt={0} size={160} />
+ *   <PlantView species="sunflower" growth={0.4} wilt={0} size={160} seed="pot-1" />
  *
  * Props
  * - species  'sunflower' | 'tulip' | 'rose' | 'lavender' | 'sakura'   (PLANT_SPECIES lists them)
- * - growth   0..1   0 = a seed in the pot, 1 = full bloom. 7 painted stages (STAGE_NAMES); near the end of each
- *                   stage the next one fades in, so live growth during a session looks continuous.
- * - wilt     0..1   0 = healthy, 1 = very droopy (leans, sags and fades a little). Changes animate, so dropping
- *                   it back to 0 shows the plant recovering. Only the plant droops; the pot stays put.
- * - size     px     height of the box. Width is size * PLANT_RATIO. The pot always sits at the bottom centre
- *                   at the same place for every species and stage, so plants line up on a shelf.
+ * - growth   0..1   (negative = an empty pot) continuous: 0 = a seed in the soil, 1 = full bloom. The plant is PAINTED live by
+ *                   render/plants.ts (Canvas 2D) as a smooth function of growth: stems lengthen, leaves unfold, buds
+ *                   swell, petals open one by one. No stage images, nothing swaps.
+ * - wilt     0..1   0 = healthy, 1 = very droopy (paler olive greens, leaves sag, leans).
+ * - seed     number | string   makes this plant unique (shape wobbles, leaf count/angles); same seed = same plant.
+ * - size     px     height of the box. Width is size * PLANT_RATIO.
  * - sway     boolean (default true) gentle breeze sway (CSS only; off with prefers-reduced-motion).
- * - className, style, alt
  *
- * Dependency-free: React only (no stores, no app imports). Its keyframes are injected once. Images are
- * WebP stages in /img/garden/<species>-<0..6>.webp (224×420, transparent), loaded lazily.
+ * Cheap on purpose: the painter (≈ 25 KB) is loaded lazily on first use; a repaint (~3-8 ms) only happens when growth
+ * changed visibly, at most 4 times a second; big jumps (opening the garden) are tweened; nothing is painted while the tab
+ * is hidden. The pot is a plain lazy <img> under the canvas.
  */
-import { useInsertionEffect, type CSSProperties } from 'react';
+import { useEffect, useInsertionEffect, useRef, useState, type CSSProperties } from 'react';
+import { BOX_H, BOX_W, PLANT_INFO, PLANT_RATIO, PLANT_READY, PLANT_SPECIES, POT, SOIL_Y, STAGE_AT, STAGE_NAMES, plantTop, plantTopAt, stageOf, type PlantSpeciesId } from './growth';
 
-export const PLANT_SPECIES = ['sunflower', 'tulip', 'rose', 'lavender', 'sakura'] as const;
-export type PlantSpeciesId = (typeof PLANT_SPECIES)[number];
+// the light, shared bits other features already import from here
+export { PLANT_INFO, PLANT_RATIO, PLANT_READY, PLANT_SPECIES, STAGE_AT, STAGE_NAMES, plantTop, plantTopAt, stageOf };
+export type { PlantSpeciesId };
 
-/** Display name + emoji for each species. */
-export const PLANT_INFO: Record<PlantSpeciesId, { name: string; emoji: string }> = {
-  sunflower: { name: 'Sunflower', emoji: '🌻' },
-  tulip: { name: 'Tulip', emoji: '🌷' },
-  rose: { name: 'Rose', emoji: '🌹' },
-  lavender: { name: 'Lavender', emoji: '🪻' },
-  sakura: { name: 'Cherry blossom bonsai', emoji: '🌸' },
-};
-
-/** Species whose paintings are in /img/garden (a species is only sold once its 7 stages are there). */
-export const PLANT_READY: Record<PlantSpeciesId, boolean> = { sunflower: true, tulip: true, rose: true, lavender: true, sakura: true };
-
-export const STAGE_NAMES = ['Seed', 'Sprout', 'Seedling', 'Young plant', 'Bud', 'Bloom', 'Full bloom'] as const;
-/** Growth (0..1) at which each stage begins. Early stages come quickly so a first session shows a sprout. */
-export const STAGE_AT = [0, 0.06, 0.16, 0.32, 0.52, 0.76, 1] as const;
-/** width / height of the art box */
-export const PLANT_RATIO = 224 / 420;
-/** Soil line (fraction of the box height from the top): the plant droops and sways around it. */
-const SOIL = 0.69;
-
-/** Top of the painted plant for each stage (fraction of the box height from the top), for butterflies and bubbles. */
-export const PLANT_TOP: Record<PlantSpeciesId, readonly number[]> = {
-  sunflower: [0.676, 0.645, 0.514, 0.343, 0.2, 0.133, 0.062],
-  tulip: [0.629, 0.636, 0.5, 0.376, 0.279, 0.143, 0.014],
-  rose: [0.562, 0.662, 0.564, 0.467, 0.407, 0.41, 0.331],
-  lavender: [0.676, 0.679, 0.576, 0.467, 0.379, 0.348, 0.333],
-  sakura: [0.71, 0.648, 0.533, 0.386, 0.314, 0.386, 0.25],
-};
-export const plantTop = (species: PlantSpeciesId, stage: number) => PLANT_TOP[species]?.[Math.max(0, Math.min(6, stage))] ?? 0.4;
-
-export const plantImg = (species: PlantSpeciesId, stage: number) => `/img/garden/${species}-${stage}.webp`;
-
-/** Which stage shows at a growth value, and how far the next stage has faded in (0..1). */
-export function stageOf(growth: number) {
-  const g = Math.min(1, Math.max(0, growth || 0));
-  let stage = 0;
-  for (let i = 0; i < STAGE_AT.length; i++) if (g >= STAGE_AT[i]) stage = i;
-  if (stage >= STAGE_AT.length - 1) return { stage, next: stage, blend: 0 };
-  const a = STAGE_AT[stage];
-  const b = STAGE_AT[stage + 1];
-  const t = (g - a) / (b - a);
-  // the last 15% of a stage slowly becomes the next one
-  const blend = Math.max(0, (t - 0.85) / 0.15);
-  return { stage, next: stage + 1, blend };
-}
+const SOIL = SOIL_Y / BOX_H;
 
 const CSS = `
-@keyframes pv-sway { 0%,100% { transform: skewX(-1.6deg) } 50% { transform: skewX(1.6deg) } }
-.pv-sway { animation: pv-sway var(--pv-sway, 5.5s) ease-in-out infinite; transform-origin: 50% ${SOIL * 100}%; }
+@keyframes pv-sway { 0%,100% { transform: skewX(-1.5deg) } 50% { transform: skewX(1.5deg) } }
+.pv-sway { animation: pv-sway var(--pv-sway, 6s) ease-in-out infinite; transform-origin: 50% ${SOIL * 100}%; }
 .pv-paused .pv-sway { animation-play-state: paused; }
 @media (prefers-reduced-motion: reduce) { .pv-sway { animation: none; } }
 `;
@@ -88,39 +46,25 @@ function useStyles() {
   }, []);
 }
 
-const IMG: CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', userSelect: 'none', pointerEvents: 'none' };
+type Painter = typeof import('./render/plants');
+let painterP: Promise<Painter> | null = null;
+let painterM: Painter | null = null;
+const loadPainter = () => (painterP ??= import('./render/plants').then((m) => (painterM = m)));
 
-/** One stage, split at the soil line: the pot stays still, the plant above it droops and sways. */
-function Stage({ src, wilt, sway, opacity, swayDelay }: { src: string; wilt: number; sway: boolean; opacity: number; swayDelay: string }) {
-  const cut = `${((1 - SOIL) * 100).toFixed(2)}%`;
-  return (
-    <div style={{ position: 'absolute', inset: 0, opacity, transition: 'opacity 1.2s ease' }}>
-      <img src={src} alt="" draggable={false} decoding="async" loading="lazy" style={{ ...IMG, clipPath: `inset(${SOIL * 100}% 0 0 0)` }} />
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          clipPath: `inset(0 0 ${cut} 0)`,
-          transformOrigin: `50% ${SOIL * 100}%`,
-          transform: `scaleY(${1 - 0.11 * wilt}) skewX(${-8 * wilt}deg)`,
-          filter: wilt > 0.01 ? `saturate(${1 - 0.45 * wilt}) sepia(${0.32 * wilt}) brightness(${1 - 0.06 * wilt})` : undefined,
-          transition: 'transform 1.6s cubic-bezier(.3,1.4,.5,1), filter 1.6s ease',
-        }}
-      >
-        <div className={sway ? 'pv-sway' : undefined} style={{ position: 'absolute', inset: 0, animationDelay: swayDelay }}>
-          <img src={src} alt="" draggable={false} decoding="async" loading="lazy" style={IMG} />
-        </div>
-      </div>
-    </div>
-  );
-}
+const hashStr = (s: string | number) => {
+  let h = 2166136261;
+  for (const ch of String(s)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  return (h >>> 0) % 1000003;
+};
 
 export interface PlantViewProps {
   species: PlantSpeciesId;
-  /** 0 = seed, 1 = full bloom */
+  /** 0 = seed, 1 = full bloom (continuous) */
   growth: number;
   /** 0 = healthy, 1 = very droopy */
   wilt?: number;
+  /** makes the plant unique */
+  seed?: number | string;
   /** box height in px (width = size * PLANT_RATIO) */
   size: number;
   sway?: boolean;
@@ -129,23 +73,125 @@ export interface PlantViewProps {
   alt?: string;
 }
 
-export function PlantView({ species, growth, wilt = 0, size, sway = true, className, style, alt }: PlantViewProps) {
+const MIN_STEP = 0.0004;
+const MIN_GAP_MS = 250;
+
+export function PlantView({ species, growth, wilt = 0, seed, size, sway = true, className, style, alt }: PlantViewProps) {
   useStyles();
   const sp = PLANT_INFO[species] && PLANT_READY[species] ? species : 'sunflower';
-  const { stage, next, blend } = stageOf(growth);
+  const empty = growth < 0;
+  const g = empty ? 0 : Math.min(1, Math.max(0, growth || 0));
   const w = Math.min(1, Math.max(0, wilt || 0));
-  // a thirsty plant hardly moves; each plant sways on its own beat
+  const wq = Math.round(w * 10) / 10;
+  const sd = hashStr(seed ?? sp);
+  const [ready, setReady] = useState(!!painterM);
+  const cv = useRef<HTMLCanvasElement>(null);
+  const st = useRef({ shown: -1, last: 0, timer: 0, tween: 0, key: '', target: g });
+  st.current.target = g;
+  const dpr = typeof window === 'undefined' ? 1 : Math.min(2, window.devicePixelRatio || 1);
+  const ph = Math.max(60, Math.min(900, Math.round(size * dpr)));
+  const pw = Math.round(ph * PLANT_RATIO);
+
+  useEffect(() => {
+    if (painterM) return;
+    let off = false;
+    loadPainter().then(() => !off && setReady(true));
+    return () => {
+      off = true;
+    };
+  }, []);
+
+  // paint now (full repaint when the look-defining props changed)
+  useEffect(() => {
+    if (!ready || !painterM || !cv.current) return;
+    const c = cv.current;
+    const s = st.current;
+    const key = `${sp}|${sd}|${wq}|${ph}|${empty}`;
+    const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const paint = (v: number) => {
+      s.shown = v;
+      s.last = performance.now();
+      if (empty) c.getContext('2d')?.clearRect(0, 0, c.width, c.height);
+      else painterM!.paintPlant(c, { species: sp, g: v, seed: sd, wilt: wq });
+    };
+    const stop = () => {
+      clearTimeout(s.timer);
+      cancelAnimationFrame(s.tween);
+      s.timer = 0;
+      s.tween = 0;
+    };
+    const request = () => {
+      stop();
+      if (document.hidden) return; // repainted on visibilitychange
+      const target = s.target;
+      const first = s.key !== key || s.shown < 0;
+      s.key = key;
+      if (first) {
+        c.width = pw;
+        c.height = ph;
+        paint(target);
+        return;
+      }
+      const d = target - s.shown;
+      if (Math.abs(d) < MIN_STEP) return;
+      if (Math.abs(d) > 0.02 && !reduced) {
+        // a big jump (opening the garden, changing pot): grow into it over ~0.8 s
+        const from = s.shown;
+        const t0 = performance.now();
+        const step = () => {
+          const k = Math.min(1, (performance.now() - t0) / 800);
+          const e = 1 - (1 - k) ** 3;
+          if (performance.now() - s.last > 40 || k === 1) paint(from + (s.target - from) * e);
+          if (k < 1) s.tween = requestAnimationFrame(step);
+        };
+        s.tween = requestAnimationFrame(step);
+        return;
+      }
+      const wait = MIN_GAP_MS - (performance.now() - s.last);
+      if (wait <= 0) paint(target);
+      else s.timer = window.setTimeout(request, wait);
+    };
+    const vis = () => !document.hidden && request();
+    document.addEventListener('visibilitychange', vis);
+    request();
+    return () => {
+      document.removeEventListener('visibilitychange', vis);
+      stop();
+    };
+  }, [ready, sp, sd, wq, ph, pw, g, empty]);
+
   const doSway = sway && w < 0.6;
-  const delay = `-${(sp.length * 0.7 + stage * 0.9) % 5}s`;
+  const delay = `-${(sp.length * 0.7 + (sd % 7)) % 6}s`;
+  const stage = stageOf(g);
   return (
     <div
       role="img"
-      aria-label={alt ?? `${PLANT_INFO[sp].name}, ${STAGE_NAMES[stage].toLowerCase()}${w > 0.3 ? ', thirsty' : ''}`}
+      aria-label={alt ?? `${PLANT_INFO[sp].name}, ${stage.name.toLowerCase()}${w > 0.3 ? ', thirsty' : ''}`}
       className={className}
       style={{ position: 'relative', height: size, width: Math.round(size * PLANT_RATIO), flexShrink: 0, ...style }}
     >
-      <Stage key={stage} src={plantImg(sp, stage)} wilt={w} sway={doSway} opacity={1} swayDelay={delay} />
-      {blend > 0 && <Stage key={`n${next}`} src={plantImg(sp, next)} wilt={w} sway={doSway} opacity={blend} swayDelay={delay} />}
+      <img
+        src="/img/garden/pot.webp"
+        alt=""
+        draggable={false}
+        decoding="async"
+        loading="lazy"
+        style={{ position: 'absolute', left: `${(POT.x / BOX_W) * 100}%`, top: `${(POT.y / BOX_H) * 100}%`, width: `${(POT.w / BOX_W) * 100}%`, height: `${(POT.h / BOX_H) * 100}%`, userSelect: 'none', pointerEvents: 'none' }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          transformOrigin: `50% ${SOIL * 100}%`,
+          transform: `scaleY(${1 - 0.1 * w}) skewX(${-7 * w}deg)`,
+          transition: 'transform 1.6s cubic-bezier(.3,1.4,.5,1)',
+          opacity: ready ? 1 : 0,
+        }}
+      >
+        <div className={doSway ? 'pv-sway' : undefined} style={{ position: 'absolute', inset: 0, animationDelay: delay }}>
+          <canvas ref={cv} width={pw} height={ph} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} />
+        </div>
+      </div>
     </div>
   );
 }
