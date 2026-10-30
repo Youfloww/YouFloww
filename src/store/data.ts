@@ -100,7 +100,7 @@ export const useData = create<DataState>()((set, get) => {
     recordSession: (input) => {
       let result!: RecordSessionResult;
       mutate((d) => {
-        rollover(d);
+        rollover(d, dateKey(new Date(input.startedAt)));
         result = recordFocusSession(d, input);
       });
       return result;

@@ -33,7 +33,7 @@ export type Goal =
   | { kind: 'streak'; days: number; from: 'today' | 'tomorrow' };
 
 export type PledgeStatus = 'active' | 'refund_pending' | 'refunded' | 'forfeited';
-export type PledgeOutcome = 'met' | 'missed' | 'duplicate';
+export type PledgeOutcome = 'met' | 'missed' | 'duplicate' | 'unclaimed';
 
 /** The Firestore `pledges/{id}` document (written only by the server). */
 export interface PledgeDoc {
@@ -263,8 +263,17 @@ export function computeProgress(p: PledgeWindow, data: FocusLog | null | undefin
   const keys = windowDays(p.goal, p.startAt, p.deadline, p.tz);
   const perDay = new Map<string, number>(keys.map((k) => [k, 0]));
   for (const e of inWin) {
-    const k = zonedDateKey(e.at, p.tz);
-    if (perDay.has(k)) perDay.set(k, perDay.get(k)! + e.sec);
+    // a session over midnight is split across both days, exactly as the app's own per-day totals are
+    let at = e.at;
+    let left = e.sec;
+    for (let guard = 0; left > 0 && guard < 4; guard++) {
+      const k = zonedDateKey(at, p.tz);
+      const nextMidnight = zonedMidnight(addDaysKey(k, 1), p.tz);
+      const chunk = Math.min(left, Math.max(1, Math.ceil((nextMidnight - at) / 1000)));
+      if (perDay.has(k)) perDay.set(k, perDay.get(k)! + chunk);
+      left -= chunk;
+      at += chunk * 1000;
+    }
   }
   if (live) {
     const k = zonedDateKey(now, p.tz);

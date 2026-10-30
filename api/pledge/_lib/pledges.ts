@@ -24,7 +24,7 @@ import {
 } from '../../../src/features/pledge/rules.js';
 import { db } from './admin.js';
 import { payConfig } from './env.js';
-import { createOrder, refundInFull } from './razorpay.js';
+import { confirmCapturedPayment, createOrder, listOrderPayments, refundInFull } from './razorpay.js';
 
 interface OrderDoc {
   uid: string;
@@ -32,7 +32,7 @@ interface OrderDoc {
   goal: Goal;
   tz: string;
   mode: PledgeDoc['mode'];
-  status: 'created' | 'activated';
+  status: 'created' | 'activated' | 'unclaimed';
   createdAt: number;
   termsVersion: string;
   paymentId?: string;
@@ -98,14 +98,14 @@ export async function getOrder(orderId: string) {
 
 export type ActivateResult =
   | { ok: true; pledgeId: string; status: PledgeStatus; duplicate: boolean }
-  | { ok: false; reason: 'unknown-order' | 'other-payment' };
+  | { ok: false; reason: 'unknown-order' | 'other-payment' | 'refunded' };
 
 /**
  * Turn a paid order into a pledge. Call ONLY after the payment was verified with Razorpay (or in stub mode).
  * Idempotent: the browser callback and the webhook may both arrive. If the person somehow already has an
  * active pledge (two tabs paid at once), the new payment is recorded and refunded straight away.
  */
-export async function activate(orderId: string, paymentId: string, via: 'checkout' | 'webhook'): Promise<ActivateResult> {
+export async function activate(orderId: string, paymentId: string, via: 'checkout' | 'webhook' | 'cron'): Promise<ActivateResult> {
   const fs = db();
   const orderRef = fs.doc(`pledgeOrders/${orderId}`);
   const pledgeRef = fs.doc(`pledges/${orderId}`);
@@ -123,6 +123,7 @@ export async function activate(orderId: string, paymentId: string, via: 'checkou
       const p = await tx.get(pledgeRef);
       return { ok: true, pledgeId: orderId, status: p.get('status'), duplicate: p.get('outcome') === 'duplicate' };
     }
+    if (o.status !== 'created') return { ok: false, reason: 'refunded' }; // the cron already gave this payment back
     const lockRef = fs.doc(`pledgeUsers/${o.uid}`);
     const lock = await tx.get(lockRef);
     const activeId = lock.get('activePledgeId');
@@ -256,11 +257,114 @@ export async function refundPledge(id: string): Promise<'refunded' | 'pending' |
   }
 }
 
+/* ------------------------------------------------------------------ orphaned payments */
+
+/** An order this old with no pledge is looked up on Razorpay (the browser had time to call /verify by now). */
+const ORPHAN_AFTER_MS = 30 * 60 * 1000;
+/** Orders older than this are left alone (an unpaid checkout never becomes paid after a week). */
+const ORPHAN_MAX_AGE_MS = 7 * 24 * 3600 * 1000;
+/** A payment found this soon after it was made still starts the pledge; later than that it is refunded instead. */
+const ORPHAN_ACTIVATE_WITHIN_MS = 2 * 3600 * 1000;
+
+/** Record a payment that never became a pledge as a refund_pending pledge, so the normal refund path (lease, adopt, idempotency key) returns it. */
+async function markUnclaimed(orderId: string, paymentId: string): Promise<boolean> {
+  const fs = db();
+  const orderRef = fs.doc(`pledgeOrders/${orderId}`);
+  const pledgeRef = fs.doc(`pledges/${orderId}`);
+  return fs.runTransaction(async (tx) => {
+    const o = (await tx.get(orderRef)).data() as OrderDoc | undefined;
+    if (!o || o.status !== 'created') return false;
+    const now = Date.now();
+    tx.update(orderRef, { status: 'unclaimed', paymentId, unclaimedAt: now });
+    tx.set(pledgeRef, {
+      id: orderId,
+      uid: o.uid,
+      amountPaise: o.amountPaise,
+      goal: o.goal,
+      tz: o.tz,
+      baselineFocusSeconds: 0,
+      orderId,
+      paymentId,
+      refundId: null,
+      refundedAt: null,
+      progressSeconds: null,
+      daysMet: null,
+      createdAt: now,
+      mode: o.mode,
+      termsVersion: o.termsVersion,
+      startAt: now,
+      deadline: now,
+      status: 'refund_pending',
+      outcome: 'unclaimed',
+      settledAt: now,
+    });
+    return true;
+  });
+}
+
+/**
+ * Find money that was taken but never turned into a pledge (browser closed between paying and /verify, no
+ * webhook). Asks Razorpay for each stale `created` order's payments; a captured one is activated if it is
+ * fresh, otherwise refunded. Idempotent: the order leaves `created` in the same transaction, and refunds go
+ * through refundPledge / refundInFull.
+ */
+export async function reconcileOrders(now = Date.now()) {
+  const out = { checked: 0, activated: 0, refunded: 0, refundsPending: 0, errors: 0 };
+  const cfg = payConfig();
+  if (cfg.mode !== 'razorpay') return out;
+  const snap = await db()
+    .collection('pledgeOrders')
+    .where('createdAt', '<=', now - ORPHAN_AFTER_MS)
+    .where('createdAt', '>=', now - ORPHAN_MAX_AGE_MS)
+    .limit(400)
+    .get();
+  for (const doc of snap.docs) {
+    const o = doc.data() as OrderDoc;
+    if (o.status !== 'created' || o.mode === 'stub' || (cfg.keyMode === 'live') !== (o.mode === 'live')) continue;
+    out.checked++;
+    try {
+      const paid = (await listOrderPayments(doc.id))
+        .filter((p) => (p.status === 'captured' || p.status === 'authorized') && p.amount === o.amountPaise && p.currency === 'INR')
+        .sort((a, b) => a.created_at - b.created_at);
+      if (!paid.length) continue;
+      const [first, ...extra] = paid;
+      // extra full payments on the same order (a second attempt that also went through) are just returned
+      for (const x of extra) {
+        if (!(await confirmCapturedPayment(x.id, doc.id, o.amountPaise)).ok) continue;
+        await refundInFull(x.id, o.amountPaise, `${doc.id}_x_${x.id}`.slice(0, 40), { app: 'youfloww-pledge', pledgeId: doc.id, reason: 'extra-payment' });
+        out.refunded++;
+      }
+      const confirmed = await confirmCapturedPayment(first.id, doc.id, o.amountPaise); // also captures an authorized payment
+      if (!confirmed.ok) {
+        console.error(`[pledge/reconcile] ${doc.id}: ${confirmed.reason}`);
+        continue;
+      }
+      const fresh = now - first.created_at * 1000 <= ORPHAN_ACTIVATE_WITHIN_MS;
+      if (fresh) {
+        const r = await activate(doc.id, first.id, 'cron');
+        if (r.ok) out.activated++;
+        if (!(r.ok && r.duplicate)) continue; // a duplicate (already has an active pledge) is refunded below
+      } else if (!(await markUnclaimed(doc.id, first.id))) continue;
+      const done = await refundPledge(doc.id);
+      if (done === 'refunded') out.refunded++;
+      else out.refundsPending++;
+    } catch (e) {
+      out.errors++;
+      console.error(`[pledge/reconcile] ${doc.id}: ${errText(e)}`);
+    }
+  }
+  return out;
+}
+
 /** The daily cron: settle every pledge past its deadline (+ grace) and retry refunds that are still pending. */
 export async function settleDue(now = Date.now()) {
   const fs = db();
+  const orphans = await reconcileOrders(now).catch((e) => {
+    console.error(`[pledge/reconcile] ${errText(e)}`);
+    return { checked: 0, activated: 0, refunded: 0, refundsPending: 0, errors: 1 };
+  });
   const snap = await fs.collection('pledges').where('status', 'in', ['active', 'refund_pending']).limit(400).get();
-  const out = { due: 0, waiting: 0, refunded: 0, forfeited: 0, refundsPending: 0, errors: 0 };
+  const out = { due: 0, waiting: 0, refunded: 0, forfeited: 0, refundsPending: 0, errors: 0, orphans };
   for (const doc of snap.docs) {
     const p = doc.data() as PledgeDoc;
     try {

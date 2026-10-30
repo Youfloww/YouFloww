@@ -95,6 +95,25 @@ export async function confirmCapturedPayment(paymentId: string, orderId: string,
   return { ok: true };
 }
 
+export interface OrderPayment {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  /** unix seconds */
+  created_at: number;
+}
+
+/** Every payment attempt Razorpay has for one of our orders (the cron's way of finding payments the browser never reported). */
+export async function listOrderPayments(orderId: string): Promise<OrderPayment[]> {
+  const res = await fetch(`${API}/orders/${encodeURIComponent(orderId)}/payments`, { headers: { Authorization: auth() }, cache: 'no-store' });
+  if (!res.ok) throw await failure('Razorpay order payments', res);
+  const items = ((await res.json()) as { items?: Partial<OrderPayment>[] }).items ?? [];
+  return items
+    .filter((p): p is OrderPayment => typeof p.id === 'string' && typeof p.amount === 'number' && typeof p.status === 'string')
+    .map((p) => ({ id: p.id, amount: p.amount, currency: String(p.currency ?? ''), status: p.status, created_at: Number(p.created_at) || 0 }));
+}
+
 interface Refund {
   id: string;
   amount: number;

@@ -296,7 +296,7 @@ async function main() {
   process.env.RAZORPAY_KEY_SECRET = SECRET;
   process.env.RAZORPAY_WEBHOOK_SECRET = WH;
 
-  type Pay = { id: string; order_id: string; amount: number; currency: string; status: string; refunds: { id: string; amount: number; status: string }[] };
+  type Pay = { id: string; order_id: string; amount: number; currency: string; status: string; created_at: number; refunds: { id: string; amount: number; status: string }[] };
   const orders = new Map<string, { id: string; amount: number; notes: Record<string, string> }>();
   const pays = new Map<string, Pay>();
   const calls = { refundCreate: 0, capture: 0, idemKeys: [] as string[], badAuth: 0 };
@@ -318,6 +318,10 @@ async function main() {
       const o = { id: rid('order'), amount: body.amount, currency: body.currency, notes: body.notes };
       orders.set(o.id, o);
       return Response.json(o);
+    }
+    if ((m = /^\/v1\/orders\/([^/]+)\/payments$/.exec(path)) && method === 'GET') {
+      const items = [...pays.values()].filter((x) => x.order_id === m![1]);
+      return Response.json({ entity: 'collection', count: items.length, items });
     }
     if ((m = /^\/v1\/payments\/([^/]+)(\/capture|\/refunds|\/refund)?$/.exec(path))) {
       const pay = pays.get(m[1]);
@@ -343,7 +347,7 @@ async function main() {
   }) as typeof fetch;
   const sign = (orderId: string, paymentId: string) => createHmac('sha256', SECRET).update(`${orderId}|${paymentId}`).digest('hex');
   const pay = (orderId: string, amount: number, status = 'captured') => {
-    const p: Pay = { id: rid('pay'), order_id: orderId, amount, currency: 'INR', status, refunds: [] };
+    const p: Pay = { id: rid('pay'), order_id: orderId, amount, currency: 'INR', status, created_at: Math.floor(Date.now() / 1000), refunds: [] };
     pays.set(p.id, p);
     return p;
   };
@@ -474,6 +478,42 @@ async function main() {
   await runSettle();
   const g1p = (await pledge(g1))!;
   ok(g1p.status === 'refund_pending' && /test but the keys are live/.test(g1p.lastError) && calls.refundCreate === refundsBefore, 'test pledge is not refunded with live keys (stays pending with a clear error)', g1p.lastError);
+  ok(calls.badAuth === 0, 'every Razorpay call used the configured key');
+
+
+  /* ---------------------------------------------------------------- orphaned payments (no /verify, no webhook) */
+  section('cron: payments that never reached /verify');
+  const orphanOrder = async (name: string, ageMin: number, payAgeMin: number) => {
+    const u = await signUp(name);
+    await seedUser(u.uid, { totalFocusSeconds: 0 });
+    const cr = await call(create, req('/api/pledge/create', { token: u.token, body: goodBody({ amount: 49 }) }));
+    const id = cr.body.orderId as string;
+    await db().doc(`pledgeOrders/${id}`).update({ createdAt: Date.now() - ageMin * 60_000 });
+    const p = pay(id, 4900);
+    p.created_at = Math.floor((Date.now() - payAgeMin * 60_000) / 1000);
+    return { id, p };
+  };
+  const young = await orphanOrder('yara', 5, 4);
+  const stale = await orphanOrder('zane', 400, 390);
+  const lateish = await orphanOrder('ira', 45, 40);
+  const noPay = await orphanOrder('jo', 400, 390);
+  pays.delete(noPay.p.id);
+  const refundsBefore2 = calls.refundCreate;
+  await runSettle();
+  ok(!(await pledge(young.id)) && young.p.refunds.length === 0, 'a 5-minute-old order is left alone (the browser may still be verifying)');
+  const sp = (await pledge(stale.id))!;
+  ok(sp.status === 'refunded' && sp.outcome === 'unclaimed' && stale.p.refunds.length === 1 && stale.p.refunds[0].amount === 4900, 'old captured payment with no pledge → refunded in full', sp);
+  ok((await db().doc(`pledgeOrders/${stale.id}`).get()).get('status') === 'unclaimed', 'its order is closed so it is never looked at again');
+  const lp = (await pledge(lateish.id))!;
+  ok(lp?.status === 'active' && lp.paymentId === lateish.p.id && lateish.p.refunds.length === 0, 'recent captured payment → pledge activated, not refunded', lp);
+  ok(!(await pledge(noPay.id)) && noPay.p.refunds.length === 0, 'abandoned checkout (no payment) → nothing happens');
+  ok(calls.refundCreate === refundsBefore2 + 1, 'exactly one refund request was made');
+  const lpAt = lp.createdAt;
+  await runSettle();
+  await runSettle();
+  ok(calls.refundCreate === refundsBefore2 + 1 && stale.p.refunds.length === 1 && (await pledge(lateish.id))!.createdAt === lpAt && (await pledge(lateish.id))!.status === 'active', 're-running the cron does nothing more');
+  r = await call(verify, req('/api/pledge/verify', { token: (await signUp('late')).token, body: { orderId: stale.id, paymentId: stale.p.id, signature: sign(stale.id, stale.p.id) } }));
+  ok(r.status === 404 || r.status === 409, 'a late /verify cannot revive a refunded order', r.status);
   ok(calls.badAuth === 0, 'every Razorpay call used the configured key');
 
   globalThis.fetch = realFetch;

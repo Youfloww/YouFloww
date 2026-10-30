@@ -85,13 +85,13 @@ export function HistoryCard({ pledges }: { pledges: PledgeDoc[] | null }) {
           {pledges.map((p) => (
             <li key={p.id} className="rounded-2xl bg-surface p-3 ring-1 ring-line">
               <div className="flex items-start justify-between gap-2">
-                <p className="min-w-0 text-[13.5px] leading-snug font-extrabold">{p.outcome === 'duplicate' ? 'Extra payment (refunded)' : goalSummary(p.goal)}</p>
+                <p className="min-w-0 text-[13.5px] leading-snug font-extrabold">{p.outcome === 'unclaimed' ? 'Payment not started (refunded)' : p.outcome === 'duplicate' ? 'Extra payment (refunded)' : goalSummary(p.goal)}</p>
                 <span className="font-display text-[15px] font-semibold tabular">{rupees(p.amountPaise)}</span>
               </div>
               <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1.5">
                 <span className="text-[12px] text-muted">
                   {when(p.createdAt, p.tz, false)}
-                  {p.progressSeconds != null && p.outcome !== 'duplicate' && ` · ${p.goal.kind === 'hours' ? dur(p.progressSeconds) : `${p.daysMet ?? 0}/${p.goal.days} days`}`}
+                  {p.progressSeconds != null && p.outcome !== 'duplicate' && p.outcome !== 'unclaimed' && ` · ${p.goal.kind === 'hours' ? dur(p.progressSeconds) : `${p.daysMet ?? 0}/${p.goal.days} days`}`}
                 </span>
                 <StatusChip p={p} />
               </div>

@@ -107,7 +107,9 @@ export function normalizeUserData(raw: unknown): UserData {
 
   d.todos = Array.isArray(r.todos) ? r.todos.filter(Boolean).map(normalizeTodo) : [];
 
-  d.hourlyFocusSeconds = Array.isArray(r.hourlyFocusSeconds) && r.hourlyFocusSeconds.length === 24 ? r.hourlyFocusSeconds.map((x) => num(x)) : Array(24).fill(0);
+  // The cloud keeps hours as a map {"0": sec, ...} so devices can add to them atomically; the app uses an array
+  const hr = r.hourlyFocusSeconds as unknown;
+  d.hourlyFocusSeconds = Array.isArray(hr) && hr.length === 24 ? hr.map((x) => num(x)) : hr && typeof hr === 'object' && !Array.isArray(hr) ? Array.from({ length: 24 }, (_, i) => num((hr as Record<string, unknown>)[i])) : Array(24).fill(0);
   d.sessionLog = Array.isArray(r.sessionLog) ? r.sessionLog.slice(-150) : [];
 
   // Seed long-lived daily history from the v2 rolling 7-day map
@@ -143,10 +145,11 @@ export function normalizeTodo(t: Partial<Todo>): Todo {
 }
 
 /** Day-boundary bookkeeping: reset today counters, break dead streaks, prune old buckets. */
-export function rollover(d: UserData): UserData {
+export function rollover(d: UserData, streakDay: string = dateKey()): UserData {
   const today = dateKey();
   if (d.lastSessionDate !== today) d.todaySessions = 0;
-  if (d.lastStreakDate && diffDays(d.lastStreakDate, today) > 1) d.streakCount = 0;
+  // `streakDay` lets a session that started yesterday still extend yesterday's streak
+  if (d.lastStreakDate && diffDays(d.lastStreakDate, streakDay) > 1) d.streakCount = 0;
   pruneWeekly(d);
   return d;
 }
@@ -186,6 +189,8 @@ export interface RecordSessionInput {
   todoId?: string | null;
   /** Seconds of this session spent on `todoId` (earlier parts were credited when the task changed). Defaults to all of it. */
   todoSeconds?: number;
+  /** re-recording a session that already happened elsewhere (guest/other tab): leave live task-switch stats alone */
+  replay?: boolean;
 }
 
 export interface RecordSessionResult {
@@ -198,25 +203,57 @@ export interface RecordSessionResult {
  * Pure-ish session accounting. Mutates a draft copy of the user data. Ported
  * from v2's handleEndOfWorkSession + updateStreak, plus v3 history.
  */
-/** Credit focused seconds to a task (or to "no task") for its logged time and the per-task / per-category stats. */
-export function creditTask(d: UserData, todo: Todo | undefined, sec: number) {
+/** Stats for time banked mid-session (task switch). Only counted if the session ends up logged. */
+const pendingStats: { at: number; day: string; text: string | null; canon: string | null; sec: number }[] = [];
+
+function addStats(d: UserData, day: string, text: string | null, canon: string | null, sec: number) {
+  d.weeklyCategorySecondsByDate[day] ??= {};
+  d.weeklyTaskSecondsByDate[day] ??= {};
+  if (text) inc(d.weeklyTaskSecondsByDate[day], text.slice(0, 60), sec);
+  if (canon) inc(d.weeklyCategorySecondsByDate[day], canon, sec);
+  else inc(d.weeklyAnonymousSeconds, day, sec);
+}
+
+/**
+ * Credit focused seconds to a task's own logged time. The per-task / per-category stats are only
+ * added if the session is logged (see recordFocusSession); a reset or a sub-30s session never reaches them.
+ */
+export function creditTask(_d: UserData, todo: Todo | undefined, sec: number) {
   if (!(sec > 0)) return;
-  const today = dateKey();
-  d.weeklyCategorySecondsByDate[today] ??= {};
-  d.weeklyTaskSecondsByDate[today] ??= {};
-  if (todo) {
-    todo.loggedSeconds = (todo.loggedSeconds || 0) + sec;
-    inc(d.weeklyTaskSecondsByDate[today], todo.text.slice(0, 60), sec);
+  if (todo) todo.loggedSeconds = (todo.loggedSeconds || 0) + sec;
+  pendingStats.push({ at: Date.now(), day: dateKey(), text: todo?.text ?? null, canon: todo?.canonicalId ? String(todo.canonicalId) : null, sec });
+  if (pendingStats.length > 50) pendingStats.splice(0, pendingStats.length - 50);
+}
+
+/** Split a session's seconds across the local days it covered, in order. */
+export function splitByDay(startedAt: number, sec: number): [string, number][] {
+  const out: [string, number][] = [];
+  let cursor = startedAt;
+  let left = sec;
+  while (left > 0) {
+    const t = new Date(cursor);
+    const toMidnight = Math.max(1, Math.ceil((new Date(t.getFullYear(), t.getMonth(), t.getDate() + 1).getTime() - cursor) / 1000));
+    const chunk = Math.min(left, toMidnight);
+    const k = dateKey(t);
+    const last = out[out.length - 1];
+    if (last && last[0] === k) last[1] += chunk;
+    else out.push([k, chunk]);
+    left -= chunk;
+    cursor += chunk * 1000;
   }
-  if (todo?.canonicalId) inc(d.weeklyCategorySecondsByDate[today], String(todo.canonicalId), sec);
-  else inc(d.weeklyAnonymousSeconds, today, sec);
+  return out;
 }
 
 export function recordFocusSession(d: UserData, input: RecordSessionInput): RecordSessionResult {
   const sec = Math.max(0, Math.round(Math.min(input.seconds, 6 * 3600)));
-  const today = dateKey();
   const result: RecordSessionResult = { streak: 'none', autoCompletedTodo: null, goalReached: false };
   if (sec <= 0) return result;
+  const now = Date.now();
+  const startedAt = Number.isFinite(input.startedAt) && input.startedAt > 0 && input.startedAt <= now + 60000 ? input.startedAt : now - sec * 1000;
+  // a session over midnight is split across both days (the session itself counts on the day it started)
+  const days = splitByDay(startedAt, sec);
+  const startDay = days[0][0];
+  const today = days[days.length - 1][0];
 
   const goalSec = (d.settings.dailyGoalMinutes ?? 120) * 60;
   const before = d.dailyFocusSeconds?.[today] ?? 0;
@@ -224,20 +261,22 @@ export function recordFocusSession(d: UserData, input: RecordSessionInput): Reco
   d.totalFocusSeconds += sec;
   d.totalFocusMinutes = Math.floor(d.totalFocusSeconds / 60);
   d.totalSessions += 1;
-  inc(d.weeklyFocusSeconds, today, sec);
-  d.weeklyFocus[today] = Math.floor(d.weeklyFocusSeconds[today] / 60);
   d.dailyFocusSeconds ??= {};
-  inc(d.dailyFocusSeconds, today, sec);
+  for (const [k, s] of days) {
+    inc(d.weeklyFocusSeconds, k, s);
+    d.weeklyFocus[k] = Math.floor(d.weeklyFocusSeconds[k] / 60);
+    inc(d.dailyFocusSeconds, k, s);
+  }
   if (d.lastSessionDate !== today) {
     d.todaySessions = 1;
     d.lastSessionDate = today;
   } else d.todaySessions += 1;
-  inc(d.weeklySessions, today);
-  inc(input.completed ? d.weeklyCompletedSessions : d.weeklyEarlyEndedSessions, today);
+  inc(d.weeklySessions, startDay);
+  inc(input.completed ? d.weeklyCompletedSessions : d.weeklyEarlyEndedSessions, startDay);
 
   // Spread the seconds across hour buckets the session actually covered
   d.hourlyFocusSeconds ??= Array(24).fill(0);
-  let cursor = input.startedAt;
+  let cursor = startedAt;
   let left = sec;
   while (left > 0) {
     const t = new Date(cursor);
@@ -248,12 +287,13 @@ export function recordFocusSession(d: UserData, input: RecordSessionInput): Reco
     cursor += chunk * 1000;
   }
 
-  // Task attribution
+  // Task attribution: the task's own time, plus the stats for every part of this (logged) session
   const todo = input.todoId ? d.todos.find((t) => t.id === input.todoId && !t.completed) : undefined;
-  d.weeklyCategorySecondsByDate[today] ??= {};
-  d.weeklyTaskSecondsByDate[today] ??= {};
-  creditTask(d, todo, Math.min(sec, Math.max(0, Math.round(input.todoSeconds ?? sec))));
-  if (!todo?.canonicalId) inc(d.weeklyAnonymousSessions, today);
+  const share = Math.min(sec, Math.max(0, Math.round(input.todoSeconds ?? sec)));
+  if (todo) todo.loggedSeconds = (todo.loggedSeconds || 0) + share;
+  if (share > 0) addStats(d, today, todo?.text ?? null, todo?.canonicalId ? String(todo.canonicalId) : null, share);
+  if (!input.replay) for (const p of pendingStats.splice(0)) if (p.at >= startedAt) addStats(d, p.day, p.text, p.canon, p.sec);
+  if (!todo?.canonicalId) inc(d.weeklyAnonymousSessions, startDay);
   if (todo) {
     const est = (todo.estimateMinutes || 0) * 60;
     if (est > 0 && (todo.loggedSeconds || 0) >= est) {
@@ -271,7 +311,7 @@ export function recordFocusSession(d: UserData, input: RecordSessionInput): Reco
 
   d.sessionLog ??= [];
   d.sessionLog.push({
-    at: input.startedAt,
+    at: startedAt,
     sec,
     done: input.completed,
     task: todo?.text?.slice(0, 80) ?? null,
@@ -279,15 +319,18 @@ export function recordFocusSession(d: UserData, input: RecordSessionInput): Reco
   });
   if (d.sessionLog.length > 150) d.sessionLog.splice(0, d.sessionLog.length - 150);
 
-  result.streak = bumpStreak(d);
+  // streak: the start day first, then the end day (so a session over midnight keeps a streak alive)
+  for (const [k] of days) {
+    const r = bumpStreak(d, k);
+    if (r === 'reset' || (r === 'inc' && result.streak === 'none')) result.streak = r;
+  }
   result.goalReached = before < goalSec && before + sec >= goalSec;
   pruneWeekly(d);
   return result;
 }
 
-function bumpStreak(d: UserData): 'inc' | 'reset' | 'none' {
-  const today = dateKey();
-  if (d.lastStreakDate === today) return 'none';
+function bumpStreak(d: UserData, today: string): 'inc' | 'reset' | 'none' {
+  if (d.lastStreakDate && d.lastStreakDate >= today) return 'none';
   let change: 'inc' | 'reset' = 'inc';
   if (!d.lastStreakDate) d.streakCount = 1;
   else {

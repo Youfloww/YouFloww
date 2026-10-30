@@ -51,6 +51,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const r = await activate(orderId, paymentId, 'checkout');
+    if (!r.ok && r.reason === 'refunded') return fail(409, 'This order was not activated in time, so the payment has been returned to you.');
     if (!r.ok) return fail(409, 'This order was already paid with a different payment. Please contact us with your payment ID.');
     return json(200, { pledgeId: r.pledgeId, status: r.status, duplicate: r.duplicate, mode: order.mode });
   });

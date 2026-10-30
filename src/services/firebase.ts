@@ -31,6 +31,11 @@ async function load() {
   } catch {
     db = fsMod.getFirestore(app);
   }
+  // Dev only (stripped from production builds): `?emu` talks to local Auth + Firestore emulators, never the live project
+  if (import.meta.env.DEV && new URLSearchParams(location.search).has('emu')) {
+    authMod.connectAuthEmulator(auth, 'http://127.0.0.1:9199', { disableWarnings: true });
+    fsMod.connectFirestoreEmulator(db, '127.0.0.1', 8188);
+  }
   return { app, auth, db, authMod, fsMod };
 }
 

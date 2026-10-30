@@ -125,7 +125,8 @@ export function ActiveView({ p }: { p: PledgeDoc }) {
 
 export function OutcomeView({ p, charity, onDone }: { p: PledgeDoc; charity: string; onDone: () => void }) {
   const kept = p.outcome === 'met';
-  const duplicate = p.outcome === 'duplicate';
+  const unclaimed = p.outcome === 'unclaimed';
+  const duplicate = p.outcome === 'duplicate' || unclaimed;
   const donated = p.status === 'forfeited';
   const money = rupees(p.amountPaise);
   const got = p.progressSeconds ?? 0;
@@ -138,10 +139,12 @@ export function OutcomeView({ p, charity, onDone }: { p: PledgeDoc; charity: str
         <Medallion src={donated ? ART.charity : ART.refund} size={168} />
       </motion.div>
       <h2 className="font-display text-[30px] leading-tight font-semibold">
-        {duplicate ? 'We refunded a second payment' : kept ? 'You kept your promise!' : 'This one got away'}
+        {unclaimed ? 'We refunded a payment that never started' : duplicate ? 'We refunded a second payment' : kept ? 'You kept your promise!' : 'This one got away'}
       </h2>
       <p className="max-w-[460px] text-[15px] leading-relaxed text-muted">
-        {duplicate ? (
+        {unclaimed ? (
+          <>Your {money} payment came through, but the pledge didn&rsquo;t start in time, so it is being refunded in full. Refunds take 5&ndash;7 working days.</>
+        ) : duplicate ? (
           <>You already had an active pledge, so this extra {money} payment is being refunded in full. Refunds take 5&ndash;7 working days.</>
         ) : kept ? (
           <>
