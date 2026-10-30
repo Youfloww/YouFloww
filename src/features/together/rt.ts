@@ -95,8 +95,9 @@ export class AuthNeeded extends Error {
   }
 }
 
-/** Emulator mode (explicit flag only): `?emu=1` on the first load, or localStorage['together:emu']='1'. */
+/** Emulator mode, dev builds only (explicit flag): `?emu=1` on the first load, or localStorage['together:emu']='1'. */
 const EMU =
+  import.meta.env.DEV &&
   typeof location !== 'undefined' &&
   (new URLSearchParams(location.search).get('emu') === '1' ||
     (() => {

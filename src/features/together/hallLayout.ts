@@ -62,11 +62,10 @@ export const SEATS: SeatSpot[] = spots
   .map((x) => x.s);
 
 /** Foreground props (parallax layer, moves faster than the room). x in 0..1 of the layer, h in room units. */
+// Tall pieces only at the far edges and low ones along the bottom, so a prop never stands in front of a person.
 export const PROPS: { img: string; x: number; h: number; drop: number; blur?: number }[] = [
   { img: 'monstera', x: 0.01, h: 0.42, drop: 0.07 },
-  { img: 'books', x: 0.2, h: 0.24, drop: 0.06 },
-  { img: 'fern', x: 0.39, h: 0.36, drop: 0.08 },
-  { img: 'cart', x: 0.6, h: 0.27, drop: 0.06 },
-  { img: 'lamp', x: 0.79, h: 0.5, drop: 0.05 },
+  { img: 'books', x: 0.24, h: 0.17, drop: 0.08 },
+  { img: 'cart', x: 0.64, h: 0.18, drop: 0.09 },
   { img: 'monstera', x: 0.93, h: 0.4, drop: 0.08 },
 ];
