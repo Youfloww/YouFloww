@@ -312,7 +312,8 @@ function useViewport() {
 }
 
 function Backdrop({ view }: { view: CafeView }) {
-  const online = usePresence((s) => s.online);
+  const focusing = usePresence((s) => s.focusing);
+  const meFocusing = useTimer((s) => s.status === 'running' && s.mode === 'focus');
   const { w, h } = useViewport();
   // the painting is wider than a phone: which slice of it (in %) is on screen
   const artW = Math.max(w, 1.5 * h);
@@ -349,10 +350,17 @@ function Backdrop({ view }: { view: CafeView }) {
             <Rain />
           </Art>
         )}
-        {view === 'regulars' && online !== null && online > 0 && (
-          <div className="absolute top-[calc(max(16px,env(safe-area-inset-top))+56px)] left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#fffaf1]/95 px-3 py-1.5 text-xs font-extrabold whitespace-nowrap text-[#3b2a20] shadow-md">
-            <span className="size-2 rounded-full bg-[#2fbf85]" />
-            {online === 1 ? 'Just you in YouFloww right now' : `${online} people focusing in YouFloww right now`}
+        {view === 'regulars' && (
+          <div className="absolute top-[calc(max(16px,env(safe-area-inset-top))+56px)] left-1/2 flex -translate-x-1/2 flex-col items-center gap-1.5">
+            {focusing !== null && focusing > 0 && (
+              <div className="flex items-center gap-2 rounded-full bg-[#fffaf1]/95 px-3 py-1.5 text-xs font-extrabold whitespace-nowrap text-[#3b2a20] shadow-md">
+                <span className="size-2 rounded-full bg-[#2fbf85]" />
+                {focusing === 1 && meFocusing ? 'Just you focusing right now' : `${focusing} focusing right now`}
+              </div>
+            )}
+            <div className="rounded-full bg-[#fffaf1]/80 px-2.5 py-1 text-[10px] font-bold whitespace-nowrap text-[#6b5444] shadow-sm">
+              Mochi, Bruno, Miso &amp; Pip are the café&apos;s painted regulars
+            </div>
           </div>
         )}
       </motion.div>

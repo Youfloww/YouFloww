@@ -74,5 +74,7 @@ export function settledOutcome(ride: Ride): { done: boolean; fraction: number } 
   const log = useData.getState().data.sessionLog ?? [];
   const entry = [...log].reverse().find((e) => Math.abs(e.at - ride.at) < 1500);
   if (!entry) return null;
-  return { done: entry.done, fraction: entry.done ? 1 : Math.min(1, entry.sec / (ride.min * 60)) };
+  // real logged time must cover the booked ride (the countdown can be shortened with adjust)
+  const arrived = entry.done && entry.sec >= ride.min * 60 - 60;
+  return { done: arrived, fraction: arrived ? 1 : Math.min(1, entry.sec / (ride.min * 60)) };
 }

@@ -81,8 +81,9 @@ export function Departures({ airports, mine }: { airports: Airport[]; mine: LogE
   const pubRows: Row[] = useMemo(
     () =>
       (pub ?? []).slice(0, 12).map((p) => {
-        const air = now < p.createdAt + p.minutes * 60_000;
-        return { key: p.id, time: hhmm(p.createdAt), no: flightNo(p.from, p.to), from: p.from, to: city(p.to), status: air ? 'IN AIR' : 'DEPARTED', tone: air ? 'air' : 'dim' };
+        // the board can't know whether it landed, was diverted or cancelled: only say it left
+        const fresh = now < p.createdAt + p.minutes * 60_000;
+        return { key: p.id, time: hhmm(p.createdAt), no: flightNo(p.from, p.to), from: p.from, to: city(p.to), status: fresh ? 'BOARDED' : 'DEPARTED', tone: fresh ? 'air' : 'dim' };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [pub, now, byIata],

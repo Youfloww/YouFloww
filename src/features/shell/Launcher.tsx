@@ -42,7 +42,7 @@ export default function Launcher() {
                 <p className="text-sm font-bold text-muted">Places to focus in, and little lives that grow while you work.</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="glass flex h-10 items-center gap-1.5 rounded-full px-3.5 text-sm font-extrabold" title="Fish coins: 1 per focused minute">
+                <span className="glass flex h-10 items-center gap-1.5 rounded-full px-3.5 text-sm font-extrabold" title="Fish coins: 1 per minute you really focus (paused time does not count, ending early still pays the minutes done). +25% once a day on a streak day, +10 once a day for your goal.">
                   🐟 <span className="tabular">{coins}</span>
                 </span>
                 <button onClick={() => set({ launcher: false })} aria-label="Close" className="pressable grid size-10 place-items-center rounded-full hover:bg-line">

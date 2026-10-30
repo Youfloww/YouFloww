@@ -64,13 +64,13 @@ export function TopBar({ onMedia }: { onMedia: boolean }) {
       <Logo onMedia={onMedia} />
       <div className="flex items-center gap-2">
         {online !== null && (
-          <button className={pill} onClick={() => openPanel('community')} title={`${online} flowing now${focusing ? ` · ${focusing} in deep focus` : ''}`}>
+          <button className={pill} onClick={() => openPanel('community')} title={`${online} online now${focusing ? ` · ${focusing} focusing` : ''}`}>
             <span className="relative flex size-2.5">
               <span className="absolute inline-flex size-full animate-ping rounded-full bg-good opacity-60" />
               <span className="relative inline-flex size-2.5 rounded-full bg-good" />
             </span>
             <span className="tabular">{online}</span>
-            <span className="hidden opacity-70 md:inline">flowing now</span>
+            <span className="hidden opacity-70 md:inline">online</span>
           </button>
         )}
         <button className={pill} onClick={() => openPanel('stats')} title={`Streak ${stats.streak} · today ${Math.round(stats.goalProgress * 100)}% of goal`}>
@@ -85,7 +85,7 @@ export function TopBar({ onMedia }: { onMedia: boolean }) {
           <span className="mx-0.5 h-4 w-px bg-current opacity-20" />
           <GoalRing value={stats.goalProgress} />
         </button>
-        <button className={pill} onClick={() => setUI({ launcher: true })} title="Fish coins: 1 per focused minute. Spend them in the worlds.">
+        <button className={pill} onClick={() => setUI({ launcher: true })} title="Fish coins: 1 per focused minute you really log (ending early still pays the minutes done; paused time does not). Bonuses: +25% on the first session that extends your streak each day, +10 once a day for reaching your goal.">
           <span className="text-base">🐟</span>
           <motion.span key={coins} initial={{ scale: 1.5, color: 'var(--accent)' }} animate={{ scale: 1, color: 'currentColor' }} transition={{ duration: 0.5 }} className="tabular">
             {coins}

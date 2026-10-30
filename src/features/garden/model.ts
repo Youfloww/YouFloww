@@ -32,6 +32,9 @@ export interface Pot {
   /** date key of the last watering */
   watered: string;
   bloomed?: number;
+  /** planted mid-session: that session's `sessionStartedAt` and the seconds already focused when planting */
+  skipAt?: number;
+  skip?: number;
 }
 
 export interface GardenPlant {
@@ -93,8 +96,20 @@ export const needSec = (p: Pick<Pot, 'species'>) => speciesOf(p.species).minutes
 /** Growth 0..1 right now: banked + not-yet-banked focus + the running session's seconds. */
 export function growthOf(p: Pot, total: number, liveSec = 0) {
   if (p.bloomed) return 1;
-  const pending = Math.max(0, total + liveSec - p.mark);
+  const { recorded, live } = skipOf(p);
+  const pending = Math.max(0, total - p.mark - recorded) + Math.max(0, liveSec - live);
   return Math.min(1, (p.sec + pending * thirstOf(p.watered).mult) / needSec(p));
+}
+
+/**
+ * Focus done before planting in the same session must not count. It is skipped while that session is still live,
+ * and once it is in the session log; if the session was never logged (reset) nothing is skipped.
+ */
+function skipOf(p: Pot) {
+  if (!p.skipAt || !p.skip) return { recorded: 0, live: 0 };
+  if ((useData.getState().data.sessionLog ?? []).some((e) => e.at === p.skipAt)) return { recorded: p.skip, live: 0 };
+  const t = useTimer.getState();
+  return { recorded: 0, live: t.mode === 'focus' && t.status !== 'idle' && t.sessionStartedAt === p.skipAt ? p.skip : 0 };
 }
 
 /** Move finished focus into the pot. Returns true when this made it bloom. */
@@ -112,7 +127,11 @@ export function bank(): boolean {
   update((d) => {
     const q = d.pot;
     if (!q) return;
-    const pending = total - q.mark;
+    const pending = Math.max(0, total - q.mark - skipOf(q).recorded);
+    if (skipOf(q).recorded) {
+      q.skip = 0;
+      q.skipAt = undefined;
+    }
     q.sec += pending * thirstOf(q.watered).mult;
     q.raw += pending;
     q.mark = total;
@@ -201,7 +220,9 @@ export function plantSeed(s: PlantSpeciesId, liveSec = 0): boolean {
   update((d) => {
     d.freeUsed = true;
     // a seed planted mid-session only counts the rest of that session
-    d.pot = { id: uid(), species: s, planted: Date.now(), sec: 0, raw: 0, mark: total + Math.round(liveSec), watered: dateKey() };
+    const at = useTimer.getState().sessionStartedAt;
+    const skip = at && liveSec > 0 ? Math.round(liveSec) : 0;
+    d.pot = { id: uid(), species: s, planted: Date.now(), sec: 0, raw: 0, mark: total, watered: dateKey(), ...(skip ? { skipAt: at!, skip } : {}) };
   });
   return true;
 }

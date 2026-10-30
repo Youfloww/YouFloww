@@ -122,7 +122,14 @@ export default function Train() {
     const s = useTimer.getState();
     if (s.mode === 'focus' && s.status !== 'idle' && s.sessionStartedAt === r.at) return;
     const o = settledOutcome(r);
-    finalize(r, o?.done ?? false, o?.fraction ?? fracRef.current);
+    if (!o) {
+      // never logged (reset or under 30 s): nothing was earned, so just drop the ride
+      update((d) => {
+        if (d.ride && d.ride.at === r.at) d.ride = null;
+      });
+      return;
+    }
+    finalize(r, o.done, o.fraction);
   }, [finalize]);
 
   useEffect(() => {

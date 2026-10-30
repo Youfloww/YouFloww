@@ -34,6 +34,8 @@ interface TimerState {
   aliveAt: number | null;
   /** the page closed mid-focus, so the session was paused right then (a welcome-back note offers Resume) */
   leftMidSession: boolean;
+  /** the tab that runs this session (others follow it), so two open tabs never count it twice */
+  ownerTab: string | null;
 
   set: (p: Partial<TimerState>) => void;
 }
@@ -60,6 +62,7 @@ export const useTimer = create<TimerState>()(
       autoPaused: false,
       aliveAt: null,
       leftMidSession: false,
+      ownerTab: null,
       set: (p) => set(p),
     }),
     { name: 'floww:timer', version: 1 },

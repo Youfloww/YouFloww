@@ -14,9 +14,18 @@ import { usePrefs } from '@/store/prefs';
 /* ------------------------------------------------------------------ */
 let worker: Worker | null = null;
 let fallback: ReturnType<typeof setInterval> | null = null;
+/** this tab, so two open tabs agree on who runs a session */
+const TAB = Math.random().toString(36).slice(2, 10);
+/** last tick, to notice when the page stopped ticking (computer asleep, tab frozen) */
+let lastTickAt = 0;
+/** last sign of a person (key, tap, coming back to the tab), so auto-start never runs focus for nobody */
+let lastInputAt = Date.now();
+/** when auto-start last began a focus session by itself */
+let autoFocusAt = 0;
 
 function startTicking() {
   stopTicking();
+  lastTickAt = Date.now();
   try {
     if (!worker) {
       const code = 'let t;onmessage=e=>{clearInterval(t);if(e.data>0)t=setInterval(()=>postMessage(0),e.data)}';
@@ -54,11 +63,28 @@ function checkIns(rem: number, s: ReturnType<typeof useTimer.getState>) {
 
 function tick() {
   const now = Date.now();
+  const gap = lastTickAt ? now - lastTickAt : 0;
+  lastTickAt = now;
   useClock.setState({ now });
   const s = useTimer.getState();
   if (s.status !== 'running') return;
   const rem = remainingAt(s, now);
   const sec = Math.ceil(rem / 1000);
+  if (s.ownerTab && s.ownerTab !== TAB) {
+    // another tab runs this session: only show it, unless that tab went quiet (closed or crashed without a word)
+    if (now - (s.aliveAt ?? 0) < 15_000) {
+      if (sec !== lastSecond) updateTitle(rem, s.mode);
+      lastSecond = sec;
+      return;
+    }
+    useTimer.setState({ ownerTab: TAB, aliveAt: now });
+  } else if (s.mode === 'focus' && gap > 60_000 && s.endAt && now - gap < s.endAt) {
+    // the page stopped ticking for a while (asleep, frozen): stop at the last tick and ask
+    const snap = snapshot(s);
+    freezeAt(now - gap, false);
+    askAboutGap(snap, gap);
+    return;
+  }
   // heartbeat, so a crash or a killed tab can be cut off at the last moment we know the page was open
   if (now - (s.aliveAt ?? 0) > 5000) useTimer.setState({ aliveAt: now });
   if (sec !== lastSecond) {
@@ -88,7 +114,7 @@ export function start() {
   const now = Date.now();
   const fresh = s.status === 'idle';
   // An idle countdown may have been adjusted (±5 min, "Just 5 min", "10 more min"), so start from what's shown
-  const remaining = s.remainingMs > 0 ? s.remainingMs : durationFor(s.mode);
+  const remaining = s.remainingMs > 0 ? s.remainingMs : fresh ? durationFor(s.mode) : 1000;
   useTimer.setState({
     status: 'running',
     durationMs: fresh ? remaining : s.durationMs,
@@ -100,6 +126,7 @@ export function start() {
     autoPaused: false,
     aliveAt: now,
     leftMidSession: false,
+    ownerTab: TAB,
   });
   startTicking();
   haptic(12);
@@ -167,6 +194,7 @@ export function reset(mode: Mode = useTimer.getState().mode) {
     autoPaused: false,
     aliveAt: null,
     leftMidSession: false,
+    ownerTab: null,
   });
   stopTicking();
   lastSecond = -1;
@@ -220,11 +248,8 @@ export function resetTimer() {
 export function setMode(mode: Mode) {
   const s = useTimer.getState();
   if (s.mode === mode && s.status === 'idle') return;
-  if (s.status !== 'idle' && s.mode === 'focus') {
-    const elapsed = elapsedAt(s, Date.now());
-    if (elapsed > 60_000) endEarly();
-    else bankTaskTime();
-  }
+  // the same rule the confirm dialog states (30 s and up is logged; under that, task time is still kept)
+  if (s.status !== 'idle' && s.mode === 'focus') endEarly();
   reset(mode);
   play('pop');
 }
@@ -234,11 +259,12 @@ export function adjust(minutes: number) {
   const s = useTimer.getState();
   const delta = minutes * 60_000;
   if (s.status === 'running' && s.endAt) {
-    const rem = s.endAt - Date.now();
-    if (rem + delta < 30_000) return;
+    const now = Date.now();
+    const rem = s.endAt - now;
+    if (rem + delta < 30_000 || elapsedAt(s, now) + rem + delta > 6 * 3600_000) return;
     useTimer.setState({ endAt: s.endAt + delta, durationMs: Math.max(60_000, s.durationMs + delta) });
   } else {
-    const next = Math.min(6 * 3600_000, Math.max(60_000, s.remainingMs + delta));
+    const next = Math.min(6 * 3600_000 - (s.status === 'paused' ? s.focusedMs : 0), Math.max(60_000, s.remainingMs + delta));
     useTimer.setState({ remainingMs: next, durationMs: s.status === 'idle' ? next : s.durationMs + (next - s.remainingMs) });
   }
   haptic(6);
@@ -311,7 +337,12 @@ export function complete() {
     bus.emit('break:complete', { long });
     notify('Break is over ✨', 'Ready for another round of focus?');
     toast({ emoji: '✨', title: 'Break over', body: 'Ready when you are.', action: { label: 'Start focus', run: start } });
-    if (settings.autoStartFocus) setTimeout(start, 1200);
+    // auto-start runs at most one focus session in a row for nobody: after that it waits for a key or a tap
+    if (settings.autoStartFocus && !(autoFocusAt && lastInputAt < autoFocusAt))
+      setTimeout(() => {
+        autoFocusAt = Date.now();
+        start();
+      }, 1200);
   }
 }
 
@@ -324,10 +355,12 @@ const focusing = () => {
 };
 
 /** Stop a running focus session at `at` (the moment the page went away) and keep it paused there. */
-function freezeAt(at: number) {
+function freezeAt(at: number, left = true) {
   const s = useTimer.getState();
   if (s.status !== 'running' || s.mode !== 'focus' || !s.endAt || !s.runStartedAt) return;
-  const cut = Math.max(s.runStartedAt, Math.min(at, s.endAt));
+  // it had already run out: that's a finished session, not a pause at 00:00
+  if (at >= s.endAt) return complete();
+  const cut = Math.max(s.runStartedAt, at);
   useTimer.setState({
     status: 'paused',
     remainingMs: Math.max(0, s.endAt - cut),
@@ -336,9 +369,33 @@ function freezeAt(at: number) {
     runStartedAt: null,
     autoPaused: false,
     aliveAt: null,
-    leftMidSession: true,
+    leftMidSession: left,
+    ownerTab: null,
   });
   stopTicking();
+}
+
+type Snapshot = Pick<ReturnType<typeof useTimer.getState>, 'endAt' | 'runStartedAt' | 'focusedMs' | 'remainingMs' | 'sessionStartedAt'>;
+const snapshot = (s: Snapshot): Snapshot => ({ endAt: s.endAt, runStartedAt: s.runStartedAt, focusedMs: s.focusedMs, remainingMs: s.remainingMs, sessionStartedAt: s.sessionStartedAt });
+
+/** YouFloww couldn't see the page for `gap` ms (asleep, frozen, killed): the person decides if that was focus */
+function askAboutGap(snap: Snapshot, gap: number) {
+  useUI.getState().set({
+    confirm: {
+      emoji: '💤',
+      title: 'Were you focusing?',
+      body: `YouFloww couldn’t see this page for ${formatDuration(Math.round(gap / 1000), { long: true })} (screen off, asleep or closed). Your session is paused there. Count that time as focus?`,
+      cancelLabel: 'No, keep it paused',
+      confirmLabel: 'Yes, count it',
+      onConfirm: () => {
+        const t = useTimer.getState();
+        if (t.status !== 'paused' || t.mode !== 'focus' || t.sessionStartedAt !== snap.sessionStartedAt) return;
+        useTimer.setState({ ...snap, status: 'running', autoPaused: false, aliveAt: Date.now(), leftMidSession: false, ownerTab: TAB });
+        startTicking();
+        tick();
+      },
+    },
+  });
 }
 
 function welcomeBack() {
@@ -360,12 +417,19 @@ function welcomeBack() {
 
 /** Run `fn` now, or as soon as no focus session is running (used to apply app updates between sessions). */
 export function whenNotFocusing(fn: () => void) {
-  if (!focusing()) return fn();
-  const off = useTimer.subscribe(() => {
-    if (focusing()) return;
+  const busy = () => {
+    const s = useTimer.getState();
+    return s.mode === 'focus' && (s.status === 'running' || (s.status === 'paused' && document.visibilityState === 'visible'));
+  };
+  if (!busy()) return fn();
+  const check = () => {
+    if (busy()) return;
     off();
+    document.removeEventListener('visibilitychange', check);
     fn();
-  });
+  };
+  const off = useTimer.subscribe(check);
+  document.addEventListener('visibilitychange', check);
 }
 
 /** Called once on boot: restore the timer honestly, and watch for the page closing mid-session. */
@@ -373,11 +437,17 @@ export function hydrateTimer() {
   const s = useTimer.getState();
   if (s.status === 'running') {
     const now = Date.now();
-    if (s.mode === 'focus') {
-      // The page closed without saying so (crash, killed tab): stop the clock at the last moment it was open
-      const cut = Math.min(now, s.aliveAt ?? now);
-      if (s.endAt && s.endAt <= cut) setTimeout(complete, 900);
-      else freezeAt(cut);
+    const alive = s.aliveAt ?? now;
+    if (s.mode === 'focus' && now - alive < 7000) startTicking(); // another open tab runs it: follow along
+    else if (s.mode === 'focus') {
+      // The page closed without saying so (crash, killed tab): stop the clock at the last moment it was open, then ask
+      useTimer.setState({ ownerTab: TAB });
+      if (s.endAt && s.endAt <= alive) setTimeout(complete, 900);
+      else {
+        const snap = snapshot(s);
+        freezeAt(alive, false);
+        setTimeout(() => askAboutGap(snap, now - alive), 1500);
+      }
     } else if (s.endAt && s.endAt <= now) setTimeout(complete, 900);
     else startTicking();
   } else if (s.status === 'idle') {
@@ -390,7 +460,24 @@ export function hydrateTimer() {
     e.preventDefault();
     e.returnValue = ''; // older Chrome/Edge need this too
   });
-  window.addEventListener('pagehide', () => freezeAt(Date.now()));
+  window.addEventListener('pagehide', () => {
+    const t = useTimer.getState();
+    if (!t.ownerTab || t.ownerTab === TAB) freezeAt(Date.now());
+  });
+  // Another tab started, paused or ended a session: show the same timer here
+  window.addEventListener('storage', (e) => {
+    if (e.key !== 'floww:timer') return;
+    void Promise.resolve(useTimer.persist.rehydrate()).then(() => {
+      const t = useTimer.getState();
+      if (t.status === 'running') startTicking();
+      else stopTicking();
+      updateTitle(remainingAt(t, Date.now()), t.mode);
+    });
+  });
+  const seen = () => (lastInputAt = Date.now());
+  window.addEventListener('pointerdown', seen, { capture: true, passive: true });
+  window.addEventListener('keydown', seen, { capture: true, passive: true });
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && seen());
   window.addEventListener('pageshow', (e: PageTransitionEvent) => e.persisted && welcomeBack());
   // Settings changes refresh an idle timer's duration
   let prev = useData.getState().data.settings;

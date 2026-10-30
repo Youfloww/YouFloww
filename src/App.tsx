@@ -20,12 +20,15 @@ import { ConfirmEnd } from './features/timer/ConfirmEnd';
 import { CommandPalette } from './features/shell/CommandPalette';
 import { useShortcuts } from './features/shell/useShortcuts';
 import { PipPortal, usePip } from './features/pip/PipTimer';
-import { start } from './features/timer/engine';
+import { reset, start } from './features/timer/engine';
 import { cn } from './lib/utils';
 import { LayerHost, ModeHost, useTabPresence } from './features/shell/FeatureHosts';
 import { startEarnings } from './features/economy/earnings';
+import { startGardenBanking } from './features/garden/banking';
+import { ChunkBoundary } from './ui/ChunkBoundary';
 
 startEarnings();
+startGardenBanking();
 // the cat hears about sessions even while a world (café, flights, ...) covers her: loaded right after boot, off the main bundle
 void import('./features/cat/life').then((m) => m.startCatLife());
 
@@ -94,7 +97,16 @@ function useAppEffects() {
     const p = new URLSearchParams(location.search);
     const panel = p.get('panel');
     if (panel) useUI.getState().openPanel(panel as never);
-    if (p.get('start') === 'focus' && useTimer.getState().status !== 'running') setTimeout(start, 400);
+    if (p.get('start') === 'focus' && useTimer.getState().status !== 'running')
+      setTimeout(() => {
+        // "Start focusing" means focus, even if the last thing on the clock was a break
+        const t = useTimer.getState();
+        if (t.mode !== 'focus') {
+          if (t.status !== 'idle') return;
+          reset('focus');
+        }
+        start();
+      }, 400);
     // a Study Hall invite (?together=ABCDE): remember it, the hall joins the group after the person picks an animal
     const together = p.get('together');
     if (together) {
@@ -188,12 +200,26 @@ export default function App() {
       </AnimatePresence>
 
       <Suspense fallback={null}>
-        <Panels />
-        <Overlays />
-        {showCat && !mode && <CatWorld />}
-        <LayerHost />
-        <ModeHost />
-        {launcher && <Launcher />}
+        <ChunkBoundary name="panels">
+          <Panels />
+          <Overlays />
+        </ChunkBoundary>
+        {showCat && !mode && (
+          <ChunkBoundary name="cat">
+            <CatWorld />
+          </ChunkBoundary>
+        )}
+        <ChunkBoundary name="layers">
+          <LayerHost />
+        </ChunkBoundary>
+        <ChunkBoundary name="world" key={mode ?? 'home'}>
+          <ModeHost />
+        </ChunkBoundary>
+        {launcher && (
+          <ChunkBoundary name="launcher">
+            <Launcher />
+          </ChunkBoundary>
+        )}
       </Suspense>
       <Celebrations />
       <CommandPalette onPip={pip.supported ? pip.open : undefined} />

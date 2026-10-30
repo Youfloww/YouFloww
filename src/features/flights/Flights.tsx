@@ -222,15 +222,18 @@ export default function Flights() {
         return;
       }
       const base = { from: A, to: B, no: c.no, coins: 0, newCountry: null as string | null, away };
-      const p = out ? (out.done ? 1 : Math.min(1, (out.sec * 1000) / (c.min * 60_000))) : 0;
+      // real logged time must cover the booked flight (the countdown can be shortened with adjust)
+      const arrived = !!out && out.done && out.sec >= c.min * 60 - 60;
+      const p = out ? (arrived ? 1 : Math.min(1, out.sec / (c.min * 60))) : 0;
       const st = flightAt(p, c.km, c.min);
-      if (!out || (!out.done && st.f < 0.01)) {
+      if (!out || (!arrived && st.f < 0.01)) {
         updateFlights((d) => void (d.current = null));
         setArrival({ ...base, kind: 'cancelled', at: A, km: 0, minutes: out ? Math.round(out.sec / 60) : 0 });
-      } else if (out.done) {
+      } else if (arrived) {
+        const already = getFlights().log.some((e) => e.at === c.startedAt);
         const l = recordLanding(c, B, c.km, out.sec / 60, true);
-        const coins = Math.max(2, Math.round(c.min / 15)) + (l.newCountry ? 5 : 0);
-        earn(coins, 'flights:landed');
+        const coins = already ? 0 : Math.max(2, Math.round(c.min / 15)) + (l.newCountry ? 5 : 0);
+        if (coins) earn(coins, 'flights:landed');
         setArrival({ ...base, kind: 'landed', at: B, km: c.km, minutes: Math.round(out.sec / 60), newCountry: l.newCountry, coins });
       } else {
         const at = nearestAirport(airports, along(A, B, st.f)) ?? A;

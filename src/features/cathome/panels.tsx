@@ -33,7 +33,7 @@ function Price({ price, coins, onBuy, label = 'Buy' }: { price: number; coins: n
     <button
       onClick={onBuy}
       disabled={short}
-      title={short ? `${price - coins} more fish coins (1 per focused minute)` : undefined}
+      title={short ? `${price - coins} more fish coins (1 per minute you really focus)` : undefined}
       className="pressable mt-1.5 w-full rounded-xl bg-accent py-1.5 text-[12px] font-extrabold text-accent-ink disabled:bg-line disabled:text-muted"
     >
       {short ? `🐟 ${price} · need ${price - coins}` : price ? `${label} · 🐟 ${price}` : `${label} · Free`}

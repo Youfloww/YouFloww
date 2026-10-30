@@ -47,7 +47,7 @@ export async function refreshCount(fb: FB | null = fbRef) {
       users.set(key, (users.get(key) ?? false) || !!x.isFocusing);
     });
     if (myUid) users.set(myUid, (users.get(myUid) ?? false) || isFocusing());
-    usePresence.setState({ online: Math.max(users.size, 1), focusing: [...users.values()].filter(Boolean).length });
+    usePresence.setState({ online: users.size + (myUid ? 0 : 1), focusing: [...users.values()].filter(Boolean).length });
   } catch {
     /* rules may deny reads for guests: keep last value */
   }
