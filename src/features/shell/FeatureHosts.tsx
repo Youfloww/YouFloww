@@ -1,5 +1,5 @@
 /** Mounts the open mode and the switched-on layers from the feature registry, and nothing else. */
-import { Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useUI } from '@/store/ui';
 import { usePrefs } from '@/store/prefs';
@@ -7,6 +7,10 @@ import { useTimer } from '@/store/timer';
 import { bus } from '@/lib/bus';
 import { LAYERS, MODES, lazyFeature } from '../registry';
 import { isBuddyOpen } from '../pip/PipTimer';
+import { useTogetherLive } from '../together/live';
+
+/** Study Hall / Study Together tray: only downloaded while a hall seat or group is live in this tab. */
+const TogetherTray = lazy(() => import('../together/Tray'));
 
 function ModeLoading({ emoji }: { emoji: string }) {
   return (
@@ -40,17 +44,25 @@ export function ModeHost() {
 export function LayerHost() {
   const choice = usePrefs((s) => s.layers);
   const mode = useUI((s) => s.mode);
-  if (mode) return null;
+  const together = useTogetherLive((s) => s.on);
+  // the tray has its own life: it stays over Home AND over other worlds while a hall seat / group is live
+  const tray = together && (
+    <Suspense fallback={null}>
+      <TogetherTray />
+    </Suspense>
+  );
   return (
     <>
-      {LAYERS.filter((l) => choice[l.id] ?? !!l.defaultOn).map((l) => {
-        const C = lazyFeature(l);
-        return (
-          <Suspense key={l.id} fallback={null}>
-            <C />
-          </Suspense>
-        );
-      })}
+      {tray}
+      {!mode &&
+        LAYERS.filter((l) => choice[l.id] ?? !!l.defaultOn).map((l) => {
+          const C = lazyFeature(l);
+          return (
+            <Suspense key={l.id} fallback={null}>
+              <C />
+            </Suspense>
+          );
+        })}
     </>
   );
 }

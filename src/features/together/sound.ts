@@ -19,6 +19,7 @@ function tone(freq: number, at: number, dur: number, gain: number, type: Oscilla
 /** Soft sounds for the hall. `kudos` = a warm two-note chime, `join` = a tiny pop, `bloom` = a rising arpeggio. */
 let muted = false;
 export const setHallMuted = (m: boolean) => void (muted = m);
+export const isHallMuted = () => muted;
 
 export function hallSound(kind: 'kudos' | 'join' | 'bloom' | 'sad') {
   if (muted) return;
