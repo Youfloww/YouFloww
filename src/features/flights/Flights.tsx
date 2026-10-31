@@ -345,12 +345,13 @@ export default function Flights() {
       }, 1100);
       return true;
     };
-    requestFocusFor(plan.min, `${f.from}→${f.to}`, undefined, '✈️');
+    requestFocusFor(plan.min, `${f.from}→${f.to}`, undefined, '✈️', 'flights');
     if (commit()) return;
     // a session was already running: the app asks first, and we wait for the answer
     const offT = useTimer.subscribe(() => commit() && cleanup());
     const offU = useUI.subscribe((s) => {
-      if (!s.confirm) setTimeout(() => (commit(), cleanup()), 400);
+      // a second question can follow the first (a session on another device): wait until none is open
+      if (!s.confirm) setTimeout(() => !useUI.getState().confirm && (commit(), cleanup()), 400);
     });
     const cleanup = () => {
       offT();

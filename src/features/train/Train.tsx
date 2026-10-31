@@ -170,7 +170,7 @@ export default function Train() {
     const from = booking.rev ? r.to : r.from;
     const to = booking.rev ? r.from : r.to;
     setPending(Date.now());
-    requestFocusFor(booking.min, `${r.name}: ${from} → ${to}`, undefined, '🚆');
+    requestFocusFor(booking.min, `${r.name}: ${from} → ${to}`, undefined, '🚆', 'train');
   };
 
   const leave = () => {

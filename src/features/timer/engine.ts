@@ -1,7 +1,7 @@
 import { bus } from '@/lib/bus';
 import { play } from '@/audio/sfx';
 import { useData } from '@/store/data';
-import { durationFor, elapsedAt, remainingAt, useClock, useTimer, MODE_META, type Mode } from '@/store/timer';
+import { durationFor, elapsedAt, remainingAt, useClock, useTimer, MODE_META, SOURCES, type Mode, type SessionSource } from '@/store/timer';
 import { formatClock, formatDuration } from '@/lib/time';
 import { toast, useUI } from '@/store/ui';
 import { haptic } from '@/lib/utils';
@@ -107,8 +107,53 @@ function updateTitle(rem: number, mode: Mode) {
 /* ------------------------------------------------------------------ */
 /** Set when the current focus run came from "Just 5 min", so finishing can offer momentum. */
 let quickRun = false;
+/** who asked for the next focus session (a world's "start" button); plain starts are named after the open world */
+let nextSource: SessionSource | null = null;
 
+const sourceOf = (id: string, label?: string, emoji?: string): SessionSource => ({ id, label: label ?? SOURCES[id]?.label ?? id, emoji: emoji ?? SOURCES[id]?.emoji ?? '🎯' });
+/** A plain start (space bar, the timer's button): credited to the world that's open, else the main timer. */
+function plainSource(): SessionSource {
+  if (quickRun) return sourceOf('quick');
+  const m = useUI.getState().mode;
+  return sourceOf(m && SOURCES[m] ? m : 'timer');
+}
+
+/** A focus session running on another device of this account (set by the live-session service). */
+export interface Elsewhere {
+  device: string;
+  phone: boolean;
+  label: string;
+  emoji: string;
+  leftMs: number;
+}
+let elsewhere: () => Elsewhere | null = () => null;
+export const setElsewhere = (fn: () => Elsewhere | null) => void (elsewhere = fn);
+
+/** One session at a time, across devices too: starting here while another device focuses asks to move it. */
+function askMove(o: Elsewhere, go: () => void) {
+  useUI.getState().set({
+    confirm: {
+      emoji: o.phone ? '📱' : '💻',
+      title: `You’re focusing on ${o.device}`,
+      body: `${o.emoji} ${o.label} is running there, ${formatClock(o.leftMs)} left. Only one session runs at a time: start here and that one ends, with its minutes logged.`,
+      cancelLabel: 'Keep it there',
+      confirmLabel: 'Move it here',
+      fixed: true,
+      onConfirm: go,
+    },
+  });
+}
+
+/** Start or resume. A focus session never runs on two devices at once. */
 export function start() {
+  const s = useTimer.getState();
+  if (s.status === 'running') return;
+  const o = s.mode === 'focus' ? elsewhere() : null;
+  if (o) return askMove(o, begin);
+  begin();
+}
+
+function begin() {
   const s = useTimer.getState();
   if (s.status === 'running') return;
   const now = Date.now();
@@ -127,7 +172,9 @@ export function start() {
     aliveAt: now,
     leftMidSession: false,
     ownerTab: TAB,
+    source: s.mode !== 'focus' ? null : fresh ? nextSource ?? plainSource() : s.source ?? plainSource(),
   });
+  nextSource = null;
   startTicking();
   haptic(12);
   if (fresh) nudged = new Set();
@@ -138,25 +185,33 @@ export function start() {
   tick();
 }
 
-/** Planner "Focus now": a focus round sized to a time block, locked onto its task when there is one. */
-export function startFocusFor(minutes: number, label: string, todoId?: string | null, emoji = '🗓️') {
-  const s = useTimer.getState();
-  if (s.status !== 'idle' && s.mode === 'focus') endEarly();
-  if (todoId !== undefined) useTimer.setState({ activeTodoId: todoId });
-  reset('focus');
-  const ms = Math.max(1, Math.min(360, Math.round(minutes))) * 60_000;
-  useTimer.setState({ remainingMs: ms, durationMs: ms });
-  start();
-  toast({ emoji, title: `Focusing: ${label}`, body: `${formatDuration(ms / 1000, { long: true })} on the clock` });
+/** A world's "start" (a café order, a train ticket, a planner block…): a focus round of its own length, named after it. */
+export function startFocusFor(minutes: number, label: string, todoId?: string | null, emoji = '🗓️', src = 'planner') {
+  const o = elsewhere();
+  if (o) return askMove(o, () => go());
+  go();
+  function go() {
+    const s = useTimer.getState();
+    if (s.status !== 'idle' && s.mode === 'focus') endEarly();
+    if (todoId !== undefined) useTimer.setState({ activeTodoId: todoId });
+    reset('focus');
+    const ms = Math.max(1, Math.min(360, Math.round(minutes))) * 60_000;
+    useTimer.setState({ remainingMs: ms, durationMs: ms });
+    nextSource = sourceOf(src, label, emoji);
+    begin();
+    toast({ emoji, title: `Focusing: ${label}`, body: `${formatDuration(ms / 1000, { long: true })} on the clock` });
+  }
 }
 
 /** ADHD starter: a tiny focus sprint is easier to begin than a full session. */
 export function startQuick(minutes: number) {
+  const o = elsewhere();
+  if (o) return askMove(o, () => startQuick(minutes));
   reset('focus');
   const ms = minutes * 60_000;
   useTimer.setState({ remainingMs: ms, durationMs: ms });
   quickRun = true;
-  start();
+  begin();
 }
 
 export function pause(auto = false) {
@@ -195,6 +250,7 @@ export function reset(mode: Mode = useTimer.getState().mode) {
     aliveAt: null,
     leftMidSession: false,
     ownerTab: null,
+    source: null,
   });
   stopTicking();
   lastSecond = -1;
@@ -207,7 +263,7 @@ export function reset(mode: Mode = useTimer.getState().mode) {
 /* ------------------------------------------------------------------ */
 type EndKind = 'switch' | 'end' | 'reset' | 'replace';
 
-function askToEnd(kind: EndKind, run: () => void, target?: Mode) {
+function askToEnd(kind: EndKind, run: () => void, target?: Mode, next?: SessionSource) {
   const s = useTimer.getState();
   // Any running or paused session asks first, however short (unless the user turned the question off)
   if (s.status === 'idle' || !usePrefs.getState().confirmEnd) return run();
@@ -221,7 +277,15 @@ function askToEnd(kind: EndKind, run: () => void, target?: Mode) {
       : ['☕', 'Cut your break short?', `You’ll switch to ${MODE_META[target ?? 'focus'].label.toLowerCase()} now.`, 'Keep resting', 'Switch'],
     end: focus ? ['🛑', 'End this session now?', `${logged} Every minute counts!`, 'Keep going', 'End session'] : ['☕', 'Skip the rest of your break?', 'You’ll go straight back to focus mode.', 'Keep resting', 'Skip break'],
     reset: ['🔄', 'Reset the timer?', focus ? `This session (${spent}) won’t count in your stats. Time on your task is kept.` : 'Your break starts over.', 'Keep going', 'Reset'],
-    replace: ['🗓️', 'Start a new focus round?', focus ? `Your current session ends first. ${logged}` : 'Your break ends first.', 'Keep current', 'Start new'],
+    replace: focus
+      ? [
+          '⏱️',
+          'One session at a time',
+          `${s.source ? `${s.source.emoji} ${s.source.label}` : 'A focus session'} is running (${spent} in). Starting ${next ? `${next.emoji} ${next.label}` : 'a new one'} ends it first, so time is never counted twice. ${logged}`,
+          'Keep the current one',
+          'End it & start new',
+        ]
+      : ['☕', 'End your break?', `${next ? `${next.emoji} ${next.label}` : 'A focus session'} starts now.`, 'Keep resting', 'Start focusing'],
   };
   const [emoji, title, body, cancelLabel, confirmLabel] = copy[kind];
   useUI.getState().set({ confirm: { emoji, title, body, cancelLabel, confirmLabel, onConfirm: run } });
@@ -236,8 +300,8 @@ export function requestMode(mode: Mode) {
 export const requestEnd = () => askToEnd('end', endEarly);
 export const requestReset = () => askToEnd('reset', resetTimer);
 /** `task` runs only once the user agrees, and returns the task to lock onto */
-export const requestFocusFor = (minutes: number, label: string, task?: () => string | null, emoji?: string) =>
-  askToEnd('replace', () => startFocusFor(minutes, label, task?.(), emoji));
+export const requestFocusFor = (minutes: number, label: string, task?: () => string | null, emoji?: string, src?: string) =>
+  askToEnd('replace', () => startFocusFor(minutes, label, task?.(), emoji, src), undefined, sourceOf(src ?? 'planner', label, emoji));
 
 /** The Reset button: the session isn't logged, but time already spent on a task still counts for that task. */
 export function resetTimer() {
@@ -281,7 +345,7 @@ export function endEarly() {
   }
   const seconds = Math.round(elapsedAt(s, Date.now()) / 1000);
   if (seconds >= 30) {
-    const res = useData.getState().recordSession({ seconds, completed: false, startedAt: s.sessionStartedAt ?? Date.now() - seconds * 1000, todoId: s.activeTodoId, todoSeconds: taskShare(s, seconds) });
+    const res = useData.getState().recordSession({ seconds, completed: false, startedAt: s.sessionStartedAt ?? Date.now() - seconds * 1000, todoId: s.activeTodoId, todoSeconds: taskShare(s, seconds), src: s.source?.id });
     play('early');
     bus.emit('session:early', { seconds });
     toast({ emoji: '🫧', title: `Logged ${formatDuration(seconds, { long: true })}`, body: 'Ended early — every minute still counts.' });
@@ -311,7 +375,7 @@ export function complete() {
     const wasQuick = quickRun;
     const seconds = Math.round(Math.min(elapsedAt(s, Date.now()), s.durationMs + 5000) / 1000);
     const todo = useData.getState().data.todos.find((t) => t.id === s.activeTodoId);
-    const res = useData.getState().recordSession({ seconds, completed: true, startedAt: s.sessionStartedAt ?? Date.now() - seconds * 1000, todoId: s.activeTodoId, todoSeconds: taskShare(s, seconds) });
+    const res = useData.getState().recordSession({ seconds, completed: true, startedAt: s.sessionStartedAt ?? Date.now() - seconds * 1000, todoId: s.activeTodoId, todoSeconds: taskShare(s, seconds), src: s.source?.id });
     const cycle = s.cycle + 1;
     const mode = nextMode(cycle);
     useTimer.setState({ cycle, activeTodoId: res.autoCompletedTodo ? null : s.activeTodoId });
@@ -387,6 +451,7 @@ function askAboutGap(snap: Snapshot, gap: number) {
       body: `YouFloww couldn’t see this page for ${formatDuration(Math.round(gap / 1000), { long: true })} (screen off, asleep or closed). Your session is paused there. Count that time as focus?`,
       cancelLabel: 'No, keep it paused',
       confirmLabel: 'Yes, count it',
+      fixed: true,
       onConfirm: () => {
         const t = useTimer.getState();
         if (t.status !== 'paused' || t.mode !== 'focus' || t.sessionStartedAt !== snap.sessionStartedAt) return;

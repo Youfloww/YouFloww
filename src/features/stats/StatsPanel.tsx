@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Share2 } from 'lucide-react';
 import { useData } from '@/store/data';
 import { useUI, toast } from '@/store/ui';
+import { SOURCES } from '@/store/timer';
 import { deriveStats } from '@/data/model';
 import { addDays, dateKey, formatDuration, keyToDate, lastNDays, relativeDay } from '@/lib/time';
 import { Button, Card, Segmented, SectionTitle } from '@/ui/primitives';
@@ -68,6 +69,16 @@ export default function StatsPanel() {
       .slice(0, 6);
   }, [d]);
 
+  // every section runs the same one timer; this is where its minutes were started (older sessions don't say)
+  const places = useMemo(() => {
+    const since = Date.now() - 30 * 86400_000;
+    const totals = new Map<string, number>();
+    for (const e of d.sessionLog ?? []) if (e.src && e.at >= since) totals.set(e.src, (totals.get(e.src) ?? 0) + e.sec);
+    return [...totals]
+      .map(([id, v]) => ({ label: SOURCES[id] ? `${SOURCES[id].emoji} ${SOURCES[id].label}` : id, value: v }))
+      .sort((a, b) => b.value - a.value);
+  }, [d.sessionLog]);
+
   const recent = (d.sessionLog ?? []).slice(-8).reverse();
   const unlocked = Object.keys(d.achievements ?? {}).length;
   const fmtMin = (m: number) => formatDuration(m * 60);
@@ -119,6 +130,15 @@ export default function StatsPanel() {
         </Card>
       </section>
 
+      {places.length > 0 && (
+        <section>
+          <SectionTitle>Where you focused · 30d</SectionTitle>
+          <Card>
+            <HBars rows={places} format={(v) => formatDuration(v)} />
+          </Card>
+        </section>
+      )}
+
       {cats.length > 0 && (
         <section>
           <SectionTitle>Where your time went · 7d</SectionTitle>
@@ -144,6 +164,7 @@ export default function StatsPanel() {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-extrabold">{r.task || (r.done ? 'Focus session' : 'Ended early')}</span>
                   <span className="block text-xs font-bold text-muted">
+                    {r.src && SOURCES[r.src] ? `${SOURCES[r.src].emoji} ${SOURCES[r.src].label} · ` : ''}
                     {relativeDay(dateKey(new Date(r.at)))} · {new Date(r.at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
                   </span>
                 </span>

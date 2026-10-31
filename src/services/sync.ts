@@ -7,6 +7,7 @@ import { toast } from '@/store/ui';
 import { firebase, type FB } from './firebase';
 import { snapshotAction, betterStreak, buildWrites, clean, derive, replayMissing, toWire } from './syncDiff';
 import { startPresence, stopPresence, watchCount } from './presence';
+import { startLive, stopLive } from './liveSession';
 
 /* ---------------- Guest persistence (localStorage, instant) ---------------- */
 let guestDirty = false;
@@ -247,6 +248,7 @@ async function attachUser(fb: FB, u: import('firebase/auth').User) {
     },
   );
   void startPresence(fb, u.uid);
+  startLive(fb, u.uid);
 }
 
 function detachUser() {
@@ -261,6 +263,7 @@ function detachUser() {
   unsubDoc = null;
   lastPublic = '';
   void stopPresence();
+  stopLive();
   useData.setState({ user: null, sync: 'local' });
   useData.getState().replace(loadGuestData(), true);
   guestStamp = readStamp();

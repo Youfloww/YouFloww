@@ -13,7 +13,7 @@ export function ConfirmEnd() {
 
   const close = () => setUI({ confirm: null });
   const confirm = () => {
-    if (dontAsk) usePrefs.getState().set({ confirmEnd: false });
+    if (dontAsk && !spec?.fixed) usePrefs.getState().set({ confirmEnd: false });
     const run = spec?.onConfirm;
     close();
     run?.();
@@ -38,10 +38,12 @@ export function ConfirmEnd() {
               {spec.confirmLabel}
             </button>
           </div>
-          <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs font-bold text-muted">
-            <input type="checkbox" checked={dontAsk} onChange={(e) => setDontAsk(e.target.checked)} className="size-4 accent-[var(--accent)]" />
-            Don’t ask me again (turn back on in Settings)
-          </label>
+          {!spec.fixed && (
+            <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs font-bold text-muted">
+              <input type="checkbox" checked={dontAsk} onChange={(e) => setDontAsk(e.target.checked)} className="size-4 accent-[var(--accent)]" />
+              Don’t ask me again (turn back on in Settings)
+            </label>
+          )}
         </div>
       )}
     </Dialog>

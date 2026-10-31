@@ -667,8 +667,11 @@ function groupEffects(g: Group) {
     const left = g.dur * 60_000 - (now - g.at);
     if (ss.get('together:timerFor') !== key) {
       ss.set('together:timerFor', key);
-      // everyone starts their own focus timer, so seats, the ring and fish coins all just work
-      if (left > 30_000) requestFocusFor(Math.max(1, Math.ceil(left / 60_000)), 'Focus together', undefined, '🫶');
+      // everyone starts their own focus timer, so seats, the ring and fish coins all just work;
+      // already focusing? that session simply counts for the group (one session at a time, never a second one)
+      const t = useTimer.getState();
+      if (t.mode === 'focus' && t.status !== 'idle') toast({ emoji: '🫶', title: 'The group started', body: 'You’re already focusing, so this session counts for the group.', ms: 4500 });
+      else if (left > 30_000) requestFocusFor(Math.max(1, Math.ceil(left / 60_000)), 'Focus together', undefined, '🫶', 'together');
       gctl?.setMine('in');
     } else if (me.m === 'left' && !document.hidden) gctl?.setMine('in');
   }

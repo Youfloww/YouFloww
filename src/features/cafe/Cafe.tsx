@@ -545,8 +545,17 @@ export default function Cafe() {
 
   const start = (o: CafeOrder, todoId: string | null) => {
     setPrefs({ cafeOrder: o });
-    setStep('table');
-    requestFocusFor(sizeOf(o.size).minutes, o.intent || `${sizeOf(o.size).name} ${drinkOf(o.drink).name}`, () => todoId, '☕');
+    // the table (and the drink going down) only once this order's session really starts
+    requestFocusFor(
+      sizeOf(o.size).minutes,
+      o.intent || `${sizeOf(o.size).name} ${drinkOf(o.drink).name}`,
+      () => {
+        setStep('table');
+        return todoId;
+      },
+      '☕',
+      'cafe',
+    );
   };
 
   const pickDrink = () => {

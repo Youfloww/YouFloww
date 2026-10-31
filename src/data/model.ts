@@ -1,6 +1,6 @@
 import { dateKey, diffDays, keyToDate, lastNDays } from '@/lib/time';
 import { uid } from '@/lib/utils';
-import type { Settings, Todo, UserData } from './types';
+import type { SessionLogEntry, Settings, Todo, UserData } from './types';
 
 export const DEFAULT_SETTINGS: Required<Settings> = {
   workDuration: 25 * 60,
@@ -191,6 +191,8 @@ export interface RecordSessionInput {
   todoSeconds?: number;
   /** re-recording a session that already happened elsewhere (guest/other tab): leave live task-switch stats alone */
   replay?: boolean;
+  /** where it was started (a key of SOURCES in store/timer) */
+  src?: string;
 }
 
 export interface RecordSessionResult {
@@ -245,11 +247,14 @@ export function splitByDay(startedAt: number, sec: number): [string, number][] {
 }
 
 export function recordFocusSession(d: UserData, input: RecordSessionInput): RecordSessionResult {
-  const sec = Math.max(0, Math.round(Math.min(input.seconds, 6 * 3600)));
+  let sec = Math.max(0, Math.round(Math.min(input.seconds, 6 * 3600)));
   const result: RecordSessionResult = { streak: 'none', autoCompletedTodo: null, goalReached: false };
   if (sec <= 0) return result;
   const now = Date.now();
   const startedAt = Number.isFinite(input.startedAt) && input.startedAt > 0 && input.startedAt <= now + 60000 ? input.startedAt : now - sec * 1000;
+  // the same minutes never count twice (two devices focusing at once): drop what overlaps a session already logged
+  if (!input.replay) sec -= overlapSeconds(d.sessionLog, startedAt, sec);
+  if (sec <= 0) return result;
   // a session over midnight is split across both days (the session itself counts on the day it started)
   const days = splitByDay(startedAt, sec);
   const startDay = days[0][0];
@@ -316,6 +321,7 @@ export function recordFocusSession(d: UserData, input: RecordSessionInput): Reco
     done: input.completed,
     task: todo?.text?.slice(0, 80) ?? null,
     cat: todo?.canonicalId ?? null,
+    ...(input.src ? { src: input.src } : {}),
   });
   if (d.sessionLog.length > 150) d.sessionLog.splice(0, d.sessionLog.length - 150);
 
@@ -327,6 +333,21 @@ export function recordFocusSession(d: UserData, input: RecordSessionInput): Reco
   result.goalReached = before < goalSec && before + sec >= goalSec;
   pruneWeekly(d);
   return result;
+}
+
+/**
+ * Seconds of [at, at + sec] already covered by logged sessions. Overlaps under a minute are ignored: two devices'
+ * clocks can differ a little, and back-to-back sessions must never lose time to that.
+ */
+export function overlapSeconds(log: SessionLogEntry[] | undefined, at: number, sec: number) {
+  const end = at + sec * 1000;
+  let ms = 0;
+  for (const e of log ?? []) {
+    if (e.at === at) continue;
+    const o = Math.min(end, e.at + e.sec * 1000) - Math.max(at, e.at);
+    if (o >= 60_000) ms += o;
+  }
+  return Math.min(sec, Math.round(ms / 1000));
 }
 
 function bumpStreak(d: UserData, today: string): 'inc' | 'reset' | 'none' {

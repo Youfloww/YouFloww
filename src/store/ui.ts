@@ -21,6 +21,8 @@ export interface ConfirmSpec {
   confirmLabel: string;
   cancelLabel: string;
   onConfirm: () => void;
+  /** a question that must always be asked (no "Don't ask me again") */
+  fixed?: boolean;
 }
 
 export interface Toast {

@@ -4,7 +4,7 @@ export const meta: FeatureMeta = {
   id: 'window',
   label: 'Window Seat',
   emoji: '🪟',
-  description: 'A calm window where the day passes, dawn to night, as you focus',
+  description: 'Sit by a real window: live and looping views from Tokyo, Paris, a snowy cabin…',
   kind: 'mode',
   order: 46,
   load: () => import('./WindowSeat'),

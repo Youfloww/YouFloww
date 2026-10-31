@@ -67,6 +67,8 @@ export interface SessionLogEntry {
   cat?: string | null;
   rating?: number | null;
   note?: string | null;
+  /** where the session was started (a key of SOURCES in store/timer); older sessions don't have it */
+  src?: string;
 }
 
 export interface Settings {

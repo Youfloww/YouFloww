@@ -5,6 +5,30 @@ import { useData } from './data';
 export type Mode = 'focus' | 'short' | 'long';
 export type Status = 'idle' | 'running' | 'paused';
 
+export interface SessionSource {
+  /** a key of SOURCES */
+  id: string;
+  /** what this session is, e.g. "DEL→BOM" or "Window seat" */
+  label: string;
+  emoji: string;
+}
+
+/** Every place a focus session can start from: one timer runs them all, these only name it. */
+export const SOURCES: Record<string, { label: string; emoji: string }> = {
+  timer: { label: 'Focus timer', emoji: '🎯' },
+  quick: { label: 'Just 5 min', emoji: '🚀' },
+  planner: { label: 'Planner', emoji: '🗓️' },
+  cafe: { label: 'Café', emoji: '☕' },
+  train: { label: 'Scenic Train', emoji: '🚆' },
+  flights: { label: 'Focus Flights', emoji: '✈️' },
+  window: { label: 'Window Seat', emoji: '🪟' },
+  together: { label: 'Study Hall', emoji: '🫶' },
+  studydesk: { label: 'Study Desk', emoji: '📚' },
+  garden: { label: 'Garden', emoji: '🌸' },
+  cathome: { label: "Cat's Home", emoji: '🏡' },
+  pledge: { label: 'Focus Pledge', emoji: '🤝' },
+};
+
 export const MODE_META: Record<Mode, { label: string; short: string; emoji: string }> = {
   focus: { label: 'Focus', short: 'Focus', emoji: '🎯' },
   short: { label: 'Short break', short: 'Short', emoji: '☕' },
@@ -36,6 +60,8 @@ interface TimerState {
   leftMidSession: boolean;
   /** the tab that runs this session (others follow it), so two open tabs never count it twice */
   ownerTab: string | null;
+  /** where this focus session was started (the main timer, the café, a train…): named in stats and when switching */
+  source: SessionSource | null;
 
   set: (p: Partial<TimerState>) => void;
 }
@@ -63,6 +89,7 @@ export const useTimer = create<TimerState>()(
       aliveAt: null,
       leftMidSession: false,
       ownerTab: null,
+      source: null,
       set: (p) => set(p),
     }),
     { name: 'floww:timer', version: 1 },
