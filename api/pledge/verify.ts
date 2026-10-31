@@ -9,7 +9,7 @@
 import { verifyUser } from './_lib/admin.js';
 import { payConfig } from './_lib/env.js';
 import { fail, guard, json, readJson } from './_lib/http.js';
-import { activate, getOrder } from './_lib/pledges.js';
+import { activate, chargeOf, getOrder } from './_lib/pledges.js';
 import { confirmCapturedPayment, verifyPaymentSignature } from './_lib/razorpay.js';
 
 const ORDER_ID = /^(order_[A-Za-z0-9]{8,40}|stub_order_[a-f0-9]{18})$/;
@@ -42,7 +42,7 @@ export async function POST(request: Request): Promise<Response> {
       if (!verifyPaymentSignature(orderId, pid, signature)) {
         return fail(400, "We couldn't verify that payment. If money left your account, contact us with your payment ID.");
       }
-      const confirmed = await confirmCapturedPayment(pid, orderId, order.amountPaise);
+      const confirmed = await confirmCapturedPayment(pid, orderId, chargeOf(order));
       if (!confirmed.ok) {
         console.error(`[pledge/verify] ${orderId}: ${confirmed.reason}`);
         return fail(402, "Your payment hasn't gone through yet. If money left your account, Razorpay returns uncaptured payments automatically, or contact us with your payment ID.");

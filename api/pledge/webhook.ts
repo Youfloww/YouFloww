@@ -10,7 +10,7 @@
  */
 import { payConfig } from './_lib/env.js';
 import { fail, guard, json } from './_lib/http.js';
-import { activate, getOrder, noteRefundEvent } from './_lib/pledges.js';
+import { activate, chargeOf, getOrder, noteRefundEvent } from './_lib/pledges.js';
 import { confirmCapturedPayment, verifyWebhookSignature } from './_lib/razorpay.js';
 
 interface Entity {
@@ -39,8 +39,8 @@ export async function POST(request: Request): Promise<Response> {
       const p = event.payload?.payment?.entity;
       if (p?.id && p.order_id && /^order_[A-Za-z0-9]{8,40}$/.test(p.order_id) && /^pay_[A-Za-z0-9]{8,40}$/.test(p.id)) {
         const order = await getOrder(p.order_id);
-        if (order && order.mode !== 'stub' && order.status === 'created' && p.amount === order.amountPaise && p.status === 'captured') {
-          const confirmed = await confirmCapturedPayment(p.id, p.order_id, order.amountPaise);
+        if (order && order.mode !== 'stub' && order.status === 'created' && p.amount === chargeOf(order) && p.status === 'captured') {
+          const confirmed = await confirmCapturedPayment(p.id, p.order_id, chargeOf(order));
           if (confirmed.ok) await activate(p.order_id, p.id, 'webhook');
           else console.error(`[pledge/webhook] ${p.order_id}: ${confirmed.reason}`);
         }

@@ -3,19 +3,25 @@ import { BadgeIndianRupee, CalendarCheck2, HandHeart, Lock, Mail, RotateCcw, Shi
 import { Dialog } from '@/ui/Sheet';
 import { Button } from '@/ui/primitives';
 import { cn } from '@/lib/utils';
-import { SUPPORT_EMAIL, goalSummary, type Goal } from './rules';
+import { SUPPORT_EMAIL, feeFor, goalSummary, type Goal } from './rules';
 import { Fact } from './ui';
 
 /** The plain-words terms. Shown before paying (with the 18+ tick box) and from "How it works". */
 export function TermsList({ amount, charity }: { amount?: number; charity: string }) {
   const money = amount ? `₹${amount}` : 'your pledge';
+  const fee = amount ? `₹${feeFor(amount)}` : 'a small payment fee';
   return (
     <ul className="flex flex-col gap-3">
       <Fact icon={<ShieldCheck size={15} />}>
         <b>A promise to yourself, not a bet or a game.</b> You can never win money, and nobody else&rsquo;s money is involved. It&rsquo;s your money, on your own goal.
       </Fact>
       <Fact icon={<RotateCcw size={15} />}>
-        <b>Goal met:</b> we refund {money} in full to the way you paid. Refunds take 5&ndash;7 working days to reach you. Payment fees may not be refunded.
+        <b>Goal met:</b> we refund {money} in full to the way you paid. Refunds take 5&ndash;7 working days to reach you.
+      </Fact>
+      <Fact icon={<BadgeIndianRupee size={15} />}>
+        <b>Payment fee:</b> on top of your pledge you pay {fee}. That&rsquo;s Razorpay&rsquo;s charge for handling the payment, and Razorpay keeps it even when
+        money is refunded, so it isn&rsquo;t refunded. If a payment goes wrong on our side (paid twice, or the pledge never started), you get everything back,
+        fee included.
       </Fact>
       <Fact icon={<HandHeart size={15} />}>
         <b>Goal missed:</b> {money} is donated to {charity}. We donate all missed pledges together once a month and show the running total in the app.
@@ -31,7 +37,7 @@ export function TermsList({ amount, charity }: { amount?: number; charity: strin
         <b>18+ only.</b> You need to be at least 18 years old to make a pledge.
       </Fact>
       <Fact icon={<Store size={15} />}>
-        <b>Payments are processed by our partner store giftasite</b> through Razorpay, so the checkout shows the name giftasite (and your bank statement may too).
+        <b>Payments are processed by our partner store giftasite</b> through Razorpay, so your bank statement may show the name giftasite.
       </Fact>
       {SUPPORT_EMAIL && (
         <Fact icon={<Mail size={15} />}>
@@ -70,7 +76,7 @@ export function TermsDialog({
     if (!open) setAgree(false);
   }, [open]);
   const busy = stage !== 'idle';
-  const label = { idle: `Pay ₹${amount} & start`, creating: 'Preparing…', paying: 'Waiting for payment…', verifying: 'Confirming your payment…' }[stage];
+  const label = { idle: `Pay ₹${(amount ?? 0) + (amount ? feeFor(amount) : 0)} & start`, creating: 'Preparing…', paying: 'Waiting for payment…', verifying: 'Confirming your payment…' }[stage];
 
   return (
     <Dialog open={open} onClose={() => !busy && onClose()} labelledBy="pledge-terms" dismissable={!busy}>
@@ -81,7 +87,7 @@ export function TermsDialog({
         {goal && amount ? (
           <p className="mt-1 mb-3 text-[14px] text-muted">
             <BadgeIndianRupee size={14} className="mr-1 inline -translate-y-px text-accent" />
-            ₹{amount} on <b className="text-ink">{goalSummary(goal)}</b>
+            ₹{amount} on <b className="text-ink">{goalSummary(goal)}</b> <span className="text-muted">+ ₹{feeFor(amount)} payment fee</span>
           </p>
         ) : (
           <p className="mt-1 mb-3 text-[14px] text-muted">Plain words, no small print.</p>

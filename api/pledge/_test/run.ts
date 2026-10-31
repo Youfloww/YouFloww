@@ -13,6 +13,7 @@ import {
   zonedDateKey,
   TERMS_VERSION,
   type PledgeDoc,
+  feeFor,
 } from '../../../src/features/pledge/rules.js';
 import { db } from '../_lib/admin.js';
 import { POST as create } from '../create.js';
@@ -67,6 +68,8 @@ async function call(fn: (r: Request) => Promise<Response>, r: Request) {
 
 const tz = 'Asia/Kolkata';
 const hoursGoal = { kind: 'hours', hours: 10, days: 7 };
+/** what Razorpay collects for a pledge: the pledge + its payment fee, in paise */
+const charge = (rupees: number) => (rupees + feeFor(rupees)) * 100;
 const goodBody = (extra: Record<string, unknown> = {}) => ({ amount: 99, goal: hoursGoal, tz, adult: true, terms: TERMS_VERSION, ...extra });
 
 const unthrottle = (uid: string) => db().doc(`pledgeUsers/${uid}`).set({ lastOrderAt: 0 }, { merge: true });
@@ -170,7 +173,7 @@ async function main() {
 
   section('create → verify → active (stub mode)');
   r = await call(create, req('/api/pledge/create', { token: A.token, body: goodBody() }));
-  ok(r.status === 200 && r.body.mode === 'stub' && /^stub_order_/.test(r.body.orderId) && r.body.amountPaise === 9900 && r.body.stub, 'create returns a labelled STUB order', r);
+  ok(r.status === 200 && r.body.mode === 'stub' && /^stub_order_/.test(r.body.orderId) && r.body.amountPaise === charge(99) && r.body.pledgePaise === 9900 && r.body.feePaise === charge(99) - 9900 && r.body.stub, 'create returns a labelled STUB order (charge = pledge + fee)', r);
   const aOrder = r.body.orderId as string;
   r = await call(verify, req('/api/pledge/verify', { token: B.token, body: { orderId: aOrder } }));
   ok(r.status === 404, "someone else can't verify my order → 404");
@@ -355,13 +358,13 @@ async function main() {
   const E = await signUp('esha');
   await seedUser(E.uid, { totalFocusSeconds: 100 });
   r = await call(create, req('/api/pledge/create', { token: E.token, body: goodBody({ amount: 49 }) }));
-  ok(r.status === 200 && r.body.mode === 'razorpay' && r.body.keyId === 'rzp_test_TESTKEY12345' && /^order_/.test(r.body.orderId) && r.body.amountPaise === 4900, 'create opens a Razorpay order', r.body);
+  ok(r.status === 200 && r.body.mode === 'razorpay' && r.body.keyId === 'rzp_test_TESTKEY12345' && /^order_/.test(r.body.orderId) && r.body.amountPaise === charge(49), 'create opens a Razorpay order for pledge + fee', r.body);
   const eOrder = r.body.orderId as string;
   const o = orders.get(eOrder)!;
-  ok(o.amount === 4900 && o.notes.uid === E.uid && o.notes.goal === '10 focus hours in 7 days', 'order is INR 4900 with notes uid + goal', o);
+  ok(o.amount === charge(49) && o.notes.uid === E.uid && o.notes.goal === '10 focus hours in 7 days', 'order is INR pledge + fee with notes uid + goal', o);
   ok(!JSON.stringify(r.body).includes(SECRET), 'the key secret never reaches the browser');
 
-  const ep = pay(eOrder, 4900);
+  const ep = pay(eOrder, charge(49));
   r = await call(verify, req('/api/pledge/verify', { token: E.token, body: { orderId: eOrder, paymentId: ep.id, signature: 'f'.repeat(64) } }));
   ok(r.status === 400 && !(await pledge(eOrder)), 'bad signature → 400, no pledge', r);
   r = await call(verify, req('/api/pledge/verify', { token: E.token, body: { orderId: eOrder, paymentId: ep.id, signature: '<script>' } }));
@@ -375,7 +378,7 @@ async function main() {
   r = await call(verify, req('/api/pledge/verify', { token: E.token, body: { orderId: eOrder, paymentId: other.id, signature: sign(eOrder, other.id) } }));
   ok(r.status === 402, "a payment from another order doesn't count → 402");
 
-  const failedPay = pay(eOrder, 4900, 'failed');
+  const failedPay = pay(eOrder, charge(49), 'failed');
   r = await call(verify, req('/api/pledge/verify', { token: E.token, body: { orderId: eOrder, paymentId: failedPay.id, signature: sign(eOrder, failedPay.id) } }));
   ok(r.status === 402, 'failed payment → 402');
 
@@ -393,7 +396,7 @@ async function main() {
   r = await runSettle();
   let pe2 = (await pledge(eOrder))!;
   ok(pe2.status === 'refunded' && pe2.refundId === ep.refunds[0]?.id && calls.refundCreate === 1, 'met → one Razorpay refund for the full amount', { r: r.body, calls });
-  ok(ep.refunds[0].amount === 4900 && calls.idemKeys[0] === `${eOrder}_r1`, 'full amount, with an idempotency key');
+  ok(ep.refunds[0].amount === 4900 && calls.idemKeys[0] === `${eOrder}_r1`, 'the pledge (not the fee) is refunded, with an idempotency key');
   await runSettle();
   await runSettle();
   ok(calls.refundCreate === 1, 'settling again never refunds twice');
@@ -415,17 +418,17 @@ async function main() {
   await seedUser(F.uid, { totalFocusSeconds: 42 });
   r = await call(create, req('/api/pledge/create', { token: F.token, body: goodBody({ amount: 199 }) }));
   const fOrder = r.body.orderId as string;
-  const fp = pay(fOrder, 19900);
+  const fp = pay(fOrder, charge(199));
   const ev = (event: string, entity: Record<string, unknown>, key = 'payment') => JSON.stringify({ event, payload: { [key]: { entity } } });
   const hook = (raw: string, secret = WH) => call(webhook, req('/api/pledge/webhook', { raw, headers: { 'x-razorpay-signature': createHmac('sha256', secret).update(raw).digest('hex') } }));
-  r = await hook(ev('payment.captured', { id: fp.id, order_id: fOrder, amount: 19900, status: 'captured' }), 'wrong-secret');
+  r = await hook(ev('payment.captured', { id: fp.id, order_id: fOrder, amount: charge(199), status: 'captured' }), 'wrong-secret');
   ok(r.status === 400 && !(await pledge(fOrder)), 'webhook signed with the wrong secret → 400');
   r = await hook(ev('payment.captured', { id: fp.id, order_id: fOrder, amount: 100, status: 'captured' }));
   ok(r.status === 200 && !(await pledge(fOrder)), 'signed event with the wrong amount confirms nothing');
   fp.status = 'authorized';
-  r = await hook(ev('payment.captured', { id: fp.id, order_id: fOrder, amount: 19900, status: 'captured' }));
+  r = await hook(ev('payment.captured', { id: fp.id, order_id: fOrder, amount: charge(199), status: 'captured' }));
   ok(r.status === 200 && (await pledge(fOrder))?.status === 'active' && calls.capture === 2, 'signed event is re-checked with Razorpay, then activates', r);
-  r = await hook(ev('order.paid', { id: fp.id, order_id: fOrder, amount: 19900, status: 'captured' }));
+  r = await hook(ev('order.paid', { id: fp.id, order_id: fOrder, amount: charge(199), status: 'captured' }));
   r = await call(verify, req('/api/pledge/verify', { token: F.token, body: { orderId: fOrder, paymentId: fp.id, signature: sign(fOrder, fp.id) } }));
   ok(r.status === 200 && r.body.status === 'active', 'browser verify after the webhook is idempotent');
   r = await hook(ev('payment.captured', { id: 'pay_GIFTASITE0001', order_id: 'order_GIFTASITE001', amount: 29900, status: 'captured' }));
@@ -440,15 +443,15 @@ async function main() {
   await unthrottle(G.uid);
   r = await call(create, req('/api/pledge/create', { token: G.token, body: goodBody() }));
   const g2 = r.body.orderId as string;
-  const gp1 = pay(g1, 9900);
-  const gp2 = pay(g2, 9900);
+  const gp1 = pay(g1, charge(99));
+  const gp2 = pay(g2, charge(99));
   await call(verify, req('/api/pledge/verify', { token: G.token, body: { orderId: g1, paymentId: gp1.id, signature: sign(g1, gp1.id) } }));
   r = await call(verify, req('/api/pledge/verify', { token: G.token, body: { orderId: g2, paymentId: gp2.id, signature: sign(g2, gp2.id) } }));
   const dup = (await pledge(g2))!;
-  ok(r.body.duplicate && dup.outcome === 'duplicate' && dup.status === 'refunded' && gp2.refunds.length === 1 && (await pledge(g1))!.status === 'active', 'second payment → refunded immediately, first stays active', { body: r.body, dup });
+  ok(r.body.duplicate && dup.outcome === 'duplicate' && dup.status === 'refunded' && gp2.refunds.length === 1 && gp2.refunds[0].amount === charge(99) && (await pledge(g1))!.status === 'active', 'second payment → refunded immediately, first stays active', { body: r.body, dup });
 
   section('refund webhooks');
-  r = await hook(ev('refund.processed', { id: dup.refundId, payment_id: gp2.id, amount: 9900, notes: { app: 'youfloww-pledge', pledgeId: g2 } }, 'refund'));
+  r = await hook(ev('refund.processed', { id: dup.refundId, payment_id: gp2.id, amount: charge(99), notes: { app: 'youfloww-pledge', pledgeId: g2 } }, 'refund'));
   ok(r.status === 200 && typeof (await pledge(g2))!.refundProcessedAt === 'number', 'refund.processed is recorded');
   gp2.refunds[0].status = 'failed';
   r = await hook(ev('refund.failed', { id: dup.refundId, payment_id: gp2.id, notes: { app: 'youfloww-pledge', pledgeId: g2 } }, 'refund'));
@@ -463,7 +466,7 @@ async function main() {
   await seedUser(H.uid, { totalFocusSeconds: 0 });
   r = await call(create, req('/api/pledge/create', { token: H.token, body: goodBody({ amount: 499 }) }));
   const hOrder = r.body.orderId as string;
-  const hp = pay(hOrder, 49900);
+  const hp = pay(hOrder, charge(499));
   await call(verify, req('/api/pledge/verify', { token: H.token, body: { orderId: hOrder, paymentId: hp.id, signature: sign(hOrder, hp.id) } }));
   ok((await pledge(hOrder))!.mode === 'live', 'live pledge recorded as live');
   await makeDue(hOrder);
@@ -489,7 +492,7 @@ async function main() {
     const cr = await call(create, req('/api/pledge/create', { token: u.token, body: goodBody({ amount: 49 }) }));
     const id = cr.body.orderId as string;
     await db().doc(`pledgeOrders/${id}`).update({ createdAt: Date.now() - ageMin * 60_000 });
-    const p = pay(id, 4900);
+    const p = pay(id, charge(49));
     p.created_at = Math.floor((Date.now() - payAgeMin * 60_000) / 1000);
     return { id, p };
   };
@@ -502,7 +505,7 @@ async function main() {
   await runSettle();
   ok(!(await pledge(young.id)) && young.p.refunds.length === 0, 'a 5-minute-old order is left alone (the browser may still be verifying)');
   const sp = (await pledge(stale.id))!;
-  ok(sp.status === 'refunded' && sp.outcome === 'unclaimed' && stale.p.refunds.length === 1 && stale.p.refunds[0].amount === 4900, 'old captured payment with no pledge → refunded in full', sp);
+  ok(sp.status === 'refunded' && sp.outcome === 'unclaimed' && stale.p.refunds.length === 1 && stale.p.refunds[0].amount === charge(49), 'old captured payment with no pledge → refunded in full, fee included', sp);
   ok((await db().doc(`pledgeOrders/${stale.id}`).get()).get('status') === 'unclaimed', 'its order is closed so it is never looked at again');
   const lp = (await pledge(lateish.id))!;
   ok(lp?.status === 'active' && lp.paymentId === lateish.p.id && lateish.p.refunds.length === 0, 'recent captured payment → pledge activated, not refunded', lp);

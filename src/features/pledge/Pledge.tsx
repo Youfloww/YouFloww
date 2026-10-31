@@ -46,7 +46,7 @@ function Intro({ onHow }: { onHow: () => void }) {
   const steps: [ReactNode, string, string][] = [
     [<HandCoins key="a" size={18} />, 'Pick a goal', 'Like 10 focus hours this week, or 15 minutes every day.'],
     [<HeartHandshake key="b" size={18} />, 'Pledge ₹49 to ₹499', 'Your own money, on your own goal. Never a bet.'],
-    [<RotateCcw key="c" size={18} />, 'Keep it, get it all back', 'Miss it and the money is donated to charity.'],
+    [<RotateCcw key="c" size={18} />, 'Keep it, get your pledge back', 'Miss it and the money is donated to charity.'],
   ];
   return (
     <div className="flex flex-col items-center gap-5 py-2 text-center">
@@ -54,7 +54,7 @@ function Intro({ onHow }: { onHow: () => void }) {
       <div>
         <h2 className="font-display text-[30px] leading-tight font-semibold">A promise with a little weight</h2>
         <p className="mx-auto mt-2 max-w-[480px] text-[15px] leading-relaxed text-muted">
-          Focus Pledge helps you follow through. You put a small amount behind your own focus goal. Hit it and every rupee comes back to you. Miss it and it goes to
+          Focus Pledge helps you follow through. You put a small amount behind your own focus goal. Hit it and your whole pledge comes back to you (a small payment fee covers Razorpay). Miss it and it goes to
           charity. You can never win money, and nobody else&rsquo;s money is involved.
         </p>
       </div>

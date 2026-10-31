@@ -21,6 +21,7 @@ import {
   type Goal,
   type PledgeDoc,
   type PledgeStatus,
+  feeFor,
 } from '../../../src/features/pledge/rules.js';
 import { db } from './admin.js';
 import { payConfig } from './env.js';
@@ -28,7 +29,10 @@ import { confirmCapturedPayment, createOrder, listOrderPayments, refundInFull } 
 
 interface OrderDoc {
   uid: string;
+  /** the pledge */
   amountPaise: number;
+  /** what Razorpay collects: pledge + payment fee (missing on orders from before the fee) */
+  chargePaise?: number;
   goal: Goal;
   tz: string;
   mode: PledgeDoc['mode'];
@@ -37,6 +41,9 @@ interface OrderDoc {
   termsVersion: string;
   paymentId?: string;
 }
+
+/** What the order charges (older orders charged just the pledge). */
+export const chargeOf = (o: Pick<OrderDoc, 'amountPaise' | 'chargePaise'>) => o.chargePaise ?? o.amountPaise;
 
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e)).slice(0, 160);
@@ -47,7 +54,7 @@ const ORDERS_PER_DAY = 20;
 /* ------------------------------------------------------------------ create */
 
 export type StartResult =
-  | { ok: true; orderId: string; amountPaise: number; mode: 'razorpay' | 'stub'; keyId: string | null }
+  | { ok: true; orderId: string; amountPaise: number; pledgePaise: number; feePaise: number; mode: 'razorpay' | 'stub'; keyId: string | null }
   | { ok: false; reason: 'active' | 'slow' | 'limit' };
 
 export async function startOrder(uid: string, amountRupees: number, goal: Goal, tz: string): Promise<StartResult> {
@@ -74,19 +81,21 @@ export async function startOrder(uid: string, amountRupees: number, goal: Goal, 
   if (check !== 'ok') return { ok: false, reason: check };
 
   const amountPaise = amountRupees * 100;
+  const chargePaise = amountPaise + feeFor(amountRupees) * 100;
   const orderId =
     cfg.mode === 'stub'
       ? `stub_order_${randomBytes(9).toString('hex')}`
-      : await createOrder(amountPaise, `yfp_${uid.slice(0, 12)}_${now.toString(36)}`, {
+      : await createOrder(chargePaise, `yfp_${uid.slice(0, 12)}_${now.toString(36)}`, {
           app: 'youfloww-pledge',
           uid,
           goal: goalSummary(goal),
           goalKind: goal.kind,
         });
 
-  const order: OrderDoc = { uid, amountPaise, goal, tz, mode: cfg.keyMode, status: 'created', createdAt: now, termsVersion: TERMS_VERSION };
+  const order: OrderDoc = { uid, amountPaise, chargePaise, goal, tz, mode: cfg.keyMode, status: 'created', createdAt: now, termsVersion: TERMS_VERSION };
   await fs.doc(`pledgeOrders/${orderId}`).create(order);
-  return { ok: true, orderId, amountPaise, mode: cfg.mode, keyId: cfg.mode === 'razorpay' ? cfg.keyId : null };
+  // amountPaise here is what the checkout charges
+  return { ok: true, orderId, amountPaise: chargePaise, pledgePaise: amountPaise, feePaise: chargePaise - amountPaise, mode: cfg.mode, keyId: cfg.mode === 'razorpay' ? cfg.keyId : null };
 }
 
 export async function getOrder(orderId: string) {
@@ -137,6 +146,7 @@ export async function activate(orderId: string, paymentId: string, via: 'checkou
       id: orderId,
       uid: o.uid,
       amountPaise: o.amountPaise,
+      paidPaise: chargeOf(o),
       goal: o.goal,
       tz: o.tz,
       baselineFocusSeconds,
@@ -152,7 +162,8 @@ export async function activate(orderId: string, paymentId: string, via: 'checkou
     };
     tx.update(orderRef, { status: 'activated', paymentId, activatedAt: now, via });
     if (busy) {
-      tx.set(pledgeRef, { ...base, startAt: now, deadline: now, status: 'refund_pending', outcome: 'duplicate', settledAt: now });
+      // the pledge never ran (one was already active): everything paid comes back, fee included
+      tx.set(pledgeRef, { ...base, refundPaise: chargeOf(o), startAt: now, deadline: now, status: 'refund_pending', outcome: 'duplicate', settledAt: now });
       return { ok: true, pledgeId: orderId, status: 'refund_pending', duplicate: true };
     }
     const startAt = windowStart(o.goal, now, o.tz);
@@ -241,7 +252,7 @@ export async function refundPledge(id: string): Promise<'refunded' | 'pending' |
       const cfg = payConfig();
       if (cfg.mode !== 'razorpay') throw new Error('Razorpay keys are missing');
       if ((cfg.keyMode === 'live') !== (p.mode === 'live')) throw new Error(`pledge is ${p.mode} but the keys are ${cfg.keyMode}`);
-      const r = await refundInFull(p.paymentId, p.amountPaise, `${id}_r${attempt}`, { app: 'youfloww-pledge', pledgeId: id, reason: p.outcome ?? 'met' });
+      const r = await refundInFull(p.paymentId, p.refundPaise ?? p.amountPaise, `${id}_r${attempt}`, { app: 'youfloww-pledge', pledgeId: id, reason: p.outcome ?? 'met' });
       refundId = r.id;
     }
     await fs.runTransaction(async (tx) => {
@@ -280,6 +291,9 @@ async function markUnclaimed(orderId: string, paymentId: string): Promise<boolea
       id: orderId,
       uid: o.uid,
       amountPaise: o.amountPaise,
+      paidPaise: chargeOf(o),
+      // the pledge never started: everything paid comes back, fee included
+      refundPaise: chargeOf(o),
       goal: o.goal,
       tz: o.tz,
       baselineFocusSeconds: 0,
@@ -324,17 +338,17 @@ export async function reconcileOrders(now = Date.now()) {
     out.checked++;
     try {
       const paid = (await listOrderPayments(doc.id))
-        .filter((p) => (p.status === 'captured' || p.status === 'authorized') && p.amount === o.amountPaise && p.currency === 'INR')
+        .filter((p) => (p.status === 'captured' || p.status === 'authorized') && p.amount === chargeOf(o) && p.currency === 'INR')
         .sort((a, b) => a.created_at - b.created_at);
       if (!paid.length) continue;
       const [first, ...extra] = paid;
       // extra full payments on the same order (a second attempt that also went through) are just returned
       for (const x of extra) {
-        if (!(await confirmCapturedPayment(x.id, doc.id, o.amountPaise)).ok) continue;
-        await refundInFull(x.id, o.amountPaise, `${doc.id}_x_${x.id}`.slice(0, 40), { app: 'youfloww-pledge', pledgeId: doc.id, reason: 'extra-payment' });
+        if (!(await confirmCapturedPayment(x.id, doc.id, chargeOf(o))).ok) continue;
+        await refundInFull(x.id, chargeOf(o), `${doc.id}_x_${x.id}`.slice(0, 40), { app: 'youfloww-pledge', pledgeId: doc.id, reason: 'extra-payment' });
         out.refunded++;
       }
-      const confirmed = await confirmCapturedPayment(first.id, doc.id, o.amountPaise); // also captures an authorized payment
+      const confirmed = await confirmCapturedPayment(first.id, doc.id, chargeOf(o)); // also captures an authorized payment
       if (!confirmed.ok) {
         console.error(`[pledge/reconcile] ${doc.id}: ${confirmed.reason}`);
         continue;

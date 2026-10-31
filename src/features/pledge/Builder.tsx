@@ -9,6 +9,7 @@ import {
   HOURS_MAX,
   HOURS_MIN,
   PLEDGE_AMOUNTS,
+  feeFor,
   STREAK_DAYS_MAX,
   STREAK_DAYS_MIN,
   STREAK_DAY_MINUTES,
@@ -68,6 +69,7 @@ export function Builder({ charity, onReview, busy }: { charity: string; onReview
   const perDay = (hours * 3600) / days;
   const pomos = perDay / 1500;
   const rupee = `₹${amount}`;
+  const fee = feeFor(amount);
 
   return (
     <div className="flex flex-col gap-6">
@@ -76,7 +78,7 @@ export function Builder({ charity, onReview, busy }: { charity: string; onReview
         <div className="min-w-0">
           <h2 className="font-display text-[26px] leading-tight font-semibold sm:text-3xl">Make a promise to yourself</h2>
           <p className="mt-1 text-[14.5px] text-muted">
-            Put a little money behind your own goal. Keep it and every rupee comes back to you. Miss it and it goes to charity. You can never win money.
+            Put a little money behind your own goal. Keep it and your whole pledge comes back to you. Miss it and it goes to charity. You can never win money.
           </p>
         </div>
       </header>
@@ -170,6 +172,10 @@ export function Builder({ charity, onReview, busy }: { charity: string; onReview
             </button>
           ))}
         </div>
+        <p className="mt-2 text-[12.5px] leading-snug text-muted">
+          You pay <b className="text-ink">₹{amount + fee}</b>: your ₹{amount} pledge + a ₹{fee} payment fee. The fee is Razorpay&rsquo;s charge for handling the
+          payment, so it isn&rsquo;t refunded; your pledge always is.
+        </p>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           <div className="flex items-center gap-3 rounded-3xl bg-surface p-3 ring-1 ring-line">
             <Medallion src={ART.refund} size={56} />
@@ -188,7 +194,7 @@ export function Builder({ charity, onReview, busy }: { charity: string; onReview
 
       <div className="flex flex-col items-stretch gap-2 sm:items-start">
         <Button variant="primary" size="lg" disabled={busy} onClick={() => onReview(goal, amount)} className="sm:min-w-[260px]">
-          Review &amp; pledge {rupee}
+          Review &amp; pledge {rupee} <span className="opacity-75">(+₹{fee} fee)</span>
         </Button>
         <p className="text-[12px] text-muted">18+ only · one pledge at a time · payments are processed by our partner store giftasite</p>
       </div>

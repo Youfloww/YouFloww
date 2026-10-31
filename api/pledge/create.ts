@@ -37,6 +37,8 @@ export async function POST(request: Request): Promise<Response> {
     return json(200, {
       orderId: r.orderId,
       amountPaise: r.amountPaise,
+      pledgePaise: r.pledgePaise,
+      feePaise: r.feePaise,
       mode: r.mode,
       keyId: r.keyId,
       stub: r.mode === 'stub' ? 'TEST MODE: nothing is charged and nothing is refunded.' : undefined,

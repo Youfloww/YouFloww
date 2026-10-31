@@ -128,7 +128,8 @@ export function OutcomeView({ p, charity, onDone }: { p: PledgeDoc; charity: str
   const unclaimed = p.outcome === 'unclaimed';
   const duplicate = p.outcome === 'duplicate' || unclaimed;
   const donated = p.status === 'forfeited';
-  const money = rupees(p.amountPaise);
+  // a refund gives back `refundPaise` (the pledge, or everything paid when the pledge never ran); a donation is the pledge
+  const money = rupees(donated ? p.amountPaise : (p.refundPaise ?? p.amountPaise));
   const got = p.progressSeconds ?? 0;
   const goal = p.goal;
   const did = goal.kind === 'hours' ? `${dur(got)} of ${goal.hours} hours` : `${p.daysMet ?? 0} of ${goal.days} days`;
@@ -148,8 +149,8 @@ export function OutcomeView({ p, charity, onDone }: { p: PledgeDoc; charity: str
           <>You already had an active pledge, so this extra {money} payment is being refunded in full. Refunds take 5&ndash;7 working days.</>
         ) : kept ? (
           <>
-            You focused <b className="text-ink">{did}</b>. Your <b className="text-ink">{money} refund is on its way</b> to the way you paid. Refunds take 5&ndash;7 working days
-            to reach your account.
+            You focused <b className="text-ink">{did}</b>. Your <b className="text-ink">{money} pledge is on its way back</b> to the way you paid (the payment fee isn&rsquo;t refunded). Refunds
+            take 5&ndash;7 working days to reach your account.
           </>
         ) : (
           <>

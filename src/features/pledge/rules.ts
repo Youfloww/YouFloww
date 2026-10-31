@@ -9,6 +9,14 @@
 
 /** Allowed pledge amounts, in rupees. The server only accepts these. */
 export const PLEDGE_AMOUNTS = [49, 99, 199, 499] as const;
+
+/**
+ * Razorpay keeps about 2% + 18% GST of every payment and never returns it on a refund, so each pledge carries a
+ * small payment fee on top, shown before paying. The pledge itself is refunded in full; the fee is not.
+ */
+export const PAYMENT_FEE_RATE = 0.0236;
+/** The payment fee for a pledge, in whole rupees (enough to cover the gateway's cut of pledge + fee). */
+export const feeFor = (amountRupees: number) => Math.ceil((amountRupees * PAYMENT_FEE_RATE) / (1 - PAYMENT_FEE_RATE));
 export type PledgeAmount = (typeof PLEDGE_AMOUNTS)[number];
 
 export const HOURS_MIN = 2;
@@ -26,7 +34,7 @@ const LOG_CAP = 150;
 /** Settlement waits this long after the deadline, so a last session can finish syncing. */
 export const SETTLE_GRACE_MS = 60 * 60 * 1000;
 /** Bump when the terms the person accepts change; the server refuses an older version. */
-export const TERMS_VERSION = '2026-10-29';
+export const TERMS_VERSION = '2026-10-31';
 
 export type Goal =
   | { kind: 'hours'; hours: number; days: number }
@@ -39,7 +47,12 @@ export type PledgeOutcome = 'met' | 'missed' | 'duplicate' | 'unclaimed';
 export interface PledgeDoc {
   id: string;
   uid: string;
+  /** the pledge (what comes back when the goal is kept, and what goes to charity when it isn't) */
   amountPaise: number;
+  /** what the person paid: pledge + payment fee (older pledges had no fee) */
+  paidPaise?: number;
+  /** what a refund gives back: the pledge, or everything paid when the pledge never ran (duplicate, unclaimed) */
+  refundPaise?: number;
   goal: Goal;
   tz: string;
   startAt: number;
