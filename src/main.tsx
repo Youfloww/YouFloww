@@ -23,6 +23,16 @@ createRoot(document.getElementById('root')!).render(
 );
 
 // A new version reloads the page, but never in the middle of a focus session: it waits until that ends or pauses
+// A new version that takes over this page reloads it too (not every update path calls onNeedReload); never mid-focus
+if (import.meta.env.PROD && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloading) return;
+    reloading = true;
+    whenNotFocusing(() => location.reload());
+  });
+}
+
 if (import.meta.env.PROD)
   registerSW({
     immediate: true,
