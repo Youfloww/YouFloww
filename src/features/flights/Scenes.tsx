@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useMemo, useState } from 'react';
 import { cn, prefersReducedMotion } from '@/lib/utils';
 import { CatSprite } from '../cat/CatSprite';
+import { LoopVideo } from './LoopVideo';
 import type { Sky } from './geo';
 
 const INKC = '#5b3f2c';
@@ -174,9 +175,31 @@ export function SkyScene({ sky, className }: { sky: Sky; className?: string }) {
 /* ------------------------------------------------------------------ */
 /* Window seat                                                         */
 /* ------------------------------------------------------------------ */
+/** footage per sky; x = where the wing sits in the frame, so the tall oval window crops around it */
+const CLIPS: Record<Sky, { file: string; x: number }[]> = {
+  day: [
+    { file: 'day-wing', x: 66 },
+    { file: 'day-clouds', x: 24 },
+  ],
+  sunset: [
+    { file: 'sunset-pink', x: 50 },
+    { file: 'sunset-gold', x: 82 },
+  ],
+  night: [
+    { file: 'night-city', x: 72 },
+    { file: 'night-dusk', x: 74 },
+  ],
+};
+const pickClip = (sky: Sky, seat: string) => {
+  const list = CLIPS[sky];
+  let h = 0;
+  for (const ch of seat) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return list[h % list.length];
+};
+
 export function WindowSeat({ sky, seat, line, onClose }: { sky: Sky; seat: string; line: string; onClose: () => void }) {
-  const right = /[DEF]$/.test(seat);
   const [shade, setShade] = useState(false);
+  const clip = useMemo(() => pickClip(sky, seat), [sky, seat]);
   return (
     <motion.div className="ff-cabin absolute inset-0 grid place-items-center overflow-hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.5 }}>
       {/* cabin wall panel lines */}
@@ -184,20 +207,9 @@ export function WindowSeat({ sky, seat, line, onClose }: { sky: Sky; seat: strin
       <div className="pointer-events-none absolute inset-y-0 right-[8%] w-px bg-black/5" />
       <div className="relative" style={{ width: 'min(64vw, 46dvh, 420px)', aspectRatio: '0.72' }}>
         <div className="ff-window absolute inset-0 overflow-hidden">
-          <SkyScene sky={sky} />
-          {/* the wing */}
-          <svg viewBox="0 0 400 560" preserveAspectRatio="xMidYMid slice" className={cn('absolute inset-0 h-full w-full', right && '-scale-x-100')} aria-hidden>
-            <g stroke={INKC} strokeWidth={3} strokeLinejoin="round">
-              <path d="M-20 600 L-20 470 L330 392 Q350 389 352 400 L340 416 L60 600 Z" fill={sky === 'night' ? '#6d6a8e' : '#efe6da'} />
-              <path d="M330 392 L346 330 Q350 322 356 328 L352 400 Z" fill="#e07a5f" />
-              <path d="M40 520 L300 412" stroke={sky === 'night' ? '#4c4970' : '#d8cbb9'} strokeWidth={4} />
-            </g>
-            {sky === 'night' && <circle cx={348} cy={334} r={5} fill="#ff6b6b" className="ff-twinkle" />}
-          </svg>
-          {/* paper texture + glass reflection */}
-          <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-60 mix-blend-multiply" aria-hidden>
-            <rect width="100%" height="100%" filter="url(#ff-paper)" />
-          </svg>
+          {/* real footage from a plane window (see CREDITS.md); a still when motion is reduced */}
+          <LoopVideo key={clip.file} src={`/video/flight/${clip.file}.mp4`} poster={`/video/flight/${clip.file}.webp`} paused={shade} className="absolute inset-0 size-full object-cover" style={{ objectPosition: `${clip.x}% 50%` }} />
+          {/* glass reflection */}
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(125deg,rgb(255_255_255/0.28)_0%,transparent_32%,transparent_70%,rgb(255_255_255/0.12)_100%)]" />
           {/* window shade */}
           <motion.button

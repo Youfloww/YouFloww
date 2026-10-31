@@ -14,3 +14,17 @@
 
 Data was built with a small script (OurAirports CSV + mwgg time zones, nearest-airport time zone for the 64 airports
 missing one; Natural Earth GeoJSON → equirectangular SVG paths clipped at 60°S, Antarctica dropped).
+
+## Cabin window footage (`public/video/flight/*.mp4|webp`)
+
+Real plane-window video from Mixkit (no attribution required; credited anyway), audio removed, scaled to 960 px wide and
+cross-faded into a seamless loop. Mixkit does not name the filmmakers on its clip pages. Licence for all: [Mixkit Free License](https://mixkit.co/license/#videoFree).
+
+| File | Shows | Source |
+| --- | --- | --- |
+| `day-wing.mp4` | wing and blue sky over white clouds | ["Looking at the sky from the window of an airplane"](https://mixkit.co/free-stock-video/looking-at-the-sky-from-the-window-of-an-airplane-3099/) (#3099) |
+| `day-clouds.mp4` | wing over a bright cloud sea | ["Cloud landscape from an airplane window"](https://mixkit.co/free-stock-video/cloud-landscape-from-an-airplane-window-7179/) (#7179) |
+| `sunset-pink.mp4` | pink and lilac sunset above scattered clouds | ["Pink sunset seen from a plane window"](https://mixkit.co/free-stock-video/pink-sunset-seen-from-a-plane-window-4204/) (#4204) |
+| `sunset-gold.mp4` | golden horizon with the wing | ["Slowly peering out of an airplane window"](https://mixkit.co/free-stock-video/slowly-peering-out-of-an-airplane-window-40101/) (#40101) |
+| `night-city.mp4` | wing over a city at night under storm clouds | ["Plane flying over a city at night"](https://mixkit.co/free-stock-video/plane-flying-over-a-city-at-night-3361/) (#3361) |
+| `night-dusk.mp4` | deep dusk glow behind the wing | ["Panorama from the window of an airplane at dusk"](https://mixkit.co/free-stock-video/panorama-from-the-window-of-an-airplane-at-dusk-40102/) (#40102) |

@@ -1,7 +1,7 @@
 /** On the train: the window (3D satellite view or the paper route map), the clock, the next station and stamps. */
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
-import { BookOpen, DoorOpen, Map as MapIcon, Mountain, Pause, Play, Repeat, Square, Volume2, VolumeX } from 'lucide-react';
+import { BookOpen, DoorOpen, Satellite, Map as MapIcon, Mountain, Pause, Play, Repeat, Square, Volume2, VolumeX } from 'lucide-react';
 import { cn, haptic, prefersReducedMotion } from '@/lib/utils';
 import { usePrefs } from '@/store/prefs';
 import { remainingAt, useTimer } from '@/store/timer';
@@ -10,6 +10,7 @@ import { formatClock } from '@/lib/time';
 import { useTimerView } from '../timer/TimerOrb';
 import { requestEnd, toggle } from '../timer/engine';
 import { inTunnel, passedIndex, type RouteGeo, type Station } from './geo';
+import { Scenery } from './Scenery';
 import { WindowView, type MapState } from './WindowView';
 import { RouteMap } from './RouteMap';
 import { Stamp } from './Stamp';
@@ -58,7 +59,10 @@ export function RideView({ ride, info, geo, pal, dark, tod, side, frozenKm, frac
   const kmNow = useKm(ride, geo, frozenKm, fracRef);
   const km = kmNow();
   const [view, setView] = useState<'window' | 'map'>('window');
+  // the 3D satellite view (maplibre) is only loaded when it is asked for from the map view
+  const [sat, setSat] = useState(false);
   const [mapState, setMapState] = useState<MapState>('loading');
+  const satOn = view === 'map' && sat;
   const [landing, setLanding] = useState<{ s: Station; key: number } | null>(null);
   const rumbleOn = usePrefs((s) => !!s.mixer.on.brown);
   const toggleTrack = usePrefs((s) => s.toggleTrack);
@@ -122,8 +126,8 @@ export function RideView({ ride, info, geo, pal, dark, tod, side, frozenKm, frac
           overlay={
             <>
               {/* time of day over the landscape */}
-              {view === 'window' && <div className="pointer-events-none absolute inset-0 mix-blend-multiply transition-colors duration-[3000ms]" style={{ background: tod.tint }} />}
-              {view === 'window' && mapState === 'ready' && (
+              {(view === 'window' || satOn) && <div className="pointer-events-none absolute inset-0 mix-blend-multiply transition-colors duration-[3000ms]" style={{ background: tod.tint }} />}
+              {satOn && mapState === 'ready' && (
                 <p className="pointer-events-none absolute bottom-1.5 left-3 max-w-[70%] truncate text-[9px] font-bold text-white/75 [text-shadow:0_1px_2px_rgb(0_0_0/0.6)] sm:text-[10px]">
                   © OpenStreetMap contributors · Sentinel-2 cloudless 2016 by EOX (CC BY 4.0) · Terrain: Mapzen/AWS
                 </p>
@@ -138,7 +142,7 @@ export function RideView({ ride, info, geo, pal, dark, tod, side, frozenKm, frac
                   </motion.div>
                 )}
               </AnimatePresence>
-              {view === 'window' && mapState === 'loading' && (
+              {satOn && mapState === 'loading' && (
                 <div className="absolute inset-0 grid place-items-center bg-[#c9d8c4]">
                   <motion.div className={cn('rounded-2xl px-5 py-3 text-center', PAPER)} animate={{ y: [0, -4, 0] }} transition={{ duration: 1.6, repeat: Infinity }}>
                     <p className="text-3xl">🚆</p>
@@ -146,13 +150,24 @@ export function RideView({ ride, info, geo, pal, dark, tod, side, frozenKm, frac
                   </motion.div>
                 </div>
               )}
-              {(view === 'map' || mapState === 'error') && (
+              {view === 'map' && (!sat || mapState === 'error') && (
                 <div className="absolute inset-0 bg-[var(--tr-paper)] p-2 sm:p-3">
                   <RouteMap geo={geo} km={km} color={info.color} dark={dark} />
-                  {mapState === 'error' && view === 'window' && (
-                    <p className="absolute inset-x-0 bottom-3 text-center text-xs font-bold text-[var(--tr-soft)]">This device can’t draw the 3D window, so here’s your route map.</p>
-                  )}
+                  {mapState === 'error' && sat && <p className="absolute inset-x-0 bottom-3 text-center text-xs font-bold text-[var(--tr-soft)]">This device can’t draw the 3D view, so here’s your route map.</p>}
                 </div>
+              )}
+              {view === 'map' && (
+                <button
+                  onClick={() => {
+                    setMapState('loading');
+                    setSat((v) => !v);
+                  }}
+                  className={cn(LIGHT_BTN, 'absolute top-2 right-2 z-[3] h-9 px-3 text-xs')}
+                  aria-pressed={sat}
+                  title="Toggle the 3D satellite view"
+                >
+                  <Satellite size={14} /> {sat ? 'Paper map' : '3D satellite'}
+                </button>
               )}
               <AnimatePresence>
                 {landing && !covered && (
@@ -171,7 +186,8 @@ export function RideView({ ride, info, geo, pal, dark, tod, side, frozenKm, frac
             </>
           }
         >
-          <WindowView geo={geo} kmNow={kmNow} speed={speed} side={side} tod={tod} active={view === 'window' && mapState !== 'error'} onState={setMapState} />
+          {view === 'window' && <Scenery route={ride.route} kmNow={kmNow} totalKm={geo.km} side={side} tod={tod} />}
+          {satOn && <WindowView geo={geo} kmNow={kmNow} speed={speed} side={side} tod={tod} active={mapState !== 'error'} onState={setMapState} />}
         </WindowFrame>
         <Sill pal={pal} className="w-[min(98vw,1180px)] shrink-0" />
       </div>
@@ -220,7 +236,10 @@ export function RideView({ ride, info, geo, pal, dark, tod, side, frozenKm, frac
                 </button>
               </>
             )}
-            <button onClick={() => setView((v) => (v === 'window' ? 'map' : 'window'))} aria-label={view === 'window' ? 'Show route map' : 'Look out of the window'} title={view === 'window' ? 'Route map' : 'Window'} className={ROUND}>
+            <button onClick={() => {
+                setSat(false);
+                setView((v) => (v === 'window' ? 'map' : 'window'));
+              }} aria-label={view === 'window' ? 'Show route map' : 'Look out of the window'} title={view === 'window' ? 'Route map' : 'Window'} className={ROUND}>
               {view === 'window' ? <MapIcon size={19} /> : <Mountain size={19} />}
             </button>
             <button onClick={onSide} aria-label={`Switch to the ${side === 'R' ? 'left' : 'right'} window`} title="Switch sides" className={ROUND}>

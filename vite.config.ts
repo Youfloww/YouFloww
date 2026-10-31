@@ -68,6 +68,17 @@ export default defineConfig({
             },
           },
           {
+            // train/plane window footage: cached only once watched (never precached); range requests so looping works offline
+            urlPattern: ({ url }) => url.pathname.startsWith('/video/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'floww-video',
+              expiration: { maxEntries: 16 },
+              rangeRequests: true,
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
             urlPattern: ({ url }) => url.pathname.startsWith('/img/memes/'),
             handler: 'CacheFirst',
             options: { cacheName: 'floww-memes', expiration: { maxEntries: 80 } },
