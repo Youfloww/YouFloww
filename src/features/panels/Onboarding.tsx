@@ -11,13 +11,14 @@ import { start } from '../timer/engine';
 import { previewPack } from '@/audio/sfx';
 import { APP_VERSION } from '@/lib/version';
 
-const NEW_STUFF = [
-  ['🐱', 'Meet Flowy', 'A little cat who walks, jumps and cheers you on. Poke them!'],
-  ['🎧', 'Sound mixer', 'Layer rain, café, brown noise & 40Hz focus beats.'],
-  ['🌈', 'Living scenes', 'WebGL aurora, 7 themes, live wallpapers, particles.'],
-  ['📈', 'Deeper stats', 'Focus garden heatmap, power hours, shareable wrap.'],
-  ['⌨️', 'Command menu', 'Do anything from the keyboard with ⌘K.'],
-  ['🪟', 'Floating buddy', 'The cat and your timer float above any app.'],
+/** What's new in 4.0. `open` is the world it opens (or the Worlds launcher), so every card is a door. */
+const NEW_STUFF: { e: string; t: string; b: string; open: string | 'launcher' | null }[] = [
+  { e: '🌍', t: 'Worlds', b: 'A café, flights, a scenic train, a window seat and a study desk. Press W.', open: 'launcher' },
+  { e: '🫶', t: 'Study Hall', b: 'Focus beside real people, ask “Study together?” and chat in your group.', open: 'together' },
+  { e: '🌱', t: 'A living garden', b: 'Plants grow a little with every focused second, seed to full bloom.', open: 'garden' },
+  { e: '🏡', t: 'Cat’s Home', b: 'Decorate your cat’s rooms. Everything is free for now!', open: 'cathome' },
+  { e: '🧠', t: 'Focus music', b: 'Calm, brain-tuned music that loops forever. Switch it on in Worlds.', open: 'launcher' },
+  { e: '⏸', t: 'An honest timer', b: 'Close the tab and your session pauses. Time away never counts.', open: null },
 ];
 
 export function Onboarding() {
@@ -37,6 +38,11 @@ export function Onboarding() {
     setUI({ onboarding: false });
     if (go) setTimeout(start, 350);
   };
+  const visit = (open: string | null) => {
+    finish();
+    if (open === 'launcher') setUI({ launcher: true });
+    else if (open) setUI({ mode: open });
+  };
 
   const steps = returning
     ? [
@@ -44,15 +50,26 @@ export function Onboarding() {
           <div className="-mt-16 mb-2 flex justify-center">
             <CatSprite anim="jump" height={110} />
           </div>
-          <h2 className="font-display text-3xl font-semibold">YouFloww 3.0 is here!</h2>
-          <p className="mt-1 font-semibold text-muted">Everything you loved — streaks, stats, memes — rebuilt to be cuter and smoother.</p>
+          <h2 className="font-display text-3xl font-semibold">YouFloww 4.0 is here!</h2>
+          <p className="mt-1 font-semibold text-muted">Whole little worlds to focus in, and friends to focus with. Tap one to take a look.</p>
           <div className="mt-4 grid grid-cols-2 gap-2 text-left">
-            {NEW_STUFF.map(([e, t, b], i) => (
-              <motion.div key={t} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 + i * 0.06 }} className="rounded-2xl bg-line p-2.5">
+            {NEW_STUFF.map(({ e, t, b, open }, i) => (
+              <motion.button
+                key={t}
+                type="button"
+                disabled={!open}
+                onClick={() => visit(open)}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 + i * 0.06 }}
+                whileHover={open ? { y: -2 } : undefined}
+                whileTap={open ? { scale: 0.97 } : undefined}
+                className={cn('rounded-2xl bg-line p-2.5 text-left', open && 'pressable hover:bg-accent-soft')}
+              >
                 <div className="text-xl">{e}</div>
                 <p className="text-sm font-black">{t}</p>
                 <p className="text-[11px] leading-snug font-semibold text-muted">{b}</p>
-              </motion.div>
+              </motion.button>
             ))}
           </div>
           <Button variant="primary" size="lg" className="mt-5 w-full" onClick={() => finish()}>
@@ -138,6 +155,9 @@ export function Onboarding() {
             </li>
             <li className="flex items-center gap-3 rounded-2xl bg-line p-3">
               <span className="text-lg">🎯</span> pick a task so your time gets tracked
+            </li>
+            <li className="flex items-center gap-3 rounded-2xl bg-line p-3">
+              <Kbd>W</Kbd> worlds: a café, a garden, the Study Hall and more
             </li>
           </ul>
           <Button variant="primary" size="lg" className="mt-5 w-full" onClick={() => finish(true)}>
