@@ -185,9 +185,11 @@ export async function payWithRazorpay(order: CreatedOrder, who: { name?: string 
       amount: order.amountPaise,
       currency: 'INR',
       order_id: order.orderId,
-      // the payment is processed by the owner's existing store, so its name is what the checkout shows
-      name: 'giftasite',
-      description,
+      // YouFloww's name and logo on the checkout; the money goes through the owner's giftasite account, and the
+      // bank statement says giftasite, so the line under the name says so too
+      name: 'YouFloww',
+      image: `${location.origin}/icons/icon-192.png`,
+      description: `${description} · paid via giftasite`,
       prefill: { name: who.name ?? undefined, email: who.email ?? undefined },
       notes: { app: 'YouFloww Focus Pledge' },
       theme: { color: accent },
