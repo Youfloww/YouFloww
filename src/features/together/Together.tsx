@@ -472,10 +472,13 @@ function Enter({ invite, onGo, onGroupOnly }: { invite: string; onGo: (p: { name
 /* Receiving kudos                                                     */
 /* ------------------------------------------------------------------ */
 function Burst({ emoji, from, said, onDone }: { emoji: string; from: string; said: string; onDone: () => void }) {
+  const done = useRef(onDone);
+  done.current = onDone;
+  // one timer for the burst's whole life: the hall re-renders every second, which must not restart it
   useEffect(() => {
-    const id = setTimeout(onDone, 3200);
+    const id = setTimeout(() => done.current(), 3200);
     return () => clearTimeout(id);
-  }, [onDone]);
+  }, []);
   const bits = useMemo(
     () => Array.from({ length: 16 }, (_, i) => ({ a: (i / 16) * Math.PI * 2 + Math.random() * 0.3, d: 120 + Math.random() * 140, e: ['✨', '💖', emoji, '⭐', '🌸'][i % 5], s: 0.8 + Math.random() * 0.8, r: (Math.random() - 0.5) * 220 })),
     [emoji],

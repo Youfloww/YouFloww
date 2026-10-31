@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { bus } from '@/lib/bus';
 import { useUI } from '@/store/ui';
 import { useData } from '@/store/data';
@@ -164,10 +164,13 @@ export function Toaster() {
 }
 
 function ToastItem({ t, onDone }: { t: ReturnType<typeof useUI.getState>['toasts'][number]; onDone: () => void }) {
+  const done = useRef(onDone);
+  done.current = onDone;
+  // one timer per toast: a new toast arriving re-renders the list, which must not restart the others' timers
   useEffect(() => {
-    const id = setTimeout(onDone, t.ms ?? (t.action ? 6000 : 3600));
+    const id = setTimeout(() => done.current(), t.ms ?? (t.action ? 6000 : 3600));
     return () => clearTimeout(id);
-  }, [t, onDone]);
+  }, [t.id]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <motion.div
       layout
