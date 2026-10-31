@@ -6,6 +6,24 @@ import { Component, type ReactNode } from 'react';
 import { useUI } from '@/store/ui';
 import { whenNotFocusing } from '@/features/timer/engine';
 
+/** Fetch the new version first, so the reload doesn't come back to the old copy; never mid-focus. */
+async function refresh() {
+  try {
+    const r = await navigator.serviceWorker?.getRegistration();
+    if (r) {
+      const swapped = new Promise((res) => {
+        navigator.serviceWorker.addEventListener('controllerchange', res, { once: true });
+        setTimeout(res, 5000);
+      });
+      await r.update();
+      if (r.installing || r.waiting) await swapped;
+    }
+  } catch {
+    // offline or no service worker: a plain reload is all we can do
+  }
+  whenNotFocusing(() => location.reload());
+}
+
 const isChunkError = (e: unknown) =>
   e instanceof Error && /dynamically imported module|Importing a module script failed|Loading chunk|error loading dynamically/i.test(e.message);
 
@@ -39,7 +57,7 @@ export class ChunkBoundary extends Component<{ children: ReactNode; name: string
             </p>
           </div>
           {chunk && (
-            <button onClick={() => whenNotFocusing(() => location.reload())} className="pressable rounded-xl bg-accent px-3 py-1.5 text-sm font-extrabold text-accent-ink">
+            <button onClick={() => void refresh()} className="pressable rounded-xl bg-accent px-3 py-1.5 text-sm font-extrabold text-accent-ink">
               Refresh
             </button>
           )}
