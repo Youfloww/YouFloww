@@ -32,6 +32,8 @@ const TABS: { id: Tab; emoji: string; label: string }[] = [
 const RATIO = 16 / 9;
 /** where the cats walk: the open floor in front of the furniture */
 const WALK = [0.84, 0.94] as const;
+/** half a cat's width, as a share of the room */
+const CAT_HALF = 0.035;
 
 export interface Drag {
   id: string;
@@ -268,7 +270,25 @@ export default function CatHome() {
               {slots.map((s) => {
                 const id = here[s.id];
                 const it = id ? itemOf(id) : undefined;
-                return it ? <Placed key={s.id + id} item={it} slot={s} room={R} box={box} editing={editing} selected={sel?.from === s.id} dragging={drag?.from === s.id} flash={flash === s.id} onDown={(e) => (editing ? startDrag(e, it.id, s.id) : cats.visit(s.id))} /> : null;
+                return it ? (
+                  <Placed
+                    key={s.id + id}
+                    item={it}
+                    slot={s}
+                    room={R}
+                    box={box}
+                    editing={editing}
+                    selected={sel?.from === s.id}
+                    dragging={drag?.from === s.id}
+                    flash={flash === s.id}
+                    onDown={(e) => (editing ? startDrag(e, it.id, s.id) : cats.visit(s.id))}
+                    onRemove={() => {
+                      putAway(room, s.id);
+                      if (sel?.from === s.id) setSel(null);
+                      toast({ emoji: '📦', title: `${it.name} put away`, body: 'It’s in storage: place it in any room from 🪄 Decorate.', ms: 3500 });
+                    }}
+                  />
+                ) : null;
               })}
 
               {editing &&
@@ -400,7 +420,7 @@ function geom(it: Item, s: Slot, R: Room, box: Box) {
   return { w: m ? (h * m.w) / m.h : h, h, sc };
 }
 
-function Placed({ item, slot, room, box, editing, selected, dragging, flash, onDown }: { item: Item; slot: Slot; room: Room; box: Box; editing: boolean; selected: boolean; dragging: boolean; flash: boolean; onDown: (e: React.PointerEvent) => void }) {
+function Placed({ item, slot, room, box, editing, selected, dragging, flash, onDown, onRemove }: { item: Item; slot: Slot; room: Room; box: Box; editing: boolean; selected: boolean; dragging: boolean; flash: boolean; onDown: (e: React.PointerEvent) => void; onRemove: () => void }) {
   const g = geom(item, slot, room, box);
   const bs = box.h / 800;
   const { dx } = room.light;
@@ -438,6 +458,19 @@ function Placed({ item, slot, room, box, editing, selected, dragging, flash, onD
         <motion.span className="pointer-events-none absolute -top-3 left-1/2 text-xl" initial={{ opacity: 1, y: 0 }} animate={{ opacity: 0, y: -26 }} transition={{ duration: 0.9 }}>
           ✨
         </motion.span>
+      )}
+      {/* decorating: one tap puts it back in storage (it stays yours, for any room) */}
+      {editing && !dragging && (
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={onRemove}
+          aria-label={`Put the ${item.name.toLowerCase()} away`}
+          title="Put away (back to storage)"
+          className="pressable absolute top-0 right-0 z-[1] grid size-7 translate-x-1/3 -translate-y-1/3 place-items-center rounded-full bg-white text-[13px] font-black text-[#c9454b] shadow-[0_3px_10px_-2px_rgb(60_30_20/0.45)] ring-1 ring-black/10"
+        >
+          ✕
+        </button>
       )}
     </div>
   );
@@ -554,6 +587,37 @@ function useCats({ room, R, here, box, stage }: CatsArgs) {
     return { s, it };
   };
 
+  /** the floor each standing piece takes up (room fractions): the cats never settle down inside one */
+  const blockers = (only?: string[]) => {
+    const R = roomRef.current;
+    const b = boxRef.current;
+    if (!b.w) return [];
+    return slotsOf(R).flatMap((s) => {
+      if (only && !only.includes(s.id)) return [];
+      const it = itemOf(hereRef.current[s.id] ?? '');
+      if (!it || it.kind !== 'floor') return [];
+      const m = PIC[it.id];
+      const g = geom(it, s, R, b);
+      return [{ x: s.x + ((m?.fx ?? 0) * g.w) / b.w, half: ((m?.fw ?? 0.7) * g.w) / 2 / b.w, y: s.y }];
+    });
+  };
+  const isFree = (x: number, y: number, bl = blockers()) => bl.every((o) => Math.abs(x - o.x) > o.half + CAT_HALF || y - o.y > 0.07 || o.y - y > 0.05);
+  /** an empty bit of floor: anywhere, or the closest one to `near` */
+  const freeSpot = (near?: { x: number; y: number }) => {
+    const bl = blockers();
+    let best: { x: number; y: number } | null = null;
+    let bestD = Infinity;
+    for (let i = 0; i < 48; i++) {
+      const x = near ? Math.min(0.94, Math.max(0.06, near.x + rand(-0.12, 0.12) * (1 + i / 8))) : rand(0.08, 0.92);
+      const y = near && i < 8 ? Math.min(WALK[1], Math.max(WALK[0], near.y)) : rand(WALK[0], WALK[1]);
+      if (!isFree(x, y, bl)) continue;
+      if (!near) return { x, y };
+      const d = Math.hypot(x - near.x, y - near.y);
+      if (d < bestD) [best, bestD] = [{ x, y }, d];
+    }
+    return best ?? { x: near?.x ?? 0.5, y: WALK[1] };
+  };
+
   /** Mom's visit to a piece of furniture */
   const useItem = async (p: Pet, slotId: string, tok: number) => {
     const sp = spot(slotId);
@@ -651,8 +715,7 @@ function useCats({ room, R, here, box, stage }: CatsArgs) {
     const p = mom.current;
     wire('mom', p);
     void preloadSkin(useCat.getState().skin);
-    p.x = 0.5;
-    p.y = 0.9;
+    ({ x: p.x, y: p.y } = freeSpot({ x: 0.5, y: 0.9 }));
     void (async () => {
       await sleep(500);
       if (!alive) return;
@@ -679,8 +742,14 @@ function useCats({ room, R, here, box, stage }: CatsArgs) {
           const [slotId] = mood === 'sleepy' && naps.length ? pick(naps) : pick(uses);
           await useItem(p, slotId, tok);
         } else if (r < 0.75) {
-          await p.walk(rand(0.1, 0.9), rand(WALK[0], WALK[1]));
+          const t = freeSpot();
+          await p.walk(t.x, t.y);
         } else if (r < 0.87) {
+          // lie down only on empty floor (she may be standing at the piece she just used)
+          if (!isFree(p.x, p.y)) {
+            const t = freeSpot(p);
+            if (!(await p.walk(t.x, t.y))) continue;
+          }
           p.anim('slide', 9);
           if (mood === 'hungry') say('mom', pick(['Snack time? 🐟', 'My tummy is rumbling…']), 2800);
           await p.wait(rand(3000, 6000));
@@ -702,6 +771,31 @@ function useCats({ room, R, here, box, stage }: CatsArgs) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // a piece was just put down where a cat is: she gets up and moves over
+  const prevHere = useRef(here);
+  useEffect(() => {
+    const before = prevHere.current;
+    prevHere.current = here;
+    const fresh = Object.keys(here).filter((k) => here[k] && here[k] !== before[k]);
+    if (!fresh.length) return;
+    // only the new pieces count here: she may be busy at one that was already there
+    const bl = blockers(fresh);
+    const m = mom.current;
+    if (!reacting.current && !isFree(m.x, m.y, bl))
+      void react(async (p) => {
+        const t = freeSpot(p);
+        p.face('star');
+        await p.walk(t.x, t.y, 0.18);
+        p.face('normal');
+      });
+    for (const k of kits.current.values())
+      if (!isFree(k.x, k.y, bl)) {
+        const t = freeSpot(k);
+        void k.walk(t.x, t.y, 0.18);
+      }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [here]);
+
   // a new room: she trots in from the side
   const prevRoom = useRef(room);
   useEffect(() => {
@@ -710,7 +804,8 @@ function useCats({ room, R, here, box, stage }: CatsArgs) {
     void react(async (p) => {
       p.x = 0.04;
       p.y = 0.9;
-      await p.run(0.4, 0.9);
+      const t = freeSpot({ x: 0.4, y: 0.9 });
+      await p.run(t.x, t.y);
       p.face('star');
       say('mom', pick(['Ooh, this room! ✨', 'New room, new naps 😸', 'I love it here 💕']), 2600);
       await p.hop(24);
@@ -749,10 +844,14 @@ function useCats({ room, R, here, box, stage }: CatsArgs) {
           const m = mom.current;
           const r = Math.random();
           if (m.view.anim === 'slide' && m.view.frame === 3 && r < 0.6) {
-            await me.walk(m.x + rand(-0.06, 0.06), Math.max(WALK[0], Math.min(WALK[1], m.y + 0.02)), 0.1);
+            const t = freeSpot({ x: m.x + rand(-0.06, 0.06), y: m.y + 0.02 });
+            await me.walk(t.x, t.y, 0.1);
             me.anim('slide', 3);
             await me.wait(rand(6000, 12000));
-          } else if (r < 0.55) await me.walk(Math.min(0.95, Math.max(0.05, m.x + rand(-0.12, 0.12))), rand(WALK[0], WALK[1]), 0.14);
+          } else if (r < 0.55) {
+            const t = freeSpot({ x: m.x + rand(-0.12, 0.12), y: rand(WALK[0], WALK[1]) });
+            await me.walk(t.x, t.y, 0.14);
+          }
           else if (r < 0.75) {
             me.face('star');
             await me.hop(rand(14, 26));
@@ -761,6 +860,10 @@ function useCats({ room, R, here, box, stage }: CatsArgs) {
             say(id, pick(L.KITTEN), 1600);
             await me.wait(1500);
           } else {
+            if (!isFree(me.x, me.y)) {
+              const t = freeSpot(me);
+              await me.walk(t.x, t.y, 0.14);
+            }
             me.anim('slide', 9);
             await me.wait(rand(2500, 5000));
           }

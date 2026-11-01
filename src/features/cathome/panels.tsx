@@ -180,7 +180,7 @@ export function DecorPanel({
   return (
     <div>
       <p className="text-[12.5px] leading-snug font-bold text-muted">
-        Drag a piece onto a glowing spot, or tap it and then tap a spot. Drag things around the room to move them; drop one here to put it away.
+        Drag a piece onto a glowing spot, or tap it and then tap a spot. Drag things around the room to move them. Tap ✕ on a piece to put it away: it stays yours in storage, ready for any room.
       </p>
       {selItem && (
         <div className={cn(CARD, 'mt-2 flex items-center gap-2 p-2')}>
