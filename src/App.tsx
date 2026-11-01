@@ -31,6 +31,8 @@ startEarnings();
 startGardenBanking();
 // the cat hears about sessions even while a world (café, flights, ...) covers her: loaded right after boot, off the main bundle
 void import('./features/cat/life').then((m) => m.startCatLife());
+// the cat follows the account: her saved self is kept in step with data.cat (cat/cloud.ts)
+void import('./features/cat/cloud').then((m) => m.startCatCloud());
 
 const Panels = lazy(() => import('./features/panels/Panels'));
 const Overlays = lazy(() => import('./features/panels/Overlays'));

@@ -1,4 +1,5 @@
 import { normalizeUserData } from '@/data/model';
+import { setCloudReady } from './cloudReady';
 import type { SessionLogEntry, UserData } from '@/data/types';
 import { debounce } from '@/lib/utils';
 import { dateKey } from '@/lib/time';
@@ -158,6 +159,7 @@ async function attachUser(fb: FB, u: import('firebase/auth').User) {
   const { fsMod, db } = fb;
   const seq = ++attachSeq;
   serverReady = false;
+  setCloudReady(false);
   showingCache = false;
   base = null;
   dirty = false;
@@ -189,6 +191,7 @@ async function attachUser(fb: FB, u: import('firebase/auth').User) {
         // First answer from the server
         saveGuest.flush();
         serverReady = true;
+        setCloudReady(true);
         const guest = loadGuestData();
         const hadGuest = guest.sessionLog && guest.sessionLog.length > 0;
         if (act === 'seed') {
@@ -255,6 +258,7 @@ function detachUser() {
   saveCloud.cancel();
   attachSeq++;
   serverReady = false;
+  setCloudReady(false);
   showingCache = false;
   base = null;
   dirty = false;
