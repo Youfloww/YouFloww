@@ -247,8 +247,10 @@ export default function CatHome() {
   return (
     <div className="fixed inset-0 z-[45] flex flex-col overflow-hidden bg-bg text-ink md:block" role="dialog" aria-modal="true" aria-label={`${cat.name}'s home`}>
       {/* ---------------- the room ---------------- */}
-      <div className="relative h-[57dvh] shrink-0 md:absolute md:inset-0 md:h-auto">
-        <div ref={stageRef} className="no-scrollbar absolute inset-0 overflow-x-auto overflow-y-hidden overscroll-x-contain bg-[#f3dcc6]" onScroll={cats.onScroll}>
+      {/* `isolate`: furniture is layered by depth (z-index up to ~1000); that layering stays inside the room,
+          so the top bar, the toolbar and the shop panel always sit on top of it */}
+      <div className="relative isolate h-[57dvh] shrink-0 md:absolute md:inset-0 md:h-auto">
+        <div ref={stageRef} className="no-scrollbar absolute inset-0 isolate overflow-x-auto overflow-y-hidden overscroll-x-contain bg-[#f3dcc6]" onScroll={cats.onScroll}>
           {box.w > 0 && (
             <div className="relative" style={{ width: box.w, height: box.h, marginTop: Math.min(0, (box.ch - box.h) * 0.6) }}>
               <AnimatePresence initial={false}>
