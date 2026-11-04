@@ -16,7 +16,7 @@ const NEW_STUFF: { e: string; t: string; b: string; open: string | 'launcher' | 
   { e: '🌍', t: 'Worlds', b: 'A café, flights, a scenic train, a window seat and a study desk. Press W.', open: 'launcher' },
   { e: '🫶', t: 'Study Hall', b: 'Focus beside real people, ask “Study together?” and chat in your group.', open: 'together' },
   { e: '🌱', t: 'A living garden', b: 'Plants grow a little with every focused second, seed to full bloom.', open: 'garden' },
-  { e: '🏡', t: 'Cat’s Home', b: 'Decorate your cat’s rooms. Everything is free for now!', open: 'cathome' },
+  { e: '🏡', t: 'Cat’s Home', b: 'Spend fish coins from focusing on snacks, furniture and rooms.', open: 'cathome' },
   { e: '🧠', t: 'Focus music', b: 'Calm, brain-tuned music that loops forever. Switch it on in Worlds.', open: 'launcher' },
   { e: '⏸', t: 'An honest timer', b: 'Close the tab and your session pauses. Time away never counts.', open: null },
 ];

@@ -46,8 +46,8 @@ export function serve(id: string): 'ok' | 'poor' | 'full' {
 
 export const canAfford = (price: number) => getWallet().coins >= priceOf(price);
 
-/** For now her snacks and everything in the Cat's Home (rooms, furniture) are free. Set to false to bring the prices back. */
-export const FREE_FOR_NOW = true;
+/** True makes her snacks and everything in the Cat's Home (rooms, furniture) free (the catalogs keep the real prices). */
+export const FREE_FOR_NOW = false;
 /** What something costs today (the catalogs keep the real prices) */
 export function priceOf(price: number) {
   return FREE_FOR_NOW ? 0 : price;
