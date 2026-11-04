@@ -40,6 +40,8 @@ interface PrefsState {
   checkIns: boolean;
   /** Ask before anything ends a running session */
   confirmEnd: boolean;
+  /** The floating window's last layout: the buddy card or the wide progress strip */
+  pipLayout: 'buddy' | 'strip';
   musicVideo: { id: string | null; list?: string | null; open: boolean; x: number; y: number };
   /** Where each panel window was last left (desktop) */
   windowRects: Partial<Record<string, WindowRect>>;
@@ -71,6 +73,7 @@ export const usePrefs = create<PrefsState>()(
       memePops: true,
       checkIns: true,
       confirmEnd: true,
+      pipLayout: 'buddy',
       musicVideo: { id: null, open: false, x: 24, y: 96 },
       windowRects: {},
       lastSeenVersion: null,

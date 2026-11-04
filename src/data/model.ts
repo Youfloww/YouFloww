@@ -144,12 +144,13 @@ export function normalizeTodo(t: Partial<Todo>): Todo {
   };
 }
 
-/** Day-boundary bookkeeping: reset today counters, break dead streaks, prune old buckets. */
-export function rollover(d: UserData, streakDay: string = dateKey()): UserData {
-  const today = dateKey();
-  if (d.lastSessionDate !== today) d.todaySessions = 0;
-  // `streakDay` lets a session that started yesterday still extend yesterday's streak
-  if (d.lastStreakDate && diffDays(d.lastStreakDate, streakDay) > 1) d.streakCount = 0;
+/**
+ * Day-boundary bookkeeping: reset today counters, prune old buckets. A broken streak is not cleared here: `derive`
+ * shows it as 0, and the next session restarts it. Clearing it on load would lose it for a session that started
+ * (or paused) on a day that still counts and finishes later.
+ */
+export function rollover(d: UserData): UserData {
+  if (d.lastSessionDate !== dateKey()) d.todaySessions = 0;
   pruneWeekly(d);
   return d;
 }
@@ -193,6 +194,11 @@ export interface RecordSessionInput {
   replay?: boolean;
   /** where it was started (a key of SOURCES in store/timer) */
   src?: string;
+  /**
+   * The stretches it really ran, [start, end] ms, oldest first. A paused session can resume hours or days later:
+   * days, hours, streaks and overlaps follow these. Missing: one stretch from `startedAt`.
+   */
+  spans?: [number, number][];
 }
 
 export interface RecordSessionResult {
@@ -246,6 +252,31 @@ export function splitByDay(startedAt: number, sec: number): [string, number][] {
   return out;
 }
 
+/**
+ * `sec` seconds laid over the stretches a session ran ([start, seconds] pairs, oldest first). Time past `sec` is cut
+ * from the end, as a countdown that was noticed late counts only its own length. No usable stretches: one from `at`.
+ */
+export function layOut(spans: [number, number][] | undefined, at: number, sec: number): [number, number][] {
+  const out: [number, number][] = [];
+  let left = sec;
+  for (const s of spans ?? []) {
+    if (left <= 0) break;
+    if (!Array.isArray(s) || !Number.isFinite(s[0]) || !Number.isFinite(s[1]) || s[1] <= s[0]) continue;
+    const take = Math.min(left, Math.round((s[1] - s[0]) / 1000));
+    if (take <= 0) continue;
+    out.push([s[0], take]);
+    left -= take;
+  }
+  if (!out.length) return [[at, sec]];
+  if (left > 0) {
+    // earlier stretches nobody wrote down (a session paused before this was kept) ran from its start;
+    // a rounding second or two goes on the first stretch
+    if (out[0][0] - at >= left * 1000) out.unshift([at, left]);
+    else out[0][1] += left;
+  }
+  return out;
+}
+
 export function recordFocusSession(d: UserData, input: RecordSessionInput): RecordSessionResult {
   let sec = Math.max(0, Math.round(Math.min(input.seconds, 6 * 3600)));
   const result: RecordSessionResult = { streak: 'none', autoCompletedTodo: null, goalReached: false };
@@ -253,10 +284,18 @@ export function recordFocusSession(d: UserData, input: RecordSessionInput): Reco
   const now = Date.now();
   const startedAt = Number.isFinite(input.startedAt) && input.startedAt > 0 && input.startedAt <= now + 60000 ? input.startedAt : now - sec * 1000;
   // the same minutes never count twice (two devices focusing at once): drop what overlaps a session already logged
-  if (!input.replay) sec -= overlapSeconds(d.sessionLog, startedAt, sec);
+  if (!input.replay) sec -= layOut(input.spans, startedAt, sec).reduce((a, [at, s]) => a + overlapSeconds(d.sessionLog, at, s, startedAt), 0);
   if (sec <= 0) return result;
-  // a session over midnight is split across both days (the session itself counts on the day it started)
-  const days = splitByDay(startedAt, sec);
+  // a session over midnight (or paused and resumed on a later day) is split across those days; the session itself
+  // counts on the day it started
+  const runs = layOut(input.spans, startedAt, sec);
+  const days: [string, number][] = [];
+  for (const [at, s] of runs)
+    for (const [k, v] of splitByDay(at, s)) {
+      const last = days[days.length - 1];
+      if (last && last[0] === k) last[1] += v;
+      else days.push([k, v]);
+    }
   const startDay = days[0][0];
   const today = days[days.length - 1][0];
 
@@ -281,15 +320,17 @@ export function recordFocusSession(d: UserData, input: RecordSessionInput): Reco
 
   // Spread the seconds across hour buckets the session actually covered
   d.hourlyFocusSeconds ??= Array(24).fill(0);
-  let cursor = startedAt;
-  let left = sec;
-  while (left > 0) {
-    const t = new Date(cursor);
-    const toNextHour = 3600 - (t.getMinutes() * 60 + t.getSeconds());
-    const chunk = Math.min(left, toNextHour);
-    d.hourlyFocusSeconds[t.getHours()] += chunk;
-    left -= chunk;
-    cursor += chunk * 1000;
+  for (const [at, s] of runs) {
+    let cursor = at;
+    let left = s;
+    while (left > 0) {
+      const t = new Date(cursor);
+      const toNextHour = 3600 - (t.getMinutes() * 60 + t.getSeconds());
+      const chunk = Math.min(left, toNextHour);
+      d.hourlyFocusSeconds[t.getHours()] += chunk;
+      left -= chunk;
+      cursor += chunk * 1000;
+    }
   }
 
   // Task attribution: the task's own time, plus the stats for every part of this (logged) session
@@ -339,11 +380,11 @@ export function recordFocusSession(d: UserData, input: RecordSessionInput): Reco
  * Seconds of [at, at + sec] already covered by logged sessions. Overlaps under a minute are ignored: two devices'
  * clocks can differ a little, and back-to-back sessions must never lose time to that.
  */
-export function overlapSeconds(log: SessionLogEntry[] | undefined, at: number, sec: number) {
+export function overlapSeconds(log: SessionLogEntry[] | undefined, at: number, sec: number, self = at) {
   const end = at + sec * 1000;
   let ms = 0;
   for (const e of log ?? []) {
-    if (e.at === at) continue;
+    if (e.at === self) continue;
     const o = Math.min(end, e.at + e.sec * 1000) - Math.max(at, e.at);
     if (o >= 60_000) ms += o;
   }
@@ -352,19 +393,11 @@ export function overlapSeconds(log: SessionLogEntry[] | undefined, at: number, s
 
 function bumpStreak(d: UserData, today: string): 'inc' | 'reset' | 'none' {
   if (d.lastStreakDate && d.lastStreakDate >= today) return 'none';
-  let change: 'inc' | 'reset' = 'inc';
-  if (!d.lastStreakDate) d.streakCount = 1;
-  else {
-    const gap = diffDays(d.lastStreakDate, today);
-    if (gap === 1) d.streakCount += 1;
-    else {
-      change = d.streakCount > 1 ? 'reset' : 'inc';
-      d.streakCount = 1;
-    }
-  }
+  // a gap restarts the streak at 1 (shown as a +1 from the 0 the broken streak already showed)
+  d.streakCount = d.lastStreakDate && diffDays(d.lastStreakDate, today) === 1 ? d.streakCount + 1 : 1;
   d.lastStreakDate = today;
   d.bestStreak = Math.max(d.bestStreak, d.streakCount);
-  return change;
+  return 'inc';
 }
 
 /** Derived numbers used across stats, achievements and share cards. */

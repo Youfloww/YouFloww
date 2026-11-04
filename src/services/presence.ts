@@ -5,11 +5,16 @@ import type { FB } from './firebase';
 /**
  * Live "flowing now" presence: one doc per signed-in person (id = their uid), exactly the fields the strict
  * Firestore rules accept.
- * Counting reads only recently-active docs (single-field index on lastActiveMs).
+ * The count is two count queries (about 2 reads however many are online), not a read of every doc:
+ * "online" uses the single-field index on lastActiveMs, "focusing" the composite (isFocusing, lastActiveMs).
+ * Docs beat every minute while the tab is visible or a focus session runs; a hidden idle tab goes quiet and its
+ * doc ages out of the count.
  */
 export const usePresence = create<{ online: number | null; focusing: number | null }>(() => ({ online: null, focusing: null }));
 
-const ACTIVE_MS = 90_000;
+const ACTIVE_MS = 150_000; // a doc counts while touched in the last 2.5 min (beats are 60 s apart)
+const BEAT_MS = 60_000;
+const COUNT_MS = 60_000;
 let fbRef: FB | null = null;
 let docId: string | null = null;
 let myUid: string | null = null;
@@ -30,6 +35,8 @@ function presenceDoc(fb: FB, userId: string) {
 
 async function beat() {
   if (!fbRef || !docId || !myUid) return;
+  // someone focusing in another tab still counts; a hidden idle tab stays quiet (saves writes)
+  if (document.visibilityState !== 'visible' && !isFocusing()) return;
   const { fsMod, db } = fbRef;
   await fsMod.setDoc(fsMod.doc(db, 'presence', docId), presenceDoc(fbRef, myUid)).catch(() => {});
 }
@@ -37,18 +44,20 @@ async function beat() {
 export async function refreshCount(fb: FB | null = fbRef) {
   if (!fb || document.visibilityState !== 'visible') return;
   const { fsMod, db } = fb;
+  const col = fsMod.collection(db, 'presence');
+  const fresh = () => fsMod.where('lastActiveMs', '>', Date.now() - ACTIVE_MS);
   try {
-    const snap = await fsMod.getDocs(fsMod.query(fsMod.collection(db, 'presence'), fsMod.where('lastActiveMs', '>', Date.now() - ACTIVE_MS), fsMod.limit(500)));
-    const users = new Map<string, boolean>();
-    snap.forEach((d) => {
-      const x = d.data() as { uid?: string; isFocusing?: boolean };
-      const key = x.uid || d.id;
-      users.set(key, (users.get(key) ?? false) || !!x.isFocusing);
-    });
-    if (myUid) users.set(myUid, (users.get(myUid) ?? false) || isFocusing());
-    usePresence.setState({ online: users.size + (myUid ? 0 : 1), focusing: [...users.values()].filter(Boolean).length });
+    const [all, foc] = await Promise.all([
+      fsMod.getCountFromServer(fsMod.query(col, fresh())),
+      // needs the composite index; without it keep the last value instead of failing the whole count
+      fsMod.getCountFromServer(fsMod.query(col, fsMod.where('isFocusing', '==', true), fresh())).catch(() => null),
+    ]);
+    const online = Math.max(all.data().count + (myUid ? 0 : 1), 1); // a guest has no doc: count them here
+    let focusing = foc ? foc.data().count : usePresence.getState().focusing;
+    if (myUid && isFocusing()) focusing = Math.max(focusing ?? 0, 1);
+    usePresence.setState({ online, focusing: focusing == null ? null : Math.min(focusing, online) });
   } catch {
-    /* rules may deny reads for guests: keep last value */
+    /* offline or denied: keep the last value */
   }
 }
 
@@ -57,7 +66,7 @@ export function watchCount(fb: FB) {
   fbRef ??= fb;
   if (counter) return;
   void refreshCount(fb);
-  counter = setInterval(() => refreshCount(), 45_000);
+  counter = setInterval(() => refreshCount(), COUNT_MS);
   document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && refreshCount());
 }
 
@@ -73,7 +82,8 @@ export async function startPresence(fb: FB, userId: string) {
     /* presence is a nice-to-have */
   }
   void clearOldDocs(fb, userId);
-  heartbeat = setInterval(beat, 25_000);
+  heartbeat = setInterval(beat, BEAT_MS);
+  document.addEventListener('visibilitychange', beatOnShow);
   // Push focus state changes immediately
   let was = isFocusing();
   unsubTimer = useTimer.subscribe(() => {
@@ -98,6 +108,11 @@ async function clearOldDocs(fb: FB, userId: string) {
   }
 }
 
+/** Coming back to the tab: check in at once (a hidden idle tab may have aged out of the count). */
+function beatOnShow() {
+  if (document.visibilityState === 'visible') void beat();
+}
+
 function removeDoc() {
   if (!fbRef || !docId) return Promise.resolve();
   const { fsMod, db } = fbRef;
@@ -110,6 +125,7 @@ export async function stopPresence() {
   unsubTimer?.();
   unsubTimer = null;
   removeEventListener('pagehide', removeDoc);
+  document.removeEventListener('visibilitychange', beatOnShow);
   const gone = removeDoc();
   docId = null;
   myUid = null;

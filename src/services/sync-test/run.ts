@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 import * as fs from 'firebase/firestore';
 import { normalizeUserData, recordFocusSession } from '@/data/model';
 import type { UserData } from '@/data/types';
-import { buildWrites, clean, derive, replayMissing, snapshotAction, toWire } from '../syncDiff';
+import { buildWrites, clean, derive, mergeGuest, replayMissing, snapshotAction, toWire } from '../syncDiff';
 
 let failed = 0;
 const ok = (c: unknown, m: string) => {
@@ -96,6 +96,53 @@ async function main() {
   session(m, 1800, start);
   ok(m.dailyFocusSeconds![key(yesterday)] === 1500 && m.dailyFocusSeconds![key(last)] === 300, 'midnight session split 1500s / 300s');
   ok(m.streakCount === 7, 'midnight session keeps and extends the streak (5 -> 7)');
+
+  // 5. a guest's other work (coins, tasks, categories, journal, planner) joins an existing account, once
+  {
+    const acct = await load(A, 'u2');
+    acct.regularTasks = [{ id: 'm1', name: 'Math' }];
+    acct.todos = [{ id: 't1', text: 'account task', completed: false, subtasks: [], canonicalId: 'm1' }];
+    acct.journalEntries = { '2026-11-01': { text: 'account wrote this', date: '2026-11-01' } };
+    (acct as Record<string, unknown>).wallet = { coins: 40, earned: 100, items: { fish: 1 } };
+    (acct as Record<string, unknown>).garden = { plots: ['account'] };
+    await fs.setDoc(fs.doc(A, 'users', 'u2'), toWire(acct));
+    const g = normalizeUserData({});
+    session(g, 600, now - 3600_000);
+    g.regularTasks = [{ id: 'gm', name: 'math' }, { id: 'gb', name: 'Biology' }];
+    g.todos = [
+      { id: 'g1', text: 'guest math', completed: false, subtasks: [], canonicalId: 'gm' },
+      { id: 'g2', text: 'guest bio', completed: true, subtasks: [], canonicalId: 'gb' },
+      { id: 't1', text: 'same id as the account task', completed: false, subtasks: [] },
+    ];
+    g.journalEntries = { '2026-11-01': { text: 'guest wrote this', date: '2026-11-01', mood: 4 }, '2026-11-02': { text: 'only the guest', date: '2026-11-02' } };
+    g.timetable = { s1: { day: 'monday', start: '09:00', end: '10:00', activity: 'Read', completed: false } };
+    (g as Record<string, unknown>).wallet = { coins: 7, earned: 10, items: { fish: 2, seed: 1 } };
+    (g as Record<string, unknown>).garden = { plots: ['guest'] };
+    (g as Record<string, unknown>).flights = { trips: 1 };
+    (g as Record<string, unknown>).cat = { name: 'guest cat' };
+    g.settings.workDuration = 999;
+    const blob = JSON.parse(JSON.stringify({ ...g, isGuestData: true, lastSaved: 1 }));
+    const results: ReturnType<typeof mergeGuest>[] = [];
+    for (let round = 1; round <= 2; round++) {
+      const baseM = await load(A, 'u2');
+      const t = clean(baseM);
+      results.push(mergeGuest(t, normalizeUserData(blob)));
+      await send(A, 'u2', baseM, t);
+    }
+    const r = await load(A, 'u2');
+    const w = r.wallet as { coins: number; earned: number; items: Record<string, number> };
+    ok(results[0].sessions === 1 && results[0].moved && r.totalSessions === acct.totalSessions + 1, `guest merge: the session counted (${r.totalSessions})`);
+    ok(w.coins === 47 && w.earned === 110 && w.items.fish === 3 && w.items.seed === 1, `guest merge: coins and items added (${JSON.stringify(w)})`);
+    const ids = r.todos.map((x) => x.id).join(',');
+    ok(ids === 't1,g1,g2' && r.todos[0].text === 'account task', `guest merge: tasks added, the account's own kept (${ids})`);
+    ok(r.todos[1].canonicalId === 'm1' && r.regularTasks.map((c) => c.name).join(',') === 'Math,Biology' && r.todos[2].canonicalId === 'gb', 'guest merge: same-named category reused, new one added');
+    const j = r.journalEntries['2026-11-01'];
+    ok(j.text === 'account wrote this\n\nguest wrote this' && j.mood === 4 && r.journalEntries['2026-11-02']?.text === 'only the guest', 'guest merge: journal day both wrote keeps both texts');
+    ok(r.timetable.s1?.activity === 'Read', 'guest merge: planner block added');
+    ok(JSON.stringify(r.garden) === JSON.stringify({ plots: ['account'] }) && JSON.stringify(r.flights) === JSON.stringify({ trips: 1 }) && !('cat' in r) && !('isGuestData' in r), "guest merge: the account's garden kept, flights added, cat left to its own merge");
+    ok(r.settings.workDuration !== 999, "guest merge: the account's settings kept");
+    ok(results[1].sessions === 0 && !results[1].moved && !results[1].changed, `a second tab merging the same guest data adds nothing (${JSON.stringify(results[1])})`);
+  }
 
   console.log(failed ? `\n${failed} FAILED` : '\nall sync tests passed');
   process.exit(failed ? 1 : 0);

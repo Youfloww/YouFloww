@@ -97,9 +97,17 @@ function tick() {
   if (rem <= 0) complete();
 }
 
+/** A feature's own title for the running session (the train ride names the next station); null = the usual title. */
+let titleFor: ((rem: number, mode: Mode) => string | null) | null = null;
+export const setTitleFor = (fn: typeof titleFor) => {
+  titleFor = fn;
+};
+
 function updateTitle(rem: number, mode: Mode) {
   const s = useTimer.getState();
+  const own = s.status !== 'idle' ? titleFor?.(rem, mode) : null;
   if (s.status === 'idle') document.title = 'YouFloww — cozy focus timer';
+  else if (own) document.title = own;
   else document.title = `${s.status === 'paused' ? '⏸' : mode === 'focus' ? '●' : '☕'} ${formatClock(rem)} · ${MODE_META[mode].label} — YouFloww`;
 }
 
@@ -167,6 +175,7 @@ function begin() {
     endAt: now + remaining,
     runStartedAt: now,
     focusedMs: fresh ? 0 : s.focusedMs,
+    spans: fresh ? [] : s.spans ?? [],
     sessionStartedAt: fresh ? now : s.sessionStartedAt ?? now,
     taskMarkMs: fresh ? 0 : s.taskMarkMs,
     autoPaused: false,
@@ -223,6 +232,7 @@ export function pause(auto = false) {
     status: 'paused',
     remainingMs: remainingAt(s, now),
     focusedMs: elapsedAt(s, now),
+    spans: withRun(s, now),
     endAt: null,
     runStartedAt: null,
     autoPaused: auto,
@@ -245,6 +255,7 @@ export function reset(mode: Mode = useTimer.getState().mode) {
     endAt: null,
     runStartedAt: null,
     focusedMs: 0,
+    spans: [],
     sessionStartedAt: null,
     taskMarkMs: 0,
     autoPaused: false,
@@ -346,7 +357,7 @@ export function endEarly() {
   }
   const seconds = Math.round(elapsedAt(s, Date.now()) / 1000);
   if (seconds >= 30) {
-    const res = useData.getState().recordSession({ seconds, completed: false, startedAt: s.sessionStartedAt ?? Date.now() - seconds * 1000, todoId: s.activeTodoId, todoSeconds: taskShare(s, seconds), src: s.source?.id });
+    const res = useData.getState().recordSession({ seconds, completed: false, startedAt: s.sessionStartedAt ?? Date.now() - seconds * 1000, todoId: s.activeTodoId, todoSeconds: taskShare(s, seconds), src: s.source?.id, spans: withRun(s, Date.now()) });
     reportSession(seconds, false);
     play('early');
     bus.emit('session:early', { seconds });
@@ -377,7 +388,7 @@ export function complete() {
     const wasQuick = quickRun;
     const seconds = Math.round(Math.min(elapsedAt(s, Date.now()), s.durationMs + 5000) / 1000);
     const todo = useData.getState().data.todos.find((t) => t.id === s.activeTodoId);
-    const res = useData.getState().recordSession({ seconds, completed: true, startedAt: s.sessionStartedAt ?? Date.now() - seconds * 1000, todoId: s.activeTodoId, todoSeconds: taskShare(s, seconds), src: s.source?.id });
+    const res = useData.getState().recordSession({ seconds, completed: true, startedAt: s.sessionStartedAt ?? Date.now() - seconds * 1000, todoId: s.activeTodoId, todoSeconds: taskShare(s, seconds), src: s.source?.id, spans: withRun(s, Date.now()) });
     reportSession(seconds, true);
     const cycle = s.cycle + 1;
     const mode = nextMode(cycle);
@@ -432,6 +443,7 @@ function freezeAt(at: number, left = true) {
     status: 'paused',
     remainingMs: Math.max(0, s.endAt - cut),
     focusedMs: s.focusedMs + (cut - s.runStartedAt),
+    spans: withRun(s, cut),
     endAt: null,
     runStartedAt: null,
     autoPaused: false,
@@ -442,8 +454,8 @@ function freezeAt(at: number, left = true) {
   stopTicking();
 }
 
-type Snapshot = Pick<ReturnType<typeof useTimer.getState>, 'endAt' | 'runStartedAt' | 'focusedMs' | 'remainingMs' | 'sessionStartedAt'>;
-const snapshot = (s: Snapshot): Snapshot => ({ endAt: s.endAt, runStartedAt: s.runStartedAt, focusedMs: s.focusedMs, remainingMs: s.remainingMs, sessionStartedAt: s.sessionStartedAt });
+type Snapshot = Pick<ReturnType<typeof useTimer.getState>, 'endAt' | 'runStartedAt' | 'focusedMs' | 'spans' | 'remainingMs' | 'sessionStartedAt'>;
+const snapshot = (s: Snapshot): Snapshot => ({ endAt: s.endAt, runStartedAt: s.runStartedAt, focusedMs: s.focusedMs, spans: s.spans ?? [], remainingMs: s.remainingMs, sessionStartedAt: s.sessionStartedAt });
 
 /** YouFloww couldn't see the page for `gap` ms (asleep, frozen, killed): the person decides if that was focus */
 function askAboutGap(snap: Snapshot, gap: number) {
@@ -579,6 +591,12 @@ export function taskRemainingMs(todoId: string | null) {
 
 /** A focus round counts down the active task's remaining estimate, else the usual work length. */
 const focusDurationFor = (todoId: string | null) => taskRemainingMs(todoId) || durationFor('focus');
+
+/** The stretches the session ran, with the current one (up to `at`) if it is running. */
+function withRun(s: ReturnType<typeof useTimer.getState>, at: number): [number, number][] {
+  const done = s.spans ?? [];
+  return s.status === 'running' && s.runStartedAt && at > s.runStartedAt ? [...done, [s.runStartedAt, at]] : done;
+}
 
 /** Seconds of a finished session that belong to the task active at the end. */
 const taskShare = (s: ReturnType<typeof useTimer.getState>, seconds: number) => Math.max(0, seconds - Math.round((s.taskMarkMs || 0) / 1000));

@@ -7,6 +7,14 @@
         { "fieldPath": "date", "order": "ASCENDING" },
         { "fieldPath": "todayFocusMinutes", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "presence",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isFocusing", "order": "ASCENDING" },
+        { "fieldPath": "lastActiveMs", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

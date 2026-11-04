@@ -5,7 +5,7 @@ import { debounce } from '@/lib/utils';
 import { GUEST_KEY, loadGuestData, useData } from '@/store/data';
 import { toast } from '@/store/ui';
 import { firebase, type FB } from './firebase';
-import { snapshotAction, betterStreak, buildWrites, clean, derive, replayMissing, toWire } from './syncDiff';
+import { snapshotAction, betterStreak, buildWrites, clean, derive, mergeGuest, replayMissing, toWire } from './syncDiff';
 import { startPresence, stopPresence, watchCount } from './presence';
 import { startLive, stopLive } from './liveSession';
 import { startLedger, stopLedger } from './focusLedger';
@@ -49,7 +49,7 @@ const saveGuest = debounce(() => {
 /* ---------------- Cloud persistence ---------------- */
 let fbRef: FB | null = null;
 let unsubDoc: (() => void) | null = null;
-/** true after the first snapshot that really came from the server; nothing is seeded or saved before that */
+/** true after the first snapshot that really came from the server; nothing is seeded before that */
 let serverReady = false;
 /** the account's cached copy is on screen (we haven't heard from the server yet) */
 let showingCache = false;
@@ -63,7 +63,9 @@ let attachSeq = 0;
 
 const saveCloud = debounce(async () => {
   const { data, user } = useData.getState();
-  if (!user || !fbRef || !serverReady || !base) return;
+  // on top of the account's cached copy (offline, or a network that blocks Firestore) the writes wait in
+  // Firestore's offline queue on this device, so closing the tab before the server answers loses nothing
+  if (!user || !fbRef || !(serverReady || showingCache) || !base) return;
   const { fsMod, db } = fbRef;
   const ref = fsMod.doc(db, 'users', user.uid);
   const w = buildWrites(fsMod, base, data);
@@ -96,14 +98,20 @@ const saveCloud = debounce(async () => {
     if (navigator.onLine) await p; // offline: the write waits in Firestore's queue
     else useData.setState({ sync: 'offline' });
   }
-  // ratings added after a session was sent: best effort (needs a connection)
+  // ratings / notes added after a session was sent: a transaction, which needs a connection
   for (const r of w.edited) {
     void fsMod
       .runTransaction(db, async (tx) => {
         const log = ((await tx.get(ref)).get('sessionLog') ?? []) as SessionLogEntry[];
         tx.update(ref, { sessionLog: log.map((x) => (x.at === r.at ? { ...x, ...r } : x)) });
       })
-      .catch(() => {});
+      .catch(() => {
+        // not sent: mark it unsent again (and keep the server's copy from replacing it), so the next save retries
+        const was = prev.sessionLog?.find((x) => x.at === r.at);
+        const i = base?.sessionLog?.findIndex((x) => x.at === r.at) ?? -1;
+        if (was && i >= 0) base!.sessionLog![i] = clean(was);
+        dirty = true;
+      });
   }
 }, 1200);
 
@@ -156,7 +164,7 @@ async function attachUser(fb: FB, u: import('firebase/auth').User) {
       const act = snapshotAction(serverReady, snap.metadata, snap.exists());
       if (act === 'cache' || act === 'seed' || act === 'load') {
         if (act === 'cache') {
-          // Offline / slow start: only DISPLAY what we have. Never seed, never save.
+          // Offline / slow start: show what we have. Never seed; changes queue up in Firestore's offline cache.
           if (snap.exists() && !dirty) {
             const cached = derive(normalizeUserData(snap.data()));
             showingCache = true;
@@ -169,8 +177,9 @@ async function attachUser(fb: FB, u: import('firebase/auth').User) {
         saveGuest.flush();
         serverReady = true;
         setCloudReady(true);
+        const hadBlob = localStorage.getItem(GUEST_KEY) !== null;
         const guest = loadGuestData();
-        const hadGuest = guest.sessionLog && guest.sessionLog.length > 0;
+        const hadGuest = (guest.sessionLog && guest.sessionLog.length > 0) || hasProgress(guest);
         if (act === 'seed') {
           // Brand new account: bring the guest's progress along so nothing is lost
           const seed = hasProgress(guest) ? guest : normalizeUserData({});
@@ -203,13 +212,17 @@ async function attachUser(fb: FB, u: import('firebase/auth').User) {
         const keepLocal = showingCache && dirty && base;
         const target = keepLocal ? structuredClone(useData.getState().data) : derive(normalizeUserData(raw));
         if (!keepLocal) base = clean(target);
-        const replayed = hadGuest ? replayMissing(target, guest.sessionLog) : 0;
-        if (hadGuest) localStorage.removeItem(GUEST_KEY); // never copy these sessions into a second account
-        if (replayed) toast({ emoji: '☁️', title: 'Progress synced', body: `${replayed} guest session${replayed === 1 ? '' : 's'} added to your account.` });
+        // work done as a guest on this device (or before this sign-in reached the server) joins the account
+        const merged = hadBlob ? mergeGuest(target, guest) : { sessions: 0, moved: false, changed: false };
+        if (hadGuest || merged.changed) localStorage.removeItem(GUEST_KEY); // never copy it into a second account
+        if (merged.sessions || merged.moved) {
+          const n = merged.sessions;
+          toast({ emoji: '☁️', title: 'Progress synced', body: n ? `${n} guest session${n === 1 ? '' : 's'} added to your account.` : 'Your guest progress moved into your account.' });
+        }
         showingCache = false;
-        useData.getState().replace(target, !(keepLocal || replayed));
+        useData.getState().replace(target, !(keepLocal || merged.changed));
         useData.setState({ sync: 'saved' });
-          if (keepLocal || replayed) {
+        if (keepLocal || merged.changed) {
           dirty = true;
           saveCloud();
         }
@@ -250,14 +263,23 @@ function detachUser() {
   guestDirty = false;
 }
 
+const flush = () => {
+  saveGuest.flush();
+  if (useData.getState().user) void saveCloud.flush();
+};
+
 let started = false;
 export function initSync() {
   if (started) return;
   started = true;
 
-  // Persist on every local change
+  // Persist on every local change; a finished session (and the coins it paid, in the same tick) right away
   let rev = useData.getState().rev;
+  const lastAt = (d: UserData) => d.sessionLog?.at(-1)?.at ?? 0;
+  let at = lastAt(useData.getState().data);
   useData.subscribe((s) => {
+    const newSession = lastAt(s.data) !== at;
+    at = lastAt(s.data);
     if (s.rev === rev) return;
     rev = s.rev;
     if (s.user) {
@@ -271,6 +293,7 @@ export function initSync() {
       guestDirty = true;
       saveGuest();
     }
+    if (newSession) queueMicrotask(flush);
   });
   guestStamp = readStamp();
   // another tab changed the guest data: pick it up instead of overwriting it later
@@ -278,10 +301,6 @@ export function initSync() {
     if (e.key === GUEST_KEY && !useData.getState().user) pullGuest();
   });
 
-  const flush = () => {
-    saveGuest.flush();
-    if (useData.getState().user) void saveCloud.flush();
-  };
   addEventListener('pagehide', flush);
   document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && flush());
   addEventListener('online', () => useData.getState().user && saveCloud());

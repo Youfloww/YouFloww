@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { Pause, Play, RotateCcw, SkipForward, Square, ChevronDown, Check, Plus, Target } from 'lucide-react';
+import { Pause, Play, RotateCcw, SkipForward, Square, ChevronDown, Check, Plus, Target, PictureInPicture2 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useTimer, MODE_META, type Mode } from '@/store/timer';
 import { useData } from '@/store/data';
@@ -10,6 +10,7 @@ import { play } from '@/audio/sfx';
 import { parseTask } from '../tasks/parse';
 import { useLiveLoggedSeconds } from './useTaskTime';
 import { formatDuration } from '@/lib/time';
+import { pipSupported, toggleBuddy, useBuddyWindow } from '../pip/PipTimer';
 
 export function ModeSwitch({ onMedia }: { onMedia: boolean }) {
   const mode = useTimer((s) => s.mode);
@@ -52,13 +53,14 @@ export function Controls({ onMedia }: { onMedia: boolean }) {
   const status = useTimer((s) => s.status);
   const mode = useTimer((s) => s.mode);
   const running = status === 'running';
+  const pipOn = !!useBuddyWindow();
   const side = cn(
     'pressable grid size-14 place-items-center rounded-full disabled:opacity-30',
     onMedia ? 'bg-white/15 text-white backdrop-blur-md hover:bg-white/25' : 'glass text-ink hover:bg-surface-strong',
   );
 
   return (
-    <div className="flex items-center gap-5">
+    <div className="relative flex items-center gap-5">
       <button className={side} aria-label="Reset timer (R)" title="Reset (R)" onClick={requestReset} disabled={status === 'idle'}>
         <RotateCcw size={22} strokeWidth={2.6} />
       </button>
@@ -101,6 +103,24 @@ export function Controls({ onMedia }: { onMedia: boolean }) {
       >
         {mode === 'focus' ? <Square size={20} fill="currentColor" strokeWidth={0} /> : <SkipForward size={22} strokeWidth={2.6} />}
       </button>
+
+      {/* the floating window (picture-in-picture), off to the side so play stays centred under the timer */}
+      {pipSupported() && (
+        <div className="absolute inset-y-0 left-[calc(100%+14px)] flex items-center">
+          <button
+            className={cn(
+              'pressable grid size-11 place-items-center rounded-full',
+              pipOn ? 'bg-accent text-accent-ink' : onMedia ? 'bg-white/15 text-white backdrop-blur-md hover:bg-white/25' : 'glass text-ink hover:bg-surface-strong',
+            )}
+            aria-label={pipOn ? 'Close the floating timer (O)' : 'Pop out a floating timer (O)'}
+            aria-pressed={pipOn}
+            title={pipOn ? 'Close floating timer (O)' : 'Floating timer, stays on top (O)'}
+            onClick={() => void toggleBuddy()}
+          >
+            <PictureInPicture2 size={19} strokeWidth={2.4} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

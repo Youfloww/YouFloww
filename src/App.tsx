@@ -20,6 +20,7 @@ import { ConfirmEnd } from './features/timer/ConfirmEnd';
 import { CommandPalette } from './features/shell/CommandPalette';
 import { useShortcuts } from './features/shell/useShortcuts';
 import { PipPortal, usePip } from './features/pip/PipTimer';
+import { startTabIcon } from './features/pip/tabIcon';
 import { reset, start } from './features/timer/engine';
 import { cn } from './lib/utils';
 import { LayerHost, ModeHost, useTabPresence } from './features/shell/FeatureHosts';
@@ -127,6 +128,7 @@ export default function App() {
   useAppEffects();
   const pip = usePip();
   useShortcuts(pip.open);
+  useEffect(() => startTabIcon(), []);
   const scene = usePrefs((s) => s.scene.kind);
   const onMedia = scene === 'youtube' || scene === 'image' || scene === 'video';
   const zen = useUI((s) => s.zen);

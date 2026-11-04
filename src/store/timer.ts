@@ -46,6 +46,8 @@ interface TimerState {
   runStartedAt: number | null;
   /** running ms accumulated before the most recent resume */
   focusedMs: number;
+  /** the stretches this session ran before its last pause, [start, end] ms (days and streaks follow them) */
+  spans: [number, number][];
   sessionStartedAt: number | null;
   /** focus sessions completed in the current cycle */
   cycle: number;
@@ -81,6 +83,7 @@ export const useTimer = create<TimerState>()(
       endAt: null,
       runStartedAt: null,
       focusedMs: 0,
+      spans: [],
       sessionStartedAt: null,
       cycle: 0,
       activeTodoId: null,

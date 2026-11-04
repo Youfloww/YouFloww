@@ -1,6 +1,6 @@
 /** The floating buddy window's contents: the cat, the timer, play/pause and the current task (see PipTimer.tsx). */
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { Pause, Play, SkipForward } from 'lucide-react';
+import { Pause, Play, RectangleHorizontal, SkipForward } from 'lucide-react';
 import { usePrefs } from '@/store/prefs';
 import { useTimer, MODE_META } from '@/store/timer';
 import { useData } from '@/store/data';
@@ -100,7 +100,7 @@ function BuddyCat({ win, pose, onPet }: { win: Window; pose: Pose; onPet: () => 
 /* ------------------------------------------------------------------ */
 type Step = [Pose, number, string?];
 
-export default function FloatingBuddy({ win }: { win: Window }) {
+export default function FloatingBuddy({ win, onStrip }: { win: Window; onStrip?: () => void }) {
   // its own little stylesheet, in the PiP document
   useEffect(() => {
     const st = win.document.createElement('style');
@@ -215,6 +215,11 @@ export default function FloatingBuddy({ win }: { win: Window }) {
           <button type="button" onClick={onEnd} aria-label={arm ? 'Tap again to end' : onBreak ? 'Skip break' : 'End session'} className={`fb-btn ${arm ? 'fb-arm' : 'fb-end'}`}>
             {arm ? 'Sure?' : <SkipForward size={16} strokeWidth={2.6} />}
           </button>
+          {onStrip && (
+            <button type="button" onClick={onStrip} aria-label="Switch to the progress strip" title="Progress strip" className="fb-btn fb-end">
+              <RectangleHorizontal size={16} strokeWidth={2.4} />
+            </button>
+          )}
         </div>
       </div>
       <div className="fb-bar" style={{ width: `${v.progress * 100}%` }} aria-hidden />
