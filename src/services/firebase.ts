@@ -34,6 +34,26 @@ const EMU =
     }
   })();
 
+/**
+ * Dev + `?emu` only: other emulator ports for this tab, for test suites that run their own emulators next to the
+ * default ones (src/services/rules-test uses 9299/8288). Set `sessionStorage['floww:emuPorts'] = '<auth>,<firestore>'`
+ * (or open with `?emu&emuPorts=9299,8288`). Missing or malformed: the defaults below (Auth 9199, Firestore 8188).
+ */
+const EMU_PORTS = (() => {
+  const ports = { auth: 9199, firestore: 8188 };
+  if (!EMU) return ports;
+  try {
+    const q = new URLSearchParams(location.search).get('emuPorts');
+    if (q) sessionStorage.setItem('floww:emuPorts', q);
+    const [a, f] = (sessionStorage.getItem('floww:emuPorts') ?? '').split(',').map(Number);
+    const ok = (n: number) => Number.isInteger(n) && n >= 1024 && n <= 65535;
+    if (ok(a) && ok(f)) return { auth: a, firestore: f };
+  } catch {
+    /* defaults */
+  }
+  return ports;
+})();
+
 async function load() {
   const [appMod, authMod, fsMod] = await Promise.all([import('firebase/app'), import('firebase/auth'), import('firebase/firestore')]);
   const app = appMod.initializeApp(firebaseConfig);
@@ -47,8 +67,8 @@ async function load() {
     db = fsMod.getFirestore(app);
   }
   if (EMU) {
-    authMod.connectAuthEmulator(auth, 'http://127.0.0.1:9199', { disableWarnings: true });
-    fsMod.connectFirestoreEmulator(db, '127.0.0.1', 8188);
+    authMod.connectAuthEmulator(auth, `http://127.0.0.1:${EMU_PORTS.auth}`, { disableWarnings: true });
+    fsMod.connectFirestoreEmulator(db, '127.0.0.1', EMU_PORTS.firestore);
   }
   return { app, auth, db, authMod, fsMod };
 }

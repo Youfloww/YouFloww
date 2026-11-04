@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import type JSZipType from 'jszip';
 import { coverFromText, officeThumbnail } from '../cover';
 import { errMsg, type ViewerProps } from './types';
-import { revokeBlobUrls } from './dom';
+import { revokeBlobUrls, safeLinks } from './dom';
 
 const SLIDE_W = 960;
 
@@ -149,6 +149,7 @@ export default function PptxViewer({ file, scale, onInfo, onError, onCover }: Vi
           previewer = null;
           return fallback('empty');
         }
+        safeLinks(el);
         slides.forEach((s, i) => {
           s.dataset.sdPage = String(i + 1);
           s.classList.add('sd-page', 'sd-dom-page', 'sd-slide');

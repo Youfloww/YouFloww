@@ -75,6 +75,22 @@ const goodBody = (extra: Record<string, unknown> = {}) => ({ amount: 99, goal: h
 const unthrottle = (uid: string) => db().doc(`pledgeUsers/${uid}`).set({ lastOrderAt: 0 }, { merge: true });
 const pledge = async (id: string) => (await db().doc(`pledges/${id}`).get()).data() as (PledgeDoc & Record<string, any>) | undefined;
 const seedUser = (uid: string, data: Record<string, unknown>) => db().doc(`users/${uid}`).set(data);
+/** the server-witnessed focus a pledge is judged on (as /api/focus/log writes it) */
+const seedLedger = (uid: string, d: { totalFocusSeconds?: number; sessionLog?: { at: number; sec: number }[] }) =>
+  db()
+    .doc(`focusLedger/${uid}`)
+    .set({
+      v: 1,
+      totalSec: d.totalFocusSeconds ?? 0,
+      sessions: (d.sessionLog ?? []).map(({ at, sec }) => ({ at, sec })),
+      lastEnd: Date.now(),
+      tz,
+      days: {},
+      streak: 0,
+      streakDay: '',
+      updatedAt: Date.now(),
+      lastCall: 0,
+    });
 /** move a pledge's window into the past so it is due (keeps its length) */
 async function makeDue(id: string, hoursAgo = 2) {
   const p = (await pledge(id))!;
@@ -140,8 +156,8 @@ async function main() {
   const B = await signUp('bob');
   const C = await signUp('cara');
   const D = await signUp('dev');
-  await seedUser(A.uid, { totalFocusSeconds: 5000, sessionLog: [] });
-  await seedUser(B.uid, { totalFocusSeconds: 0 });
+  await seedLedger(A.uid, { totalFocusSeconds: 5000, sessionLog: [] });
+  await seedLedger(B.uid, { totalFocusSeconds: 0 });
 
   section('create: auth + validation (stub mode)');
   let r = await call(create, req('/api/pledge/create', { body: goodBody() }));
@@ -211,7 +227,7 @@ async function main() {
 
   // A: success. Log 10 h inside the (moved) window.
   const winA = await makeDue(aOrder);
-  await seedUser(A.uid, {
+  await seedLedger(A.uid, {
     totalFocusSeconds: 5000 + 36000,
     sessionLog: [
       { at: winA.startAt - 60_000, sec: 3000, done: true }, // before start: must not count
@@ -224,14 +240,20 @@ async function main() {
   const bOrder = r.body.orderId as string;
   await call(verify, req('/api/pledge/verify', { token: B.token, body: { orderId: bOrder } }));
   const winB = await makeDue(bOrder);
-  await seedUser(B.uid, { totalFocusSeconds: 3600, sessionLog: [{ at: winB.startAt + 3600_000, sec: 3600, done: true }] });
+  await seedLedger(B.uid, { totalFocusSeconds: 3600, sessionLog: [{ at: winB.startAt + 3600_000, sec: 3600, done: true }] });
+  // B also fakes 100 h in the browser-writable users/{uid}: a ledger pledge must ignore it completely
+  await seedUser(B.uid, {
+    totalFocusSeconds: 999_999,
+    dailyFocusSeconds: Object.fromEntries(windowDays({ kind: 'streak', days: 7, from: 'today' }, winB.startAt, winB.deadline, tz).map((k) => [k, 86400])),
+    sessionLog: Array.from({ length: 100 }, (_, i) => ({ at: winB.startAt + i * 3600_000, sec: 3600, done: true })),
+  });
 
   r = await runSettle();
   ok(r.status === 200 && r.body.refunded >= 1 && r.body.forfeited >= 1, 'settle runs', r.body);
   p = (await pledge(aOrder))!;
   ok(p.status === 'refunded' && p.outcome === 'met' && p.refundId?.startsWith('stub_rfnd_') && p.progressSeconds === 36000, 'goal met → refunded (stub refund id)', p);
   const pb = (await pledge(bOrder))!;
-  ok(pb.status === 'forfeited' && pb.outcome === 'missed' && pb.progressSeconds === 3600, 'goal missed → forfeited', pb);
+  ok(pb.status === 'forfeited' && pb.outcome === 'missed' && pb.progressSeconds === 3600, 'goal missed → forfeited (100 h faked in users/{uid} ignored)', pb);
   const stats = (await db().doc('pledgeStats/public').get()).data();
   ok(!stats?.forfeitedPaise, 'stub pledges never count toward the public donation total', stats);
 
@@ -243,7 +265,7 @@ async function main() {
   ok(r.status === 200, 'after settling, a new pledge can be made');
 
   section('streak pledge (stub mode)');
-  await seedUser(D.uid, { totalFocusSeconds: 0 });
+  await seedLedger(D.uid, { totalFocusSeconds: 0 });
   r = await call(create, req('/api/pledge/create', { token: D.token, body: goodBody({ amount: 49, goal: { kind: 'streak', days: 3, from: 'tomorrow' } }) }));
   const dOrder = r.body.orderId as string;
   await call(verify, req('/api/pledge/verify', { token: D.token, body: { orderId: dOrder } }));
@@ -251,7 +273,7 @@ async function main() {
   ok(dp.status === 'active' && zonedDateKey(dp.startAt, tz) !== zonedDateKey(Date.now(), tz) && windowDays(dp.goal, dp.startAt, dp.deadline, tz).length === 3, 'streak from tomorrow: 3 local days', dp);
   const winD = await makeDue(dOrder, 3);
   const keys = windowDays(dp.goal, winD.startAt, winD.deadline, tz);
-  await seedUser(D.uid, { sessionLog: keys.map((k) => ({ at: Date.parse(`${k}T12:00:00+05:30`), sec: 1000 })) });
+  await seedLedger(D.uid, { sessionLog: keys.map((k) => ({ at: Date.parse(`${k}T12:00:00+05:30`), sec: 1000 })) });
   r = await runSettle();
   const dp2 = (await pledge(dOrder))!;
   ok(dp2.status === 'refunded' && dp2.daysMet === 3, 'streak kept every day → refunded', dp2);
@@ -356,7 +378,7 @@ async function main() {
   };
 
   const E = await signUp('esha');
-  await seedUser(E.uid, { totalFocusSeconds: 100 });
+  await seedLedger(E.uid, { totalFocusSeconds: 100 });
   r = await call(create, req('/api/pledge/create', { token: E.token, body: goodBody({ amount: 49 }) }));
   ok(r.status === 200 && r.body.mode === 'razorpay' && r.body.keyId === 'rzp_test_TESTKEY12345' && /^order_/.test(r.body.orderId) && r.body.amountPaise === charge(49), 'create opens a Razorpay order for pledge + fee', r.body);
   const eOrder = r.body.orderId as string;
@@ -392,7 +414,7 @@ async function main() {
 
   // Settle E as met → exactly one refund at Razorpay
   const winE = await makeDue(eOrder);
-  await seedUser(E.uid, { totalFocusSeconds: 100 + 36000, sessionLog: [{ at: winE.startAt + 1000, sec: 21600 }, { at: winE.startAt + 86400_000, sec: 14400 }] });
+  await seedLedger(E.uid, { totalFocusSeconds: 100 + 36000, sessionLog: [{ at: winE.startAt + 1000, sec: 21600 }, { at: winE.startAt + 86400_000, sec: 14400 }] });
   r = await runSettle();
   let pe2 = (await pledge(eOrder))!;
   ok(pe2.status === 'refunded' && pe2.refundId === ep.refunds[0]?.id && calls.refundCreate === 1, 'met → one Razorpay refund for the full amount', { r: r.body, calls });
@@ -415,7 +437,7 @@ async function main() {
   r = await call(webhook, req('/api/pledge/webhook', { raw: '{"event":"payment.captured"}', headers: { 'x-razorpay-signature': 'bad' } }));
   ok(r.status === 400, 'unsigned webhook → 400');
   const F = await signUp('farah');
-  await seedUser(F.uid, { totalFocusSeconds: 42 });
+  await seedLedger(F.uid, { totalFocusSeconds: 42 });
   r = await call(create, req('/api/pledge/create', { token: F.token, body: goodBody({ amount: 199 }) }));
   const fOrder = r.body.orderId as string;
   const fp = pay(fOrder, charge(199));
@@ -437,7 +459,7 @@ async function main() {
   section('duplicate payment (two tabs) is refunded at once');
   await unthrottle(E.uid);
   const G = await signUp('gita');
-  await seedUser(G.uid, { totalFocusSeconds: 0 });
+  await seedLedger(G.uid, { totalFocusSeconds: 0 });
   r = await call(create, req('/api/pledge/create', { token: G.token, body: goodBody() }));
   const g1 = r.body.orderId as string;
   await unthrottle(G.uid);
@@ -463,7 +485,7 @@ async function main() {
   section('live keys: missed pledges count toward the public donation total, once');
   process.env.RAZORPAY_KEY_ID = 'rzp_live_TESTKEY12345';
   const H = await signUp('hari');
-  await seedUser(H.uid, { totalFocusSeconds: 0 });
+  await seedLedger(H.uid, { totalFocusSeconds: 0 });
   r = await call(create, req('/api/pledge/create', { token: H.token, body: goodBody({ amount: 499 }) }));
   const hOrder = r.body.orderId as string;
   const hp = pay(hOrder, charge(499));
@@ -488,7 +510,7 @@ async function main() {
   section('cron: payments that never reached /verify');
   const orphanOrder = async (name: string, ageMin: number, payAgeMin: number) => {
     const u = await signUp(name);
-    await seedUser(u.uid, { totalFocusSeconds: 0 });
+    await seedLedger(u.uid, { totalFocusSeconds: 0 });
     const cr = await call(create, req('/api/pledge/create', { token: u.token, body: goodBody({ amount: 49 }) }));
     const id = cr.body.orderId as string;
     await db().doc(`pledgeOrders/${id}`).update({ createdAt: Date.now() - ageMin * 60_000 });

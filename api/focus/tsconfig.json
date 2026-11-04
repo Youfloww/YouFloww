@@ -1,0 +1,4 @@
+{
+  "extends": "../pledge/tsconfig.json",
+  "include": ["./**/*.ts", "../pledge/_lib/**/*.ts", "../../src/features/pledge/rules.ts", "../../src/features/pledge/ledger.ts"]
+}

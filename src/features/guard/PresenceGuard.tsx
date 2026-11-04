@@ -10,13 +10,15 @@ type Detector = { detect: (v: HTMLVideoElement) => Promise<{ class: string; scor
 declare global {
   interface Window {
     cocoSsd?: { load: (o?: { base?: string }) => Promise<Detector> };
+    regeneratorRuntime?: unknown;
   }
 }
 
-const loadScript = (src: string) =>
+/** Pinned files with their integrity hashes: a changed file on the CDN is refused (vercel.json's CSP allows exactly these two). */
+const loadScript = (src: string, integrity: string) =>
   new Promise<void>((res, rej) => {
     if (document.querySelector(`script[src="${src}"]`)) return res();
-    const s = Object.assign(document.createElement('script'), { src, async: true, crossOrigin: 'anonymous' });
+    const s = Object.assign(document.createElement('script'), { src, integrity, async: true, crossOrigin: 'anonymous' });
     s.onload = () => res();
     s.onerror = rej;
     document.head.appendChild(s);
@@ -25,8 +27,10 @@ const loadScript = (src: string) =>
 let modelPromise: Promise<Detector> | null = null;
 function loadModel() {
   return (modelPromise ??= (async () => {
-    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js');
-    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js');
+    // tf.min.js assigns this global, and falls back to eval (blocked by our CSP, which then breaks tf) when it doesn't exist
+    if (!('regeneratorRuntime' in window)) window.regeneratorRuntime = undefined;
+    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js', 'sha384-vE8hbVJ4lezako5rlvE7bY0BVzWlFhZncPlckrqNwcUQpVtgbENTgZ8TBbnPjZre');
+    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js', 'sha384-7qLdgfEQyO9ZQi9ArRHigK+IBto4XPk468jAqc+fnsXaZIcMAhQeLwzggRK7aESl');
     return window.cocoSsd!.load({ base: 'lite_mobilenet_v2' });
   })());
 }

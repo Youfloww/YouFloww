@@ -2,13 +2,13 @@ import { normalizeUserData } from '@/data/model';
 import { setCloudReady } from './cloudReady';
 import type { SessionLogEntry, UserData } from '@/data/types';
 import { debounce } from '@/lib/utils';
-import { dateKey } from '@/lib/time';
 import { GUEST_KEY, loadGuestData, useData } from '@/store/data';
 import { toast } from '@/store/ui';
 import { firebase, type FB } from './firebase';
 import { snapshotAction, betterStreak, buildWrites, clean, derive, replayMissing, toWire } from './syncDiff';
 import { startPresence, stopPresence, watchCount } from './presence';
 import { startLive, stopLive } from './liveSession';
+import { startLedger, stopLedger } from './focusLedger';
 
 /* ---------------- Guest persistence (localStorage, instant) ---------------- */
 let guestDirty = false;
@@ -49,7 +49,6 @@ const saveGuest = debounce(() => {
 /* ---------------- Cloud persistence ---------------- */
 let fbRef: FB | null = null;
 let unsubDoc: (() => void) | null = null;
-let lastPublic = '';
 /** true after the first snapshot that really came from the server; nothing is seeded or saved before that */
 let serverReady = false;
 /** the account's cached copy is on screen (we haven't heard from the server yet) */
@@ -80,7 +79,6 @@ const saveCloud = debounce(async () => {
   const finish = (e?: unknown) => {
     if (!e) {
       useData.setState({ sync: navigator.onLine ? 'saved' : 'offline' });
-      void publishPublic();
       return;
     }
     console.warn('[floww] save failed', e);
@@ -108,27 +106,6 @@ const saveCloud = debounce(async () => {
       .catch(() => {});
   }
 }, 1200);
-
-/** Leaderboard projection (publicUsers/{uid}) — same shape as v2. */
-async function publishPublic() {
-  const { data, user } = useData.getState();
-  if (!user || !fbRef) return;
-  const today = dateKey();
-  const sec = data.dailyFocusSeconds?.[today] ?? data.weeklyFocusSeconds[today] ?? 0;
-  const payload = {
-    profileName: data.profileName || 'Floww User',
-    todayFocusMinutes: parseFloat((sec / 60).toFixed(2)),
-    currentStreak: data.streakCount || 0,
-    lastStreakUpdate: data.lastStreakDate || today,
-    date: today,
-    isGuest: false,
-  };
-  const sig = JSON.stringify(payload);
-  if (sig === lastPublic) return;
-  lastPublic = sig;
-  const { fsMod, db } = fbRef;
-  await fsMod.setDoc(fsMod.doc(db, 'publicUsers', user.uid), payload, { merge: true }).catch(() => (lastPublic = ''));
-}
 
 const hasProgress = (d: UserData) => d.totalSessions > 0 || d.todos.length > 0 || Object.keys(d.journalEntries).length > 0;
 
@@ -205,7 +182,6 @@ async function attachUser(fb: FB, u: import('firebase/auth').User) {
             () => {
               if (hadGuest) localStorage.removeItem(GUEST_KEY);
               useData.setState({ sync: 'saved' });
-              void publishPublic();
             },
             (e) => {
               console.warn('[floww] first save failed', e);
@@ -233,8 +209,7 @@ async function attachUser(fb: FB, u: import('firebase/auth').User) {
         showingCache = false;
         useData.getState().replace(target, !(keepLocal || replayed));
         useData.setState({ sync: 'saved' });
-        void publishPublic();
-        if (keepLocal || replayed) {
+          if (keepLocal || replayed) {
           dirty = true;
           saveCloud();
         }
@@ -252,6 +227,7 @@ async function attachUser(fb: FB, u: import('firebase/auth').User) {
   );
   void startPresence(fb, u.uid);
   startLive(fb, u.uid);
+  startLedger(fb, u.uid);
 }
 
 function detachUser() {
@@ -265,9 +241,9 @@ function detachUser() {
   deferred = null;
   unsubDoc?.();
   unsubDoc = null;
-  lastPublic = '';
   void stopPresence();
   stopLive();
+  stopLedger();
   useData.setState({ user: null, sync: 'local' });
   useData.getState().replace(loadGuestData(), true);
   guestStamp = readStamp();

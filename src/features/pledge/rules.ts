@@ -70,6 +70,12 @@ export interface PledgeDoc {
   createdAt: number;
   /** 'stub' = local test, nothing charged. 'test' = Razorpay test keys. 'live' = real money. */
   mode: 'stub' | 'test' | 'live';
+  /**
+   * Where progress is read from. 'ledger' = the server-witnessed focus ledger (`focusLedger/{uid}`, written only by
+   * /api/focus/log; see ledger.ts), and `baselineFocusSeconds` is the ledger's `totalSec` at activation.
+   * Missing on pledges made before the ledger existed: those still read the browser-written `users/{uid}`.
+   */
+  src?: 'ledger';
 }
 
 /** The public `pledgeStats/public` document (written by the server and by the owner in the console). */
@@ -176,6 +182,25 @@ export function zonedMidnight(key: string, tz: string) {
   return t;
 }
 
+/**
+ * A session (started at `at`, `sec` long) split at local midnights in a zone, in order: [day key, seconds][].
+ * A session over midnight counts on both days, exactly as the app's own per-day totals do. Sessions are at most
+ * 6 h, so a few pieces always suffice.
+ */
+export function splitZonedDays(at: number, sec: number, tz: string): [string, number][] {
+  const out: [string, number][] = [];
+  let left = sec;
+  for (let guard = 0; left > 0 && guard < 4; guard++) {
+    const k = zonedDateKey(at, tz);
+    const nextMidnight = zonedMidnight(addDaysKey(k, 1), tz);
+    const chunk = Math.min(left, Math.max(1, Math.ceil((nextMidnight - at) / 1000)));
+    out.push([k, chunk]);
+    left -= chunk;
+    at += chunk * 1000;
+  }
+  return out;
+}
+
 /* ------------------------------------------------------------------ windows */
 
 /** When the counting starts for a pledge activated at `activatedAt`. */
@@ -203,11 +228,16 @@ export const targetSeconds = (goal: Goal) => (goal.kind === 'hours' ? goal.hours
 
 /* ------------------------------------------------------------------ progress */
 
-/** The slice of the synced user data (Firestore `users/{uid}`) the pledge looks at. */
+/**
+ * The focus data a pledge looks at: the synced user data (Firestore `users/{uid}`), or the server's focus ledger
+ * mapped by `ledgerFocusLog()` in ledger.ts.
+ */
 export interface FocusLog {
   totalFocusSeconds?: unknown;
   sessionLog?: unknown;
   dailyFocusSeconds?: unknown;
+  /** how many sessions the source keeps before dropping the oldest (default 150, the app's `sessionLog`; the ledger keeps 400) */
+  logCap?: unknown;
 }
 
 export interface PledgeWindow {
@@ -237,10 +267,16 @@ export interface Progress {
 
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 
-function cleanLog(raw: unknown) {
+/** The source's session cap, kept within sane bounds (a log can never be trusted to declare a smaller one). */
+function logCapOf(data: FocusLog | null | undefined) {
+  const c = num(data?.logCap);
+  return c > LOG_CAP ? Math.min(2000, Math.floor(c)) : LOG_CAP;
+}
+
+function cleanLog(raw: unknown, cap = LOG_CAP) {
   if (!Array.isArray(raw)) return [];
   const out: { at: number; sec: number }[] = [];
-  for (const e of raw.slice(-LOG_CAP * 2)) {
+  for (const e of raw.slice(-cap * 2)) {
     if (!e || typeof e !== 'object') continue;
     const at = num((e as { at?: unknown }).at);
     const sec = Math.min(MAX_SESSION_SEC, Math.max(0, num((e as { sec?: unknown }).sec)));
@@ -253,22 +289,29 @@ function cleanLog(raw: unknown) {
  * Focus that counts toward a pledge, from the person's own YouFloww data.
  *
  * Primary source: `sessionLog` (each session's start time and length). A session counts when it STARTED inside
- * the window. When the log has rolled over (the app keeps 150 sessions), lifetime `totalFocusSeconds` minus the
- * baseline taken at pledge time (minus sessions after the deadline) fills the gap. For streak days, the
- * per-day `dailyFocusSeconds` is also used for whole days inside the window.
+ * the window. When the log has rolled over (the app keeps 150 sessions, the server ledger 400), lifetime
+ * `totalFocusSeconds` minus the baseline taken at pledge time (minus sessions after the deadline) fills the gap.
+ * For streak days, the per-day `dailyFocusSeconds` is also used for whole days inside the window (the server
+ * ledger passes none: its pledges count only the sessions it witnessed).
  *
  * `liveSeconds` is the browser's running, not-yet-recorded session (live ring only; the server passes 0).
  */
 export function computeProgress(p: PledgeWindow, data: FocusLog | null | undefined, now = Date.now(), liveSeconds = 0): Progress {
-  const log = cleanLog(data?.sessionLog);
+  const cap = logCapOf(data);
+  const log = cleanLog(data?.sessionLog, cap);
   const end = Math.min(now, p.deadline);
   const inWin = log.filter((e) => e.at >= p.startAt && e.at < p.deadline);
   const after = log.filter((e) => e.at >= p.deadline).reduce((a, e) => a + e.sec, 0);
-  const truncated = log.length >= LOG_CAP && log[0].at > p.startAt;
+  const truncated = log.length >= cap && log[0].at > p.startAt;
   const live = now < p.deadline ? Math.max(0, liveSeconds) : 0;
 
   let seconds = inWin.reduce((a, e) => a + e.sec, 0);
-  if (truncated) seconds = Math.max(seconds, num(data?.totalFocusSeconds) - p.baselineFocusSeconds - after);
+  if (truncated) {
+    // sessions after the deadline that already rolled out of the log lie between the deadline and the oldest kept
+    // session, so that gap is taken off too: post-deadline focus can never fill the window
+    const lostAfter = Math.max(0, (log[0].at - p.deadline) / 1000);
+    seconds = Math.max(seconds, num(data?.totalFocusSeconds) - p.baselineFocusSeconds - after - lostAfter);
+  }
   seconds += live;
   // can't have focused longer than the window has existed (plus one session that started just before its end)
   seconds = Math.max(0, Math.min(seconds, Math.max(0, end - p.startAt) / 1000 + MAX_SESSION_SEC));
@@ -277,16 +320,7 @@ export function computeProgress(p: PledgeWindow, data: FocusLog | null | undefin
   const perDay = new Map<string, number>(keys.map((k) => [k, 0]));
   for (const e of inWin) {
     // a session over midnight is split across both days, exactly as the app's own per-day totals are
-    let at = e.at;
-    let left = e.sec;
-    for (let guard = 0; left > 0 && guard < 4; guard++) {
-      const k = zonedDateKey(at, p.tz);
-      const nextMidnight = zonedMidnight(addDaysKey(k, 1), p.tz);
-      const chunk = Math.min(left, Math.max(1, Math.ceil((nextMidnight - at) / 1000)));
-      if (perDay.has(k)) perDay.set(k, perDay.get(k)! + chunk);
-      left -= chunk;
-      at += chunk * 1000;
-    }
+    for (const [k, chunk] of splitZonedDays(e.at, e.sec, p.tz)) if (perDay.has(k)) perDay.set(k, perDay.get(k)! + chunk);
   }
   if (live) {
     const k = zonedDateKey(now, p.tz);

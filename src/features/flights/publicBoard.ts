@@ -1,7 +1,7 @@
 /**
  * The public departures board: anonymous rows in the Firestore collection `flights`
- * ({ from, to, minutes, createdAt } and nothing else). Writes and reads fail quietly until the rule in
- * INTEGRATION.md is deployed; the board then shows only this person's own flights.
+ * ({ from, to, minutes, createdAt } and nothing else). Signed-in (not anonymous) people post at most once per
+ * 10 minutes (firestore.rules, via their private flightRate/{uid} stamp); a refused write fails quietly.
  */
 import { firebase } from '@/services/firebase';
 
@@ -16,10 +16,18 @@ export interface PublicFlight {
 const IATA = /^[A-Z]{3}$/;
 
 export async function postPublicFlight(from: string, to: string, minutes: number) {
-  if (!IATA.test(from) || !IATA.test(to)) return;
+  const mins = Math.round(minutes);
+  if (!IATA.test(from) || !IATA.test(to) || !(mins >= 1 && mins <= 360)) return;
   try {
-    const { fsMod, db } = await firebase();
-    await fsMod.addDoc(fsMod.collection(db, 'flights'), { from, to, minutes: Math.round(minutes), createdAt: fsMod.serverTimestamp() });
+    const { fsMod, db, auth } = await firebase();
+    const me = auth.currentUser;
+    if (!me || me.isAnonymous) return;
+    // one batch: the flight + this person's private "last posted" stamp naming it (the rules allow one post per 10 min)
+    const flight = fsMod.doc(fsMod.collection(db, 'flights'));
+    const batch = fsMod.writeBatch(db);
+    batch.set(flight, { from, to, minutes: mins, createdAt: fsMod.serverTimestamp() });
+    batch.set(fsMod.doc(db, 'flightRate', me.uid), { last: fsMod.serverTimestamp(), id: flight.id });
+    await batch.commit();
   } catch (e) {
     console.info('[flights] public board write skipped:', (e as Error)?.message ?? e);
   }

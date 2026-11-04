@@ -12,5 +12,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["./**/*.ts", "../../src/features/pledge/rules.ts"]
+  "include": ["./**/*.ts", "../focus/**/*.ts", "../../src/features/pledge/rules.ts", "../../src/features/pledge/ledger.ts"]
 }

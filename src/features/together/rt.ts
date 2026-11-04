@@ -305,7 +305,8 @@ export async function joinHall(c: Conn, p: Profile, initial: Partial<SeatFields>
     for (const i of order) {
       if (taken.has(i)) continue;
       try {
-        await m.set(m.ref(db, `halls/${rid}/seats/s${i}`), body());
+        // the seat and our one-seat index together: the rules only let an account keep the seat its index points to
+        await m.update(m.ref(db), { [`halls/${rid}/seats/s${i}`]: body(), [`occ/${uid}`]: `${rid}/s${i}` });
         // a second seat of ours in this room (an older tab of the same browser): keep only this one
         for (const s of seats) if (s.uid === uid && s.i !== i) void m.remove(m.ref(db, `halls/${rid}/seats/s${s.i}`)).catch(() => {});
         room = rid;

@@ -50,27 +50,28 @@ const B = 'bob-uid';
 const C = 'cara-uid';
 const D = 'dan-uid';
 const seat = (u, extra = {}) => ({ u, n: 'Mochi', a: 1, w: 'chem', s: 'f', e: Date.now() + 60_000, d: 1_500_000, h: TS, g: '', ...extra });
+/** sit down as the app does: the seat and the account's one-seat index in one update */
+const claim = (who, rid, slot, body) => patch('', who, { [`halls/${rid}/seats/${slot}`]: body, [`occ/${who}`]: `${rid}/${slot}` });
 
 await put('', 'ADMIN', null);
 
-console.log('\n# legacy status block');
-await expect('own status write', 'allow', put(`status/${A}`, A, { state: 'online' }));
-await expect("someone else's status", 'deny', put(`status/${A}`, B, { state: 'x' }));
+console.log('\n# removed status block (was free storage for any account)');
+await expect('own status write', 'deny', put(`status/${A}`, A, { state: 'online' }));
 
 console.log('\n# seats');
 await expect('read seats signed out', 'deny', get('halls/r1/seats', null));
-await expect('A claims r1/s0', 'allow', put('halls/r1/seats/s0', A, seat(A)));
-await expect("B writes A's seat", 'deny', put('halls/r1/seats/s0', B, seat(B)));
+await expect('A claims r1/s0', 'allow', claim(A, 'r1', 's0', seat(A)));
+await expect("B writes A's seat", 'deny', claim(B, 'r1', 's0', seat(B)));
 await expect("B patches A's seat name", 'deny', patch('halls/r1/seats/s0', B, { n: 'hacked' }));
-await expect('B claims s1 pretending to be A', 'deny', put('halls/r1/seats/s1', B, seat(A)));
-await expect('B claims r1/s1', 'allow', put('halls/r1/seats/s1', B, seat(B)));
-await expect('C claims s35 (36th seat)', 'allow', put('halls/r1/seats/s35', C, seat(C)));
-await expect('D claims s36 (no 37th seat)', 'deny', put('halls/r1/seats/s36', D, seat(D)));
-await expect('D claims hall r51', 'deny', put('halls/r51/seats/s0', D, seat(D)));
-await expect('D claims seat with an extra field', 'deny', put('halls/r1/seats/s2', D, seat(D, { x: 'free text' })));
-await expect('D claims seat with a 21-char name', 'deny', put('halls/r1/seats/s2', D, seat(D, { n: 'x'.repeat(21) })));
-await expect('D claims seat with animal 8', 'deny', put('halls/r1/seats/s2', D, seat(D, { a: 8 })));
-await expect('D claims seat with a 41-char note', 'deny', put('halls/r1/seats/s2', D, seat(D, { w: 'x'.repeat(41) })));
+await expect('B claims s1 pretending to be A', 'deny', claim(B, 'r1', 's1', seat(A)));
+await expect('B claims r1/s1', 'allow', claim(B, 'r1', 's1', seat(B)));
+await expect('C claims s35 (36th seat)', 'allow', claim(C, 'r1', 's35', seat(C)));
+await expect('D claims s36 (no 37th seat)', 'deny', claim(D, 'r1', 's36', seat(D)));
+await expect('D claims hall r51', 'deny', claim(D, 'r51', 's0', seat(D)));
+await expect('D claims seat with an extra field', 'deny', claim(D, 'r1', 's2', seat(D, { x: 'free text' })));
+await expect('D claims seat with a 21-char name', 'deny', claim(D, 'r1', 's2', seat(D, { n: 'x'.repeat(21) })));
+await expect('D claims seat with animal 8', 'deny', claim(D, 'r1', 's2', seat(D, { a: 8 })));
+await expect('D claims seat with a 41-char note', 'deny', claim(D, 'r1', 's2', seat(D, { w: 'x'.repeat(41) })));
 await expect('A heartbeat (server time)', 'allow', patch('halls/r1/seats/s0', A, { h: TS }));
 await expect('A fakes an old heartbeat', 'deny', patch('halls/r1/seats/s0', A, { h: 123 }));
 await expect('A updates status/timer', 'allow', patch('halls/r1/seats/s0', A, { s: 'p', e: 30_000, d: 1_500_000, h: TS }));
@@ -78,6 +79,19 @@ await expect('read seats signed in', 'allow', get('halls/r1/seats', D));
 await expect("B removes A's live seat", 'deny', del('halls/r1/seats/s0', B));
 await put('halls/r1/seats/s5', 'ADMIN', { ...seat('ghost'), h: Date.now() - 11 * 60_000 });
 await expect('C clears a ghost seat (silent 11 min)', 'allow', del('halls/r1/seats/s5', C));
+
+console.log('\n# one live seat per account (occ index)');
+await expect('D sits without the index (old client / squatter)', 'deny', put('halls/r2/seats/s0', D, seat(D)));
+await expect('D sits with the index pointing at another seat', 'deny', patch('', D, { 'halls/r2/seats/s0': seat(D), [`occ/${D}`]: 'r2/s9' }));
+await expect('D sits in r2/s0', 'allow', claim(D, 'r2', 's0', seat(D)));
+await expect('D takes a second seat r2/s1 (index moves)', 'allow', claim(D, 'r2', 's1', seat(D)));
+await expect('D heartbeats the first seat (index moved away)', 'deny', patch('halls/r2/seats/s0', D, { h: TS }));
+await expect('D heartbeats the seat the index points at', 'allow', patch('halls/r2/seats/s1', D, { h: TS }));
+await expect('D leaves the old seat', 'allow', del('halls/r2/seats/s0', D));
+await expect("D points A's index somewhere", 'deny', put(`occ/${A}`, D, 'r2/s1'));
+await expect('D writes free text into own index', 'deny', put(`occ/${D}`, D, 'hello there'));
+await expect('D writes an index outside the halls', 'deny', put(`occ/${D}`, D, 'r51/s0'));
+await expect("C reads D's index", 'deny', get(`occ/${D}`, C));
 
 console.log('\n# hall presets (say)');
 const say = (k, s, r, extra = {}) => ({ t: TS, k, s, r, ...extra });
@@ -100,10 +114,15 @@ await expect('B clears own inbox', 'allow', del(`halls/r1/say/${B}`, B));
 await put(`halls/r1/say/${B}/${A}`, 'ADMIN', { t: Date.now() - 11_000, k: 'gl', s: 's0', r: 's1' });
 await expect('A -> B after the 10 s cooldown', 'allow', put(`halls/r1/say/${B}/${A}`, A, say('yg', 's0', 's1')));
 
-console.log('\n# kudos (legacy)');
+console.log('\n# kudos');
 await expect('A high-fives B', 'allow', put(`halls/r1/kudos/${B}/${A}`, A, { t: TS, k: 'hf', c: 1 }));
 await expect('A high-fives B again within 2 min', 'deny', put(`halls/r1/kudos/${B}/${A}`, A, { t: TS, k: 'hf', c: 2 }));
 await expect('A kudos with an unknown kind', 'deny', put(`halls/r1/kudos/${C}/${A}`, A, { t: TS, k: 'lol', c: 1 }));
+await expect('A high-fives a made-up account (junk storage)', 'deny', put(`halls/r1/kudos/fake-uid-123/${A}`, A, { t: TS, k: 'hf', c: 1 }));
+await expect('A high-fives D (seated in another hall)', 'deny', put(`halls/r1/kudos/${D}/${A}`, A, { t: TS, k: 'hf', c: 1 }));
+await expect('D (seated in r2) high-fives C in r1', 'deny', put(`halls/r1/kudos/${C}/${D}`, D, { t: TS, k: 'hf', c: 1 }));
+await expect('A high-fives D in r2 (A is not in r2)', 'deny', put(`halls/r2/kudos/${D}/${A}`, A, { t: TS, k: 'hf', c: 1 }));
+await expect('A high-fives C (both seated in r1)', 'allow', put(`halls/r1/kudos/${C}/${A}`, A, { t: TS, k: 'kd', c: 1 }));
 
 console.log('\n# "study together?" requests');
 const req = (s, r, g = '') => ({ t: TS, s, r, g });

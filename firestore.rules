@@ -1,54 +1,55 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // a signed-in person with a real account (Study Together's anonymous guest sign-ins can't write shared docs)
+    function realUser() {
+      return request.auth != null && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
     
     // ========================================
     // PRESENCE COLLECTION - For live user count
     // ========================================
     match /presence/{sessionId} {
-      // Anyone can see the live count; only signed-in users write, and only their own
-      // small check-in doc (the exact fields YouFloww writes, with a current timestamp)
+      // Anyone can see the live count. One doc per signed-in person, its id = their uid (all their tabs share it),
+      // holding exactly these five fields with server-checked times. No device details: these docs are world-readable.
       function validPresence(d) {
-        return d.keys().hasOnly(['uid', 'createdAt', 'lastActive', 'lastActiveMs', 'isFocusing', 'userAgent'])
+        return d.keys().hasOnly(['uid', 'createdAt', 'lastActive', 'lastActiveMs', 'isFocusing'])
+          && d.keys().hasAll(['uid', 'createdAt', 'lastActive', 'lastActiveMs', 'isFocusing'])
           && d.uid == request.auth.uid
+          && d.lastActive == request.time
           && d.lastActiveMs is int
           && d.lastActiveMs > request.time.toMillis() - 900000
           && d.lastActiveMs < request.time.toMillis() + 900000
-          && (!('isFocusing' in d) || d.isFocusing is bool)
-          && (!('userAgent' in d) || (d.userAgent is string && d.userAgent.size() <= 512));
+          && d.isFocusing is bool;
       }
       allow read: if true;
-      allow create: if request.auth != null && sessionId.size() <= 64 && validPresence(request.resource.data);
-      allow update: if request.auth != null && resource.data.uid == request.auth.uid && validPresence(request.resource.data);
-      allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow create: if realUser() && sessionId == request.auth.uid
+        && validPresence(request.resource.data)
+        && request.resource.data.createdAt == request.time;
+      allow update: if realUser() && sessionId == request.auth.uid
+        && validPresence(request.resource.data)
+        && (request.resource.data.createdAt == resource.data.createdAt || request.resource.data.createdAt == request.time);
+      // the owner removes their doc (also the old one-per-tab docs, which aged out of the count anyway)
+      allow delete: if request.auth != null && (sessionId == request.auth.uid || resource.data.uid == request.auth.uid);
+    }
+
+    // ========================================
+    // FOCUS LEDGER - server-witnessed focus time
+    // ========================================
+    match /focusLedger/{userId} {
+      // written only by the server (/api/focus/log, Admin SDK); the owner may read their own
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
     }
 
     // ========================================
     // PUBLIC USERS - For leaderboards
     // ========================================
     match /publicUsers/{userId} {
-      // Anyone can read the leaderboards
+      // Anyone can read the leaderboards. Entries are written only by the server from the focus ledger
+      // (/api/focus/log, Admin SDK), so a browser can't post made-up minutes or streaks.
       allow read: if true;
-
-      // Owners write their own entry; values must be believable (a day has 1440 minutes)
-      function validEntry(d) {
-        return d.profileName is string && d.profileName.size() <= 60
-          && d.todayFocusMinutes is number && d.todayFocusMinutes >= 0 && d.todayFocusMinutes <= 1440
-          && d.currentStreak is int && d.currentStreak >= 0 && d.currentStreak <= 10000
-          && d.date is string && d.date.size() <= 10
-          && d.lastStreakUpdate is string && d.lastStreakUpdate.size() <= 10
-          && (!('isGuest' in d) || d.isGuest is bool);
-      }
-      function fields() {
-        return ['profileName', 'todayFocusMinutes', 'currentStreak', 'lastStreakUpdate', 'date', 'isGuest'];
-      }
-      allow create: if request.auth != null && request.auth.uid == userId
-        && request.resource.data.keys().hasOnly(fields()) && validEntry(request.resource.data);
-      allow update: if request.auth != null && request.auth.uid == userId
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields()) && validEntry(request.resource.data);
-
-      // Only allow deletion by the owner
-      allow delete: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
     }
 
     // ========================================
@@ -56,36 +57,65 @@ service cloud.firestore {
     // ========================================
     match /userData/{userId} {
       // Users can only access their own data when authenticated
-      allow read, write, create, update, delete: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if realUser() && request.auth.uid == userId;
     }
     
     // ========================================
     // USERS COLLECTION (if it exists)
     // ========================================
     match /users/{userId} {
-      // Users can only access their own data when authenticated
-      allow read, write, create, update, delete: if request.auth != null && request.auth.uid == userId;
+      // Private: only the owner, with a real account. Nothing on the server trusts what's in here (pledges and the
+      // leaderboards use focusLedger, written by the server).
+      allow read, write: if realUser() && request.auth.uid == userId;
 
-      match /{allSubcollections=**} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+      // the one subcollection the app uses: users/{uid}/live/session (the running timer, for other devices)
+      match /live/{doc} {
+        allow read, write: if realUser() && request.auth.uid == userId && doc == 'session';
       }
     }
     
     // ========================================
     // FOCUS FLIGHTS
     // ========================================
-    // Focus Flights: a public, anonymous departures board (route + minutes only). Signed-in people only, so it can't be spammed.
+    // Focus Flights: a public, anonymous departures board (route + minutes only). Signed-in people only, and at most
+    // one post per person per 10 minutes: the same batch must stamp their private flightRate/{uid} doc with this
+    // flight's id, and the stamp it replaces must be older than 10 minutes. The flight itself never names its poster.
     match /flights/{flightId} {
+      function ratePath() {
+        return /databases/$(database)/documents/flightRate/$(request.auth.uid);
+      }
+      function rateOk() {
+        return existsAfter(ratePath())
+          && getAfter(ratePath()).data.last == request.time
+          && getAfter(ratePath()).data.id == flightId
+          && (!exists(ratePath()) || get(ratePath()).data.last < request.time - duration.value(10, 'm'));
+      }
       allow read: if true;
-      allow create: if request.auth != null
+      allow create: if realUser()
         && request.resource.data.keys().hasOnly(['from', 'to', 'minutes', 'createdAt'])
         && request.resource.data.keys().hasAll(['from', 'to', 'minutes', 'createdAt'])
         && request.resource.data.from is string && request.resource.data.from.matches('^[A-Z]{3}$')
         && request.resource.data.to is string && request.resource.data.to.matches('^[A-Z]{3}$')
         && request.resource.data.minutes is int
         && request.resource.data.minutes >= 1 && request.resource.data.minutes <= 360
-        && request.resource.data.createdAt == request.time;
+        && request.resource.data.createdAt == request.time
+        && rateOk();
       allow update, delete: if false;
+    }
+    // The poster's last-post stamp: private to them, written only together with the new flight it names.
+    match /flightRate/{userId} {
+      function flightPath(id) {
+        return /databases/$(database)/documents/flights/$(id);
+      }
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if realUser() && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly(['last', 'id'])
+        && request.resource.data.keys().hasAll(['last', 'id'])
+        && request.resource.data.last == request.time
+        && request.resource.data.id is string && request.resource.data.id.matches('^[A-Za-z0-9]{1,40}$')
+        && !exists(flightPath(request.resource.data.id))
+        && existsAfter(flightPath(request.resource.data.id));
+      allow delete: if false;
     }
 
     // ========================================

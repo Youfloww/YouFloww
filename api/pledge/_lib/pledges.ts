@@ -5,6 +5,7 @@
  *   pledgeUsers/{uid}       server-only: the one-active-pledge lock + a small order rate limit
  *   pledges/{orderId}       the pledge itself (the id is the Razorpay order id, so activation is idempotent)
  *   pledgeStats/public      public running totals for the charity card (live money only)
+ *   focusLedger/{uid}       read only: the server-witnessed focus a pledge is judged on (written by /api/focus/log)
  *
  * Every state change is a transaction that re-reads the current state first, so any handler can be re-run
  * (double clicks, the webhook racing the browser, a cron retry) without doing anything twice.
@@ -18,11 +19,13 @@ import {
   deadlineFor,
   goalSummary,
   windowStart,
+  type FocusLog,
   type Goal,
   type PledgeDoc,
   type PledgeStatus,
   feeFor,
 } from '../../../src/features/pledge/rules.js';
+import { ledgerFocusLog } from '../../../src/features/pledge/ledger.js';
 import { db } from './admin.js';
 import { payConfig } from './env.js';
 import { confirmCapturedPayment, createOrder, listOrderPayments, refundInFull } from './razorpay.js';
@@ -120,10 +123,6 @@ export async function activate(orderId: string, paymentId: string, via: 'checkou
   const pledgeRef = fs.doc(`pledges/${orderId}`);
   const pre = await orderRef.get();
   if (!pre.exists) return { ok: false, reason: 'unknown-order' };
-  const uid = (pre.data() as OrderDoc).uid;
-  // Read outside the transaction: the app writes users/{uid} often and the baseline needn't be transactional.
-  const user = await fs.doc(`users/${uid}`).get();
-  const baselineFocusSeconds = Math.max(0, Math.round(num(user.get('totalFocusSeconds'))));
 
   const r = await fs.runTransaction(async (tx): Promise<ActivateResult> => {
     const o = (await tx.get(orderRef)).data() as OrderDoc;
@@ -141,6 +140,10 @@ export async function activate(orderId: string, paymentId: string, via: 'checkou
       const a = await tx.get(fs.doc(`pledges/${activeId}`));
       busy = a.exists && a.get('status') === 'active';
     }
+    // The baseline is the server-witnessed lifetime focus (never the browser-written users/{uid}), read in the
+    // same transaction, so a report racing the activation is counted exactly once: in the baseline or after it.
+    const ledger = await tx.get(fs.doc(`focusLedger/${o.uid}`));
+    const baselineFocusSeconds = Math.max(0, Math.round(num(ledger.get('totalSec'))));
     const now = Date.now();
     const base = {
       id: orderId,
@@ -159,6 +162,7 @@ export async function activate(orderId: string, paymentId: string, via: 'checkou
       createdAt: now,
       mode: o.mode,
       termsVersion: o.termsVersion,
+      src: 'ledger' as const,
     };
     tx.update(orderRef, { status: 'activated', paymentId, activatedAt: now, via });
     if (busy) {
@@ -189,8 +193,7 @@ export async function settleOne(id: string, now = Date.now()): Promise<PledgeSta
   if (!first || first.status !== 'active') return first?.status ?? 'not-due';
   if (first.deadline + SETTLE_GRACE_MS > now) return 'not-due';
 
-  const user = await fs.doc(`users/${first.uid}`).get();
-  const progress = computeProgress(first, user.exists ? user.data() : null, first.deadline);
+  const progress = computeProgress(first, await focusLogOf(first), first.deadline);
 
   return fs.runTransaction(async (tx) => {
     const p = (await tx.get(ref)).data() as PledgeDoc;
@@ -217,6 +220,22 @@ export async function settleOne(id: string, now = Date.now()): Promise<PledgeSta
     }
     return status;
   });
+}
+
+/**
+ * The focus a pledge is judged on. Pledges with `src: 'ledger'`: only the server's focus ledger, the sessions
+ * it witnessed (nothing from the browser). Older pledges, activated before the ledger existed, still read the
+ * synced users/{uid} as they were promised; the last of them settles within the longest pledge window.
+ */
+async function focusLogOf(p: PledgeDoc): Promise<FocusLog | null> {
+  const fs = db();
+  if (p.src === 'ledger') {
+    const ledger = await fs.doc(`focusLedger/${p.uid}`).get();
+    return ledgerFocusLog(ledger.exists ? ledger.data() : null);
+  }
+  const user = await fs.doc(`users/${p.uid}`).get();
+  if (!user.exists) return null;
+  return { sessionLog: user.get('sessionLog'), totalFocusSeconds: user.get('totalFocusSeconds'), dailyFocusSeconds: user.get('dailyFocusSeconds') };
 }
 
 const LEASE_MS = 2 * 60 * 1000;
@@ -306,6 +325,7 @@ async function markUnclaimed(orderId: string, paymentId: string): Promise<boolea
       createdAt: now,
       mode: o.mode,
       termsVersion: o.termsVersion,
+      src: 'ledger',
       startAt: now,
       deadline: now,
       status: 'refund_pending',

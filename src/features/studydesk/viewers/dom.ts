@@ -1,5 +1,27 @@
 /** Helpers for viewers that render documents as HTML (Word, slides). */
 
+/**
+ * Make links inside a rendered document safe: a Word file can carry any link target (`javascript:`, `data:`, ...),
+ * and the renderer copies it straight into `href`. Only http(s), mailto and in-document `#anchors` stay; external
+ * links open in a new tab without access to this page.
+ */
+export function safeLinks(...roots: (HTMLElement | null)[]) {
+  for (const root of roots) {
+    if (!root) continue;
+    root.querySelectorAll<HTMLElement>('a[href], area[href], [*|href]:not(image):not(use)').forEach((el) => {
+      const raw = (el.getAttribute('href') ?? el.getAttributeNS('http://www.w3.org/1999/xlink', 'href') ?? '').trim();
+      if (raw.startsWith('#')) return;
+      if (/^(https?:|mailto:)/i.test(raw)) {
+        el.setAttribute('target', '_blank');
+        el.setAttribute('rel', 'noopener noreferrer');
+        return;
+      }
+      el.removeAttribute('href');
+      el.removeAttributeNS('http://www.w3.org/1999/xlink', 'href');
+    });
+  }
+}
+
 /** Free every blob: URL a renderer left inside these nodes (images, embedded fonts). */
 export function revokeBlobUrls(...roots: (HTMLElement | null)[]) {
   const seen = new Set<string>();

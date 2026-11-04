@@ -7,6 +7,7 @@ import { toast, useUI } from '@/store/ui';
 import { haptic } from '@/lib/utils';
 import { notify } from '@/lib/notify';
 import { usePrefs } from '@/store/prefs';
+import { reportSession } from '@/services/focusLedger';
 
 /* ------------------------------------------------------------------ */
 /* Worker-driven ticks: setInterval inside a worker isn't throttled     */
@@ -346,6 +347,7 @@ export function endEarly() {
   const seconds = Math.round(elapsedAt(s, Date.now()) / 1000);
   if (seconds >= 30) {
     const res = useData.getState().recordSession({ seconds, completed: false, startedAt: s.sessionStartedAt ?? Date.now() - seconds * 1000, todoId: s.activeTodoId, todoSeconds: taskShare(s, seconds), src: s.source?.id });
+    reportSession(seconds, false);
     play('early');
     bus.emit('session:early', { seconds });
     toast({ emoji: '🫧', title: `Logged ${formatDuration(seconds, { long: true })}`, body: 'Ended early — every minute still counts.' });
@@ -376,6 +378,7 @@ export function complete() {
     const seconds = Math.round(Math.min(elapsedAt(s, Date.now()), s.durationMs + 5000) / 1000);
     const todo = useData.getState().data.todos.find((t) => t.id === s.activeTodoId);
     const res = useData.getState().recordSession({ seconds, completed: true, startedAt: s.sessionStartedAt ?? Date.now() - seconds * 1000, todoId: s.activeTodoId, todoSeconds: taskShare(s, seconds), src: s.source?.id });
+    reportSession(seconds, true);
     const cycle = s.cycle + 1;
     const mode = nextMode(cycle);
     useTimer.setState({ cycle, activeTodoId: res.autoCompletedTodo ? null : s.activeTodoId });

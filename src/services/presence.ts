@@ -1,11 +1,10 @@
 import { create } from 'zustand';
 import { useTimer } from '@/store/timer';
-import { uid } from '@/lib/utils';
 import type { FB } from './firebase';
 
 /**
- * Live "flowing now" presence. Document fields match the v2 presence shape
- * exactly so they pass the existing (strict) Firestore rules.
+ * Live "flowing now" presence: one doc per signed-in person (id = their uid), exactly the fields the strict
+ * Firestore rules accept.
  * Counting reads only recently-active docs (single-field index on lastActiveMs).
  */
 export const usePresence = create<{ online: number | null; focusing: number | null }>(() => ({ online: null, focusing: null }));
@@ -23,16 +22,16 @@ const isFocusing = () => {
   return t.status === 'running' && t.mode === 'focus';
 };
 
+/** The whole check-in doc (the rules accept exactly these fields; no device details, it is world-readable). */
+function presenceDoc(fb: FB, userId: string) {
+  const { fsMod } = fb;
+  return { uid: userId, createdAt: fsMod.serverTimestamp(), lastActive: fsMod.serverTimestamp(), lastActiveMs: Date.now(), isFocusing: isFocusing() };
+}
+
 async function beat() {
   if (!fbRef || !docId || !myUid) return;
   const { fsMod, db } = fbRef;
-  await fsMod
-    .setDoc(
-      fsMod.doc(db, 'presence', docId),
-      { uid: myUid, lastActive: fsMod.serverTimestamp(), lastActiveMs: Date.now(), isFocusing: isFocusing(), userAgent: navigator.userAgent.slice(0, 180) },
-      { merge: true },
-    )
-    .catch(() => {});
+  await fsMod.setDoc(fsMod.doc(db, 'presence', docId), presenceDoc(fbRef, myUid)).catch(() => {});
 }
 
 export async function refreshCount(fb: FB | null = fbRef) {
@@ -66,20 +65,14 @@ export async function startPresence(fb: FB, userId: string) {
   await stopPresence();
   fbRef = fb;
   myUid = userId;
-  docId = `${userId.slice(0, 10)}_${uid()}`;
+  docId = userId; // one doc per person: every tab of theirs shares it
   const { fsMod, db } = fb;
   try {
-    await fsMod.setDoc(fsMod.doc(db, 'presence', docId), {
-      uid: userId,
-      createdAt: fsMod.serverTimestamp(),
-      lastActive: fsMod.serverTimestamp(),
-      lastActiveMs: Date.now(),
-      isFocusing: isFocusing(),
-      userAgent: navigator.userAgent.slice(0, 180),
-    });
+    await fsMod.setDoc(fsMod.doc(db, 'presence', docId), presenceDoc(fb, userId));
   } catch {
     /* presence is a nice-to-have */
   }
+  void clearOldDocs(fb, userId);
   heartbeat = setInterval(beat, 25_000);
   // Push focus state changes immediately
   let was = isFocusing();
@@ -92,6 +85,17 @@ export async function startPresence(fb: FB, userId: string) {
   });
   addEventListener('pagehide', removeDoc);
   watchCount(fb);
+}
+
+/** Older versions kept one doc per tab (with the browser's name in it): remove this person's leftovers. */
+async function clearOldDocs(fb: FB, userId: string) {
+  const { fsMod, db } = fb;
+  try {
+    const snap = await fsMod.getDocs(fsMod.query(fsMod.collection(db, 'presence'), fsMod.where('uid', '==', userId), fsMod.limit(50)));
+    await Promise.all(snap.docs.filter((d) => d.id !== userId).map((d) => fsMod.deleteDoc(d.ref).catch(() => {})));
+  } catch {
+    /* best effort */
+  }
 }
 
 function removeDoc() {

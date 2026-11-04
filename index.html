@@ -35,15 +35,7 @@
     </script>
 
     <!-- Paint the right theme before React boots: no flash. -->
-    <script>
-      (function () {
-        try {
-          var p = JSON.parse(localStorage.getItem('floww:prefs') || '{}');
-          var t = (p.state && p.state.theme) || 'peach';
-          document.documentElement.dataset.theme = t;
-        } catch (e) {}
-      })();
-    </script>
+    <script src="/boot.js"></script>
     <style>
       html, body { margin: 0; background: #fff1e8; }
       html[data-theme='midnight'], html[data-theme='nebula'] { background: #140f22; }
@@ -65,11 +57,6 @@
     <script type="module" src="/src/main.tsx"></script>
     <!-- Google Analytics (kept from v2) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-V3CLSWYVTF"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-V3CLSWYVTF');
-    </script>
+    <script src="/ga.js"></script>
   </body>
 </html>

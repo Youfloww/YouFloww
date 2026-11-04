@@ -2,8 +2,11 @@
   "rules": {
     ".read": false,
     ".write": false,
-    "status": {
-      "$uid": { ".read": "auth != null", ".write": "auth != null && auth.uid == $uid" }
+    "occ": {
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.isString() && newData.val().matches(/^r([1-9]|[1-4][0-9]|50)\\/s([0-9]|[12][0-9]|3[0-5])$/)"
+      }
     },
     "halls": {
       "$rid": {
@@ -11,7 +14,7 @@
         "seats": {
           ".read": "auth != null",
           "$slot": {
-            ".validate": "$slot.matches(/^s([0-9]|[12][0-9]|3[0-5])$/) && newData.hasChildren(['u', 'n', 'a', 's', 'h'])",
+            ".validate": "$slot.matches(/^s([0-9]|[12][0-9]|3[0-5])$/) && newData.hasChildren(['u', 'n', 'a', 's', 'h']) && newData.parent().parent().parent().parent().child('occ/' + auth.uid).val() === $rid + '/' + $slot",
             ".write": "auth != null && ((!data.exists() && newData.child('u').val() === auth.uid) || data.child('u').val() === auth.uid || (!newData.exists() && data.child('h').val() < now - 600000))",
             "u": { ".validate": "newData.isString() && newData.val() === auth.uid" },
             "n": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 20" },
@@ -32,7 +35,7 @@
             ".write": "auth != null && auth.uid === $to && !newData.exists()",
             "$from": {
               ".write": "auth != null && auth.uid === $from && $from !== $to && (!data.exists() || data.child('t').val() < now - 120000)",
-              ".validate": "newData.hasChildren(['t', 'k', 'c']) && newData.child('t').val() === now && newData.child('c').val() === (data.exists() ? data.child('c').val() + 1 : 1)",
+              ".validate": "newData.hasChildren(['t', 'k', 'c']) && newData.child('t').val() === now && newData.child('c').val() === (data.exists() ? data.child('c').val() + 1 : 1) && root.child('occ/' + auth.uid).val().beginsWith($rid + '/') && root.child('halls/' + root.child('occ/' + auth.uid).val().replace('/', '/seats/') + '/u').val() === auth.uid && root.child('occ/' + $to).val().beginsWith($rid + '/') && root.child('halls/' + root.child('occ/' + $to).val().replace('/', '/seats/') + '/u').val() === $to",
               "t": { ".validate": "newData.isNumber()" },
               "k": { ".validate": "newData.isString() && (newData.val() === 'hf' || newData.val() === 'kd' || newData.val() === 'yg')" },
               "c": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 100000" },

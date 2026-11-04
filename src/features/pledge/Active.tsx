@@ -8,6 +8,7 @@ import { useTimer } from '@/store/timer';
 import { useUI } from '@/store/ui';
 import { start } from '../timer/engine';
 import { STREAK_DAY_MINUTES, computeProgress, goalSummary, rupees, zonedDateKey, type PledgeDoc } from './rules';
+import { useLedgerLog } from './useLedger';
 import { ART, DayStrip, Medallion, Ring, StatusChip, dur, timeLeft, useNow, when } from './ui';
 
 /** Seconds of the focus session running right now (not yet in the log), if it started inside the pledge. */
@@ -22,8 +23,11 @@ export function ActiveView({ p }: { p: PledgeDoc }) {
   const running = useTimer((s) => s.status === 'running' && s.mode === 'focus');
   const now = useNow(running ? 1000 : 30000);
   const data = useData((s) => s.data);
+  // ledger pledges are judged on server-witnessed focus only: show that (plus this device's unsent sessions)
+  const ledger = useLedgerLog(p.src === 'ledger');
+  const source = p.src === 'ledger' ? ledger : data;
   const live = useLiveSeconds(p.startAt, now);
-  const prog = useMemo(() => computeProgress(p, data, now, live), [p, data, now, live]);
+  const prog = useMemo(() => computeProgress(p, source, now, live), [p, source, now, live]);
   const today = zonedDateKey(now, p.tz);
   const left = p.deadline - now;
   const notStarted = now < p.startAt;

@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { coverFromText } from '../cover';
 import { errMsg, type ViewerProps } from './types';
-import { revokeBlobUrls } from './dom';
+import { revokeBlobUrls, safeLinks } from './dom';
 
 export default function DocxViewer({ file, scale, reflow, onInfo, onError, onCover }: ViewerProps) {
   const body = useRef<HTMLDivElement>(null);
@@ -32,10 +32,13 @@ export default function DocxViewer({ file, scale, reflow, onInfo, onError, onCov
         renderFootnotes: true,
         renderEndnotes: true,
         renderComments: false,
+        // embedded HTML chunks would render as a same-origin iframe srcdoc: their scripts would run as this app
+        renderAltChunks: false,
         useBase64URL: false,
         experimental: true,
       });
       if (dead) return;
+      safeLinks(host);
       // Word bullets use private-use Symbol / Wingdings glyphs that browsers can't draw
       const GLYPHS: Record<string, string> = { '\uf0b7': '•', '\uf0a7': '▪', '\uf0d8': '➢', '\uf0fc': '✓', '\uf076': '❖', '\uf0a8': '◦', '\uf06e': '■', '\uf0e8': '➔', '\uf0d2': '◆' };
       css.querySelectorAll('style').forEach((st) => {

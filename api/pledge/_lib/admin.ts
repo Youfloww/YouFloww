@@ -50,6 +50,14 @@ export function db(): Firestore {
   return (dbCache ??= getFirestore(app()));
 }
 
+/** When the person's Firebase Auth account was created (ms). Throws when it can't be read. */
+export async function accountCreatedAt(uid: string): Promise<number> {
+  const user = await getAuth(app()).getUser(uid);
+  const t = Date.parse(user.metadata.creationTime);
+  if (!Number.isFinite(t) || t <= 0) throw new Error('account creation time unavailable');
+  return t;
+}
+
 /** The signed-in person behind `Authorization: Bearer <Firebase ID token>`, or null. */
 export async function verifyUser(request: Request): Promise<{ uid: string } | null> {
   const m = /^Bearer ([A-Za-z0-9._-]{20,4096})$/.exec(request.headers.get('authorization') ?? '');
